@@ -1,0 +1,104 @@
+newmtl coat
+Kd 0.678431 0.486275 0.333333
+Ka 0.135686 0.097255 0.066667
+Ks 0.05 0.05 0.05
+Ns 24.0
+d 1.0
+illum 2
+map_Kd ../textures/shortcoat_basecolor.png
+norm ../textures/shortcoat_normal.png
+
+newmtl coat_dark
+Kd 0.490196 0.333333 0.215686
+Ka 0.098039 0.066667 0.043137
+Ks 0.05 0.05 0.05
+Ns 24.0
+d 1.0
+illum 2
+map_Kd ../textures/shortcoat_basecolor.png
+norm ../textures/shortcoat_normal.png
+
+newmtl mask
+Kd 0.427451 0.313725 0.223529
+Ka 0.085490 0.062745 0.044706
+Ks 0.05 0.05 0.05
+Ns 30.0
+d 1.0
+illum 2
+map_Kd ../textures/shortcoat_basecolor.png
+norm ../textures/shortcoat_normal.png
+
+newmtl white
+Kd 0.909804 0.870588 0.815686
+Ka 0.181961 0.174118 0.163137
+Ks 0.05 0.05 0.05
+Ns 30.0
+d 1.0
+illum 2
+map_Kd ../textures/shortcoat_basecolor.png
+norm ../textures/shortcoat_normal.png
+
+newmtl nose
+Kd 0.141176 0.113725 0.105882
+Ka 0.028235 0.022745 0.021176
+Ks 0.05 0.05 0.05
+Ns 116.0
+d 1.0
+illum 2
+
+newmtl mouth
+Kd 0.603922 0.356863 0.384314
+Ka 0.120784 0.071373 0.076863
+Ks 0.05 0.05 0.05
+Ns 90.0
+d 1.0
+illum 2
+
+newmtl eye_iris
+Kd 0.466667 0.278431 0.121569
+Ka 0.093333 0.055686 0.024314
+Ks 0.05 0.05 0.05
+Ns 156.0
+d 1.0
+illum 2
+
+newmtl eye_dark
+Kd 0.070588 0.054902 0.050980
+Ka 0.014118 0.010980 0.010196
+Ks 0.05 0.05 0.05
+Ns 164.0
+d 1.0
+illum 2
+
+newmtl eye_rim
+Kd 0.101961 0.078431 0.070588
+Ka 0.020392 0.015686 0.014118
+Ks 0.05 0.05 0.05
+Ns 110.0
+d 1.0
+illum 2
+
+newmtl eye_glint
+Kd 0.964706 0.956863 0.937255
+Ka 0.192941 0.191373 0.187451
+Ks 0.05 0.05 0.05
+Ns 188.0
+d 1.0
+illum 2
+
+newmtl collar
+Kd 0.105882 0.098039 0.117647
+Ka 0.021176 0.019608 0.023529
+Ks 0.05 0.05 0.05
+Ns 80.0
+d 1.0
+illum 2
+
+newmtl tag
+Kd 0.058824 0.058824 0.074510
+Ka 0.011765 0.011765 0.014902
+Ks 0.05 0.05 0.05
+Ns 130.0
+d 1.0
+illum 2
+

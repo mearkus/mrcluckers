@@ -17,8 +17,8 @@ import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "tools"))
 
-from mc import anim, gltf, obj, png, pose as po, raster, rig, sprites  # noqa: E402
-from mc import texture, vmath as v  # noqa: E402
+from mc import anim, ginger, gltf, obj, png, pose as po, raster, rig, sprites  # noqa: E402
+from mc import mesh as ms, texture, vmath as v  # noqa: E402
 
 VIEWS = {
     "side": sprites.SIDE_RIGHT,
@@ -82,6 +82,48 @@ def build_textures(out_dir, size):
     print("  %-38s %7.1f KB  (%d families at %dpx)"
           % ("textures/", total / 1024.0, len(maps), size))
     return maps, encoded
+
+
+def build_ginger(out_dir, ref_dir, textures=None, maps=None):
+    """Ginger: rest-pose model and a turnaround. No rig or clips yet."""
+    os.makedirs(out_dir, exist_ok=True)
+    parts = ginger.build_parts()
+
+    world = {}
+    for name in ginger.ORDER:
+        parent = ginger.PARENT[name]
+        t = v.translation(ginger.REST_T[name])
+        world[name] = t if parent is None else v.mat_mul(world[parent], t)
+    flat = ms.Mesh()
+    for name, part in parts.items():
+        c = part.copy()
+        c.transform(world[name])
+        flat.merge(c)
+
+    doc, blob = gltf.build_gltf(parts, ginger.MATERIALS, base=None,
+                                name="Ginger", textures=textures,
+                                skeleton=ginger)
+    size = gltf.write_glb(os.path.join(out_dir, "ginger.glb"), doc, blob)
+    print("  %-38s %7.1f KB  %d tris" % ("ginger.glb", size / 1024.0,
+                                         len(flat.faces)))
+    obj.write_obj(os.path.join(out_dir, "ginger.obj"),
+                  os.path.join(out_dir, "ginger.mtl"),
+                  flat, ginger.MATERIALS, mtl_name="ginger.mtl",
+                  texture_dir="../textures" if textures else None)
+
+    os.makedirs(ref_dir, exist_ok=True)
+    cell, steps = 300, 8
+    sheet = bytearray(cell * steps * cell * 4)
+    for i in range(steps):
+        cam = raster.Camera(yaw=v.deg(360.0 * i / steps), pitch=v.deg(7),
+                            target=(0.0, 0.72, 0.0), height=2.35)
+        png.blit(sheet, cell * steps,
+                 raster.render(flat, ginger.MATERIALS, cell, cell, cam,
+                               supersample=3, outline=0.25, textures=maps),
+                 cell, cell, i * cell, 0)
+    png.write_rgba(os.path.join(ref_dir, "ginger_turnaround.png"),
+                   cell * steps, cell, sheet)
+    print("  %-38s %4dx%-4d" % ("ginger_turnaround.png", cell * steps, cell))
 
 
 def build_model(parts, base, out_dir, clips, textures=None):
@@ -171,11 +213,12 @@ def main():
     ap.add_argument("--no-textures", action="store_true",
                     help="flat colours, no fabric maps")
     ap.add_argument("--levels", default="levels", help="level source directory")
-    ap.add_argument("--only", choices=["model", "sprites", "turnaround", "levels"],
+    ap.add_argument("--only",
+                    choices=["model", "sprites", "turnaround", "levels", "ginger"],
                     action="append", help="build only these (repeatable)")
     args = ap.parse_args()
 
-    only = set(args.only or ["model", "sprites", "turnaround", "levels"])
+    only = set(args.only or ["model", "sprites", "turnaround", "levels", "ginger"])
     print("Mr. Cluckers build")
     t0 = time.time()
 
@@ -208,6 +251,9 @@ def main():
     if "turnaround" in only:
         build_turnaround(parts, base, os.path.join(args.out, "reference"),
                          textures=maps)
+    if "ginger" in only:
+        build_ginger(os.path.join(args.out, "model"),
+                     os.path.join(args.out, "reference"), encoded, maps)
 
     print("  done in %.1fs" % (time.time() - t0))
 

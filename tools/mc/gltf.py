@@ -161,12 +161,15 @@ def _mesh_primitives(mesh, buf, material_index, textured):
 
 
 def build_gltf(parts, materials, clips=None, base=None, name="MrCluckers",
-               textures=None):
+               textures=None, skeleton=None):
     """Assemble the glTF document and its binary blob.
 
     `textures` maps a fabric family name to {"basecolor": png_bytes,
     "normal": png_bytes}; pass None for an untextured, flat-colour model.
+    `skeleton` is any module exposing ORDER / PARENT / REST_T / SKELETON --
+    it defaults to Mr. Cluckers' rig, but Ginger has her own.
     """
+    skel = skeleton or rig
     buf = _Buffer()
     clips = clips or {}
 
@@ -218,7 +221,7 @@ def build_gltf(parts, materials, clips=None, base=None, name="MrCluckers",
 
     # Nodes: one armature node carrying the fit transform, then the joints.
     nodes, node_index = [], {}
-    for joint in rig.ORDER:
+    for joint in skel.ORDER:
         node_index[joint] = len(nodes) + 1        # +1 for the armature node
         nodes.append(None)
     armature = {"name": name, "children": [node_index["root"]]}
@@ -228,9 +231,9 @@ def build_gltf(parts, materials, clips=None, base=None, name="MrCluckers",
         armature["translation"] = [base[0][3], base[1][3], base[2][3]]
     nodes_out = [armature]
 
-    for joint in rig.ORDER:
-        node = {"name": joint, "translation": list(rig.REST_T[joint])}
-        children = [node_index[c] for c, p, _ in rig.SKELETON if p == joint]
+    for joint in skel.ORDER:
+        node = {"name": joint, "translation": list(skel.REST_T[joint])}
+        children = [node_index[c] for c, p, _ in skel.SKELETON if p == joint]
         if children:
             node["children"] = children
         if joint in mesh_index:
@@ -245,7 +248,7 @@ def build_gltf(parts, materials, clips=None, base=None, name="MrCluckers",
         moved = set()
         for _, pose in clip.keys:
             moved |= set(pose.keys())
-        for joint in rig.ORDER:
+        for joint in skel.ORDER:
             if joint not in moved:
                 continue
             quats = []
@@ -259,7 +262,7 @@ def build_gltf(parts, materials, clips=None, base=None, name="MrCluckers",
         scaled = set()
         for _, p in clip.keys:
             scaled |= set(getattr(p, "scales", {}))
-        for joint in rig.ORDER:
+        for joint in skel.ORDER:
             if joint not in scaled:
                 continue
             values = [getattr(p, "scales", {}).get(joint, (1.0, 1.0, 1.0))
@@ -271,7 +274,7 @@ def build_gltf(parts, materials, clips=None, base=None, name="MrCluckers",
 
         offsets = [getattr(p, "root_offset", (0.0, 0.0, 0.0)) for _, p in clip.keys]
         if any(o != (0.0, 0.0, 0.0) for o in offsets):
-            translations = [v.add(rig.REST_T["root"], o) for o in offsets]
+            translations = [v.add(skel.REST_T["root"], o) for o in offsets]
             samplers.append({"input": time_acc, "interpolation": "LINEAR",
                              "output": buf.add_vec3(translations)})
             channels.append({"sampler": len(samplers) - 1,

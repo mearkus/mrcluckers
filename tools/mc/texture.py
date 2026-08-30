@@ -90,6 +90,20 @@ def corduroy_height(size, ribs=6, seed=17):
     return h
 
 
+def shortcoat_height(size, seed=41):
+    """Short dog coat: fine directional hair, very low relief."""
+    h = [[0.0] * size for _ in range(size)]
+    for y in range(size):
+        fy = y / float(size)
+        for x in range(size):
+            fx = x / float(size)
+            # Hairs lie along v, so stretch the noise hard in that direction.
+            hair = tile_fbm(fx * 40, fy * 9, 40, 9, 3, seed)
+            sheen = tile_fbm(fx * 7, fy * 7, 7, 7, 2, seed + 60)
+            h[y][x] = 0.68 * hair + 0.32 * sheen
+    return h
+
+
 def felt_height(size, seed=29):
     """Short dense nap: fine, tight, almost flat."""
     h = [[0.0] * size for _ in range(size)]
@@ -149,6 +163,7 @@ FAMILIES = {
     "fur":      {"height": fur_height,      "contrast": 0.22, "strength": 2.4},
     "corduroy": {"height": corduroy_height, "contrast": 0.26, "strength": 3.4},
     "felt":     {"height": felt_height,     "contrast": 0.12, "strength": 1.3},
+    "shortcoat": {"height": shortcoat_height, "contrast": 0.14, "strength": 1.1},
 }
 
 
