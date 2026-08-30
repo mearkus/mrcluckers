@@ -24,6 +24,7 @@ python3 build.py
 | `assets/sprites/mrcluckers_side.png` | The sprite sheet: one row per animation. |
 | `assets/sprites/mrcluckers_side.json` | Frame rectangles, timings, and the foot anchor. |
 | `assets/sprites/mrcluckers_side.js` | The same data as a `<script>` tag, for `file://` demos. |
+| `assets/sprites/ginger_side.png` + `.json` | Ginger's sheet, baked at the same pixels-per-unit so the two are to scale. |
 | `assets/textures/*.png` | Tiling fabric maps: base colour and normals for fur, corduroy and felt. |
 | `assets/reference/turnaround.png` | Eight-angle turnaround for reference. |
 | `shared/controls.js` | On-screen controls for touch devices, used by both demos. |
@@ -195,6 +196,10 @@ as the mesh, which is why her head is deliberately denser than her body.
 The eyes are built as almond lenses — a superellipse with the corners pulled
 out — stacked rim, iris, pupil and highlight, and seated on the skull surface
 just behind the stop so they read from the front as well as in profile.
+
+She waits at each level's goal — sitting until Mr. Cluckers arrives, then
+`greet`, then wagging. Both demos show her: the canvas one from her sprite
+sheet, the three.js one from her glTF.
 
 She is rigged and has five clips — `stand`, `wag`, `sit`, `sit_idle` and
 `greet` — in `tools/mc/ginger_anim.py`. Her tail is three segments driven

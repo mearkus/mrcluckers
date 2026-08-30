@@ -128,6 +128,38 @@ def build_ginger(out_dir, ref_dir, textures=None, maps=None, flop=1.0):
     print("  %-38s %4dx%-4d" % ("ginger_turnaround.png", cell * steps, cell))
 
 
+def build_ginger_sprites(out_dir, maps=None, flop=1.0, px_per_unit=72.73):
+    """Bake Ginger to a sheet at the same scale as Mr. Cluckers.
+
+    Her cell is wider than it is tall -- she is a dog, so she is longer than
+    she is high -- and `px_per_unit` matches his sheet so the two characters
+    are to scale when drawn in the same level.
+    """
+    os.makedirs(out_dir, exist_ok=True)
+    parts = ginger.build_parts()
+    clips = ginger_anim.all_clips(flop=flop)
+
+    cell_w, cell_h = 192, 144
+    camera = sprites.make_camera(cell_w, view_height=cell_h / px_per_unit,
+                                 target_y=0.74, pitch=v.deg(4.0))
+    order = ["sit_idle", "greet", "wag", "stand"]
+    rows, total = [], 0
+    for name in order:
+        clip = clips[name]
+        frames = sprites.render_frames(parts, ginger.MATERIALS, clip.poses(),
+                                       camera, cell_w, cell_h=cell_h,
+                                       supersample=2, outline=0.28,
+                                       textures=maps, skel=ginger)
+        rows.append((name, frames))
+        total += len(frames)
+
+    w, h = sprites.write_sheet(os.path.join(out_dir, "ginger_side.png"),
+                               os.path.join(out_dir, "ginger_side.json"),
+                               rows, clips, cell_w, camera, view_name="side",
+                               cell_h=cell_h, global_key="GINGER")
+    print("  %-38s %4dx%-4d %d frames" % ("ginger_side.png", w, h, total))
+
+
 def build_model(parts, base, out_dir, clips, textures=None):
     os.makedirs(out_dir, exist_ok=True)
     doc, blob = gltf.build_gltf(parts, rig.MATERIALS, clips=clips, base=base,
@@ -256,6 +288,7 @@ def main():
     if "ginger" in only:
         build_ginger(os.path.join(args.out, "model"),
                      os.path.join(args.out, "reference"), encoded, maps)
+        build_ginger_sprites(os.path.join(args.out, "sprites"), maps)
 
     print("  done in %.1fs" % (time.time() - t0))
 
