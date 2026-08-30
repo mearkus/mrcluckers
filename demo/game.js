@@ -44,6 +44,12 @@
     return { slug: slug, data: window.MRCLUCKERS_LEVELS[slug] };
   }
 
+  // Ginger waits at the goal. Her sheet is baked at the same pixels-per-unit
+  // as his, so she draws 1:1 in the same world space.
+  var GDATA = window.GINGER && window.GINGER.side;
+  var gingerSheet = null;
+  var ginger = null;
+
   var picked = pickLevel();
   // Authored in world units with Y up; the canvas works in pixels with Y down.
   var LEVEL = window.Level.toPixels(picked.data, PX);
@@ -74,13 +80,14 @@
   });
 
   // -------------------------------------------------------------- sprites
-  function Anim(name) {
+  function Anim(name, data) {
+    this.data = data || DATA;
     this.set(name, true);
   }
   Anim.prototype.set = function (name, force) {
     if (this.name === name && !force) return;
     this.name = name;
-    this.clip = DATA.animations[name];
+    this.clip = this.data.animations[name];
     this.frame = 0;
     this.time = 0;
     this.done = false;
@@ -105,6 +112,8 @@
   };
 
   // --------------------------------------------------------------- player
+  if (GDATA) ginger = { anim: new Anim("sit_idle", GDATA), greeted: false };
+
   var player = {
     x: LEVEL.spawn.x, y: LEVEL.spawn.y, vx: 0, vy: 0,
     facing: 1, onGround: true, coyote: 0, buffer: 0,
@@ -218,6 +227,14 @@
       player.action = "crow";
       player.actionTime = 0;
       player.anim.set("crow", true);
+      if (ginger) { ginger.anim.set("greet", true); ginger.greeted = true; }
+    }
+    if (ginger) {
+      // Once the greeting has played out she settles into wagging.
+      if (ginger.greeted && ginger.anim.name === "greet" && ginger.anim.done) {
+        ginger.anim.set("wag", true);
+      }
+      ginger.anim.update(dt);
     }
 
     var wasAir = !player.onGround;
@@ -369,16 +386,25 @@
       ctx.fill();
     }
 
-    if (LEVEL.goal) {
+    if (LEVEL.goal && ginger && gingerSheet) {
       var g = LEVEL.goal;
-      ctx.fillStyle = player.reached ? "#e0b52c" : "#cf2027";
-      ctx.fillRect(g.x - 2, g.y - 62, 4, 62);
+      var gb = ginger.anim.box();
+      var ga = GDATA.meta.anchor;
+      // Her shadow, then the dog herself, mirrored so she faces him coming.
+      ctx.fillStyle = "rgba(20, 30, 20, .26)";
       ctx.beginPath();
-      ctx.moveTo(g.x + 2, g.y - 62);
-      ctx.lineTo(g.x + 34, g.y - 52);
-      ctx.lineTo(g.x + 2, g.y - 42);
-      ctx.closePath();
+      ctx.ellipse(g.x, g.y + 2, 52, 10, 0, 0, Math.PI * 2);
       ctx.fill();
+      ctx.save();
+      ctx.translate(g.x, g.y);
+      ctx.scale(-1, 1);
+      ctx.drawImage(gingerSheet, gb.x, gb.y, gb.w, gb.h,
+                    -ga.x, -ga.y, gb.w, gb.h);
+      ctx.restore();
+    } else if (LEVEL.goal) {
+      var f = LEVEL.goal;
+      ctx.fillStyle = player.reached ? "#e0b52c" : "#cf2027";
+      ctx.fillRect(f.x - 2, f.y - 62, 4, 62);
     }
 
     // Soft contact shadow, sized by how far above the floor the bird is.
@@ -425,6 +451,12 @@
     update(dt);
     draw();
     requestAnimationFrame(frame);
+  }
+
+  if (GDATA) {
+    gingerSheet = new Image();
+    gingerSheet.src = window.GINGER_IMAGE ||
+      "../assets/sprites/" + GDATA.image;
   }
 
   sheet.onload = function () {

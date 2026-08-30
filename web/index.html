@@ -57,6 +57,7 @@
 </script>
 <script type="module">
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { Cluckers, sideCamera, resizeSideCamera, plushLighting }
   from './mrcluckers.js';
 
@@ -139,19 +140,49 @@ for (const h of LEVEL.hazards) {
   scene.add(m);
 }
 
-let goalFlag = null;
+// Ginger waits at the goal, facing back down the level so she is looking at
+// him as he arrives.
+let ginger = null;
 if (LEVEL.goal) {
-  goalFlag = new THREE.Group();
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.4, 8),
-    new THREE.MeshStandardMaterial({ color: '#d8d4c8', roughness: .8 }));
-  pole.position.y = 0.7;
-  const flag = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.32, 0.03),
-    new THREE.MeshStandardMaterial({ color: '#cf2027', roughness: .8 }));
-  flag.position.set(0.27, 1.2, 0);
-  goalFlag.add(pole, flag);
-  goalFlag.position.set(LEVEL.goal.x, LEVEL.goal.y, 0);
-  scene.add(goalFlag);
-  goalFlag.userData.flag = flag;
+  const gltf = await new GLTFLoader().loadAsync('../assets/model/ginger.glb');
+  const pivot = new THREE.Group();
+  pivot.rotation.y = -Math.PI / 2;
+  pivot.add(gltf.scene);
+  const root = new THREE.Group();
+  root.position.set(LEVEL.goal.x, LEVEL.goal.y, 0);
+  root.add(pivot);
+  scene.add(root);
+
+  const mixer = new THREE.AnimationMixer(gltf.scene);
+  const actions = {};
+  for (const clip of gltf.animations) {
+    const a = mixer.clipAction(clip);
+    if (clip.name === 'greet') {
+      a.setLoop(THREE.LoopOnce, 1);
+      a.clampWhenFinished = true;
+    }
+    actions[clip.name] = a;
+  }
+  let current = actions.sit_idle.play();
+  mixer.addEventListener('finished', (e) => {
+    if (e.action.getClip().name === 'greet') play('wag');
+  });
+  function play(name, fade = 0.2) {
+    const next = actions[name];
+    if (!next || next === current) return;
+    next.reset().play();
+    current.crossFadeTo(next, fade, false);
+    current = next;
+  }
+  ginger = { root, mixer, play };
+
+  const shadow = new THREE.Mesh(
+    new THREE.CircleGeometry(0.72, 28),
+    new THREE.MeshBasicMaterial({ color: 0x24401c, transparent: true, opacity: 0.24 })
+  );
+  shadow.rotation.x = -Math.PI / 2;
+  shadow.position.set(LEVEL.goal.x, LEVEL.goal.y + 0.012, 0);
+  scene.add(shadow);
 }
 
 // A blob shadow costs nothing and suits the toy better than a shadow map.
@@ -299,15 +330,15 @@ function update(dt) {
                        bird.play('squeak', { restart: true }); }
     }
   }
-  if (goalFlag) {
-    goalFlag.userData.flag.rotation.z = Math.sin(performance.now() / 320) * 0.12;
-    if (!P.reached && Math.abs(LEVEL.goal.x - P.x) < 0.5 &&
+  if (ginger) {
+    ginger.mixer.update(dt);
+    if (!P.reached && Math.abs(LEVEL.goal.x - P.x) < 0.6 &&
         Math.abs(LEVEL.goal.y - P.y) < 0.9) {
       P.reached = true;
       P.action = 'crow';
       P.actionTime = 0;
       bird.play('crow', { restart: true });
-      goalFlag.userData.flag.material.color.set('#e0b52c');
+      ginger.play('greet', 0.08);
     }
   }
   P.landTimer = Math.max(0, P.landTimer - dt);
