@@ -10,7 +10,11 @@
   var DATA = window.MRCLUCKERS.side;
   var CELL = DATA.meta.cell.w;
   var ANCHOR = DATA.meta.anchor;
-  var SCALE = 2;                       // sprite pixels -> screen pixels
+
+  // Sprite pixels -> backing-store pixels. Picked from the canvas size so the
+  // same amount of world stays visible on a phone as on a desktop.
+  var SCALE = 2;
+  var VIEW_WORLD_H = 280;              // world units we aim to show vertically
 
   // --- world tuning, in sprite pixels per second -------------------------
   var GRAVITY = 1750;
@@ -187,7 +191,49 @@
   var canvas = document.getElementById("stage");
   var ctx = canvas.getContext("2d");
   var sheet = new Image();
-  var camX = 0;
+  var camX = 0, camY = 0;
+
+  var ASPECT = 16 / 9;
+
+  function resize() {
+    // Letterbox to a landscape play area: a full-height portrait canvas would
+    // be mostly empty sky, since the level runs sideways.
+    var wrap = canvas.parentNode;
+    var availW = wrap.clientWidth, availH = wrap.clientHeight;
+    var cssW = Math.min(availW, availH * ASPECT);
+    var cssH = cssW / ASPECT;
+    canvas.style.width = cssW + "px";
+    canvas.style.height = cssH + "px";
+
+    // Backing store follows the real size, so it stays sharp on dense screens.
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var w = Math.max(1, Math.round(cssW * dpr));
+    var h = Math.max(1, Math.round(cssH * dpr));
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
+    }
+    SCALE = Math.max(1, Math.min(12, Math.round(h / VIEW_WORLD_H)));
+  }
+
+  function clamp(v, lo, hi) {
+    return v < lo ? lo : (v > hi ? hi : v);
+  }
+
+  function updateCamera() {
+    var viewW = canvas.width / SCALE;
+    var viewH = canvas.height / SCALE;
+    camX = clamp(player.x - viewW * 0.42, 0,
+                 Math.max(0, LEVEL.width - viewW));
+    // Keep him around two thirds down the view, but never show far below the
+    // ground -- on a tall portrait screen that clamp is what keeps him framed.
+    var lowest = LEVEL.ground + 60 - viewH;
+    camY = clamp(player.y - viewH * 0.64, Math.min(-150, lowest),
+                 Math.max(-150, lowest));
+    // Snap to whole screen pixels so the pixel art doesn't shimmer.
+    camX = Math.round(camX * SCALE) / SCALE;
+    camY = Math.round(camY * SCALE) / SCALE;
+  }
 
   function drawBackdrop(w, h) {
     var sky = ctx.createLinearGradient(0, 0, 0, h);
@@ -196,44 +242,46 @@
     ctx.fillStyle = sky;
     ctx.fillRect(0, 0, w, h);
 
+    // Hills are drawn in screen space so they can parallax against the camera.
+    var horizon = (LEVEL.ground - camY) * SCALE;
     ctx.fillStyle = "#a9cf9a";
-    for (var i = -1; i < 12; i++) {
-      var hx = i * 320 - (camX * 0.35) % 320;
+    var stepA = 320 * SCALE / 2;
+    for (var i = -1; i < Math.ceil(w / stepA) + 2; i++) {
       ctx.beginPath();
-      ctx.ellipse(hx, LEVEL.ground * SCALE - camY() + 30, 260, 150, 0, 0, Math.PI * 2);
+      ctx.ellipse(i * stepA - (camX * SCALE * 0.35) % stepA, horizon + 30 * SCALE,
+                  130 * SCALE, 75 * SCALE, 0, 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.fillStyle = "#8fbd80";
-    for (var j = -1; j < 14; j++) {
-      var bx = j * 220 - (camX * 0.6) % 220;
+    var stepB = 220 * SCALE / 2;
+    for (var j = -1; j < Math.ceil(w / stepB) + 2; j++) {
       ctx.beginPath();
-      ctx.ellipse(bx, LEVEL.ground * SCALE - camY() + 70, 200, 120, 0, 0, Math.PI * 2);
+      ctx.ellipse(j * stepB - (camX * SCALE * 0.6) % stepB, horizon + 55 * SCALE,
+                  100 * SCALE, 60 * SCALE, 0, 0, Math.PI * 2);
       ctx.fill();
     }
   }
 
-  function camY() { return 0; }
-
   function draw() {
+    resize();
+    updateCamera();
     var w = canvas.width, h = canvas.height;
+
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.imageSmoothingEnabled = false;
     drawBackdrop(w, h);
 
-    camX = Math.max(0, Math.min(player.x * SCALE - w * 0.42,
-                                LEVEL.width * SCALE - w));
-    ctx.save();
-    ctx.translate(-camX, 0);
+    // From here on everything is drawn in world units.
+    ctx.setTransform(SCALE, 0, 0, SCALE, -camX * SCALE, -camY * SCALE);
 
     for (var i = 0; i < LEVEL.platforms.length; i++) {
       var p = LEVEL.platforms[i];
-      var x = p.x * SCALE, y = p.y * SCALE, pw = p.w * SCALE, ph = p.h * SCALE;
       ctx.fillStyle = "#6b4a33";
-      ctx.fillRect(x, y, pw, ph);
+      ctx.fillRect(p.x, p.y, p.w, p.h);
       ctx.fillStyle = "#5c9e46";
-      ctx.fillRect(x, y, pw, 10);
+      ctx.fillRect(p.x, p.y, p.w, 5);
       ctx.fillStyle = "#7cc55e";
-      ctx.fillRect(x, y, pw, 4);
+      ctx.fillRect(p.x, p.y, p.w, 2);
     }
 
     // Soft contact shadow, sized by how far above the floor the bird is.
@@ -247,20 +295,18 @@
     var t = Math.max(0, 1 - gap / 220);
     ctx.fillStyle = "rgba(20, 30, 20, " + (0.30 * t).toFixed(3) + ")";
     ctx.beginPath();
-    ctx.ellipse(player.x * SCALE, floor * SCALE + 3,
-                30 * SCALE * (0.5 + 0.5 * t), 7 * SCALE * (0.4 + 0.6 * t),
+    ctx.ellipse(player.x, floor + 2, 30 * (0.5 + 0.5 * t), 7 * (0.4 + 0.6 * t),
                 0, 0, Math.PI * 2);
     ctx.fill();
 
     var box = player.anim.box();
-    var dw = CELL * SCALE, dh = CELL * SCALE;
     ctx.save();
-    ctx.translate(player.x * SCALE, player.y * SCALE);
+    ctx.translate(player.x, player.y);
     ctx.scale(player.facing, 1);
     ctx.drawImage(sheet, box.x, box.y, box.w, box.h,
-                  -ANCHOR.x * SCALE, -ANCHOR.y * SCALE, dw, dh);
+                  -ANCHOR.x, -ANCHOR.y, CELL, CELL);
     ctx.restore();
-    ctx.restore();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
 
     var label = document.getElementById("state");
     if (label) label.textContent = player.anim.name;
@@ -275,7 +321,28 @@
     requestAnimationFrame(frame);
   }
 
-  sheet.onload = function () { requestAnimationFrame(frame); };
+  sheet.onload = function () {
+    resize();
+    if (global_TouchControls()) {
+      global_TouchControls().mount({
+        actions: [
+          { code: "KeyX", label: "peck" },
+          { code: "KeyC", label: "crow" },
+          { code: "KeyZ", label: "squeak" },
+          { code: "KeyV", label: "tumble" }
+        ]
+      });
+      document.body.classList.add("touch");
+    }
+    window.addEventListener("resize", resize);
+    window.addEventListener("orientationchange", resize);
+    requestAnimationFrame(frame);
+  };
+
+  function global_TouchControls() {
+    return window.TouchControls && window.TouchControls.isTouch
+      ? window.TouchControls : null;
+  }
   sheet.src = window.MRCLUCKERS_IMAGE ||
     "../assets/sprites/" + DATA.image;
 })();

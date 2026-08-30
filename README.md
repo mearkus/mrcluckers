@@ -25,12 +25,17 @@ python3 build.py
 | `assets/sprites/mrcluckers_side.js` | The same data as a `<script>` tag, for `file://` demos. |
 | `assets/textures/*.png` | Tiling fabric maps: base colour and normals for fur, corduroy and felt. |
 | `assets/reference/turnaround.png` | Eight-angle turnaround for reference. |
+| `shared/controls.js` | On-screen controls for touch devices, used by both demos. |
 
 ## Two demos
 
 Both play the same way: arrow keys move, <kbd>Space</kbd> jumps,
 <kbd>&darr;</kbd> crouches, <kbd>X</kbd> pecks, <kbd>C</kbd> crows,
 <kbd>Z</kbd> squeaks, <kbd>V</kbd> tumbles.
+
+Both work on a phone: on a touch device an on-screen pad appears, and the
+play area reflows for the screen. Landscape gives the wider view a
+side-scroller wants, but portrait is playable.
 
 **`demo/index.html` — sprites on a 2D canvas.** Open it directly in a
 browser, no server needed. `demo/game.js` is meant to be read as much as
@@ -80,6 +85,24 @@ your controller knows when `peck` or `land` is done.
 | `hurt` | 3 | no | taking damage |
 | `squeak` | 6 | no | the squeaker gag — crushed flat, pops back |
 | `tumble` | 8 | yes | knocked across the room, everything flailing |
+
+## Touch controls
+
+`shared/controls.js` mounts a d-pad, a jump button and the action buttons on
+touch devices. Rather than giving each demo a second input path, the buttons
+dispatch synthetic keyboard events, so the existing `keydown` / `keyup`
+handlers pick them up unchanged and multi-touch works for free — holding
+*right* while tapping *jump* does what you'd expect, because each button owns
+its own pointer.
+
+It only mounts where the *primary* pointer is coarse, so a laptop with a
+touchscreen keeps its keyboard and its screen space. Add `?touch=1` to any
+demo URL to force the pad on for testing.
+
+```js
+TouchControls.mount({ actions: [{ code: 'KeyX', label: 'peck' }] });
+TouchControls.mount({ container: el, inline: true });  // flows, doesn't float
+```
 
 ## Textures
 
