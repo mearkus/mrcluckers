@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mr. Cluckers</title>
+<meta name="description" content="A procedurally generated 3D model of a plush rooster dog toy, rigged with floppy secondary motion and baked into sprite sheets for a 2D platformer.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>🐔</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,400..800&family=Newsreader:opsz,wght@6..72,300..600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+  :root {
+    --paper: #e6e6e1; --surface: #f7f7f4; --sunk: #dcdcd5;
+    --ink: #23252b; --ink-2: #575a5e; --ink-3: #8b8d88;
+    --rule: #c9c9c1; --comb: #c31d24; --beak: #b98d10; --plush: #8d8e8a;
+    --grid: rgba(35,37,43,.07);
+    --shadow: 0 1px 0 rgba(35,37,43,.05), 0 18px 40px -28px rgba(35,37,43,.55);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #16181c; --surface: #1e2127; --sunk: #121417;
+      --ink: #e3e4e1; --ink-2: #a7aaa8; --ink-3: #74787a;
+      --rule: #33373d; --comb: #ef4a4f; --beak: #e5b53a; --plush: #9a9c97;
+      --grid: rgba(227,228,225,.06);
+      --shadow: 0 1px 0 rgba(0,0,0,.3), 0 18px 40px -28px #000;
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font: 400 17px/1.6 Newsreader, Georgia, serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 0 28px 88px; }
+  h1, h2, .label, .spec, .card-title {
+    font-family: Archivo, "Helvetica Neue", Arial, sans-serif;
+  }
+  h1 {
+    font-size: clamp(48px, 9vw, 92px); font-variation-settings: "wdth" 112, "wght" 800;
+    line-height: .88; letter-spacing: -.03em; margin: 0; text-wrap: balance;
+  }
+  h2 {
+    font-size: 14px; font-variation-settings: "wdth" 110, "wght" 700;
+    letter-spacing: .16em; text-transform: uppercase; margin: 0;
+  }
+  p { margin: 0; max-width: 62ch; color: var(--ink-2); }
+  p + p { margin-top: 14px; }
+  code, .mono {
+    font-family: "JetBrains Mono", ui-monospace, Menlo, monospace; font-size: .84em;
+    background: var(--sunk); padding: 2px 6px; border-radius: 3px; color: var(--ink);
+  }
+  header { padding: 60px 0 36px; }
+  .eyebrow {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 20px;
+    font-family: "JetBrains Mono", monospace; font-size: 11px;
+    letter-spacing: .18em; text-transform: uppercase; color: var(--comb);
+  }
+  .eyebrow::after { content: ""; flex: 1; height: 1px; background: var(--rule); }
+  .title-row {
+    display: flex; align-items: flex-end; justify-content: space-between;
+    gap: 30px; flex-wrap: wrap;
+  }
+  .sub { flex: 1 1 340px; max-width: 440px; padding-bottom: 8px; }
+  .specs {
+    display: flex; flex-wrap: wrap; margin-top: 32px;
+    border-top: 2px solid var(--ink); border-bottom: 1px solid var(--rule);
+  }
+  .spec {
+    flex: 1 1 100px; padding: 12px 16px 12px 0; border-right: 1px solid var(--rule);
+    font-family: "JetBrains Mono", monospace;
+  }
+  .spec:last-child { border-right: 0; }
+  .spec b {
+    display: block; font-size: 18px; font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .spec span {
+    display: block; font-size: 10px; letter-spacing: .13em;
+    text-transform: uppercase; color: var(--ink-3); margin-top: 3px;
+  }
+  section { padding-top: 56px; }
+  .sec-head { display: flex; align-items: baseline; gap: 16px; margin-bottom: 20px; }
+  .sec-head::after { content: ""; flex: 1; height: 1px; background: var(--rule); }
+  .cards { display: grid; gap: 18px; grid-template-columns: 1fr 1fr; }
+  .card {
+    display: flex; flex-direction: column; gap: 8px; padding: 22px;
+    text-decoration: none; color: inherit;
+    background:
+      repeating-linear-gradient(to right, var(--grid) 0 1px, transparent 1px 24px),
+      repeating-linear-gradient(to bottom, var(--grid) 0 1px, transparent 1px 24px),
+      var(--surface);
+    border: 1px solid var(--rule); border-radius: 2px; box-shadow: var(--shadow);
+  }
+  .card:hover { border-color: var(--comb); }
+  .card:focus-visible { outline: 2px solid var(--comb); outline-offset: 3px; }
+  .card-kicker {
+    font-family: "JetBrains Mono", monospace; font-size: 10px;
+    letter-spacing: .14em; text-transform: uppercase; color: var(--comb);
+  }
+  .card-title {
+    font-size: 22px; font-variation-settings: "wdth" 108, "wght" 700;
+    letter-spacing: -.01em;
+  }
+  .card p { font-size: 15.5px; }
+  .card .go {
+    margin-top: auto; padding-top: 12px;
+    font-family: "JetBrains Mono", monospace; font-size: 11px;
+    letter-spacing: .1em; color: var(--ink-3);
+  }
+  .turn {
+    padding: 18px; overflow-x: auto;
+    background:
+      repeating-linear-gradient(to right, var(--grid) 0 1px, transparent 1px 24px),
+      repeating-linear-gradient(to bottom, var(--grid) 0 1px, transparent 1px 24px),
+      var(--surface);
+    border: 1px solid var(--rule); border-radius: 2px; box-shadow: var(--shadow);
+  }
+  .turn img { display: block; width: 1500px; max-width: none; height: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  td { padding: 8px 12px 8px 0; border-bottom: 1px solid var(--rule); color: var(--ink-2); }
+  td:first-child {
+    font-family: "JetBrains Mono", monospace; font-size: 12px;
+    color: var(--ink); white-space: nowrap;
+  }
+  td a { color: var(--comb); text-decoration: none; }
+  td a:hover { text-decoration: underline; }
+  footer {
+    margin-top: 64px; padding-top: 22px; border-top: 2px solid var(--ink);
+    display: flex; gap: 18px; justify-content: space-between; flex-wrap: wrap;
+    font-family: "JetBrains Mono", monospace; font-size: 11px;
+    color: var(--ink-3); letter-spacing: .06em;
+  }
+  footer a { color: var(--ink-2); }
+  @media (max-width: 720px) {
+    .cards { grid-template-columns: 1fr; }
+    .wrap { padding: 0 18px 56px; }
+    header { padding-top: 36px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">Plush rooster &middot; dog toy &middot; player character</div>
+  <div class="title-row">
+    <h1>Mr.<br>Cluckers</h1>
+    <div class="sub">
+      <p>A grey plush rooster, modelled from photographs, rigged with springs so
+      he moves like the limp squeaky toy he is &mdash; and baked into sprite
+      sheets for a 2D platformer.</p>
+    </div>
+  </div>
+  <div class="specs">
+    <div class="spec"><b>8,496</b><span>triangles</span></div>
+    <div class="spec"><b>14</b><span>joints</span></div>
+    <div class="spec"><b>12</b><span>clips</span></div>
+    <div class="spec"><b>23</b><span>draw calls</span></div>
+    <div class="spec"><b>0</b><span>dependencies</span></div>
+  </div>
+</header>
+
+<section>
+  <div class="sec-head"><h2>Play him</h2></div>
+  <div class="cards">
+    <a class="card" href="./demo/">
+      <span class="card-kicker">2D &middot; canvas</span>
+      <span class="card-title">Sprite demo</span>
+      <p>The baked sheet running through a real character controller. No WebGL,
+      works on anything.</p>
+      <span class="go">demo/ &rarr;</span>
+    </a>
+    <a class="card" href="./web/">
+      <span class="card-kicker">3D &middot; three.js</span>
+      <span class="card-title">Live model</span>
+      <p>The glTF itself, on an orthographic camera locked to the same side-on
+      angle &mdash; continuous animation and real lighting.</p>
+      <span class="go">web/ &rarr;</span>
+    </a>
+  </div>
+  <p style="margin-top:16px;font-size:14.5px">
+    Arrow keys move, <code>space</code> jumps, <code>&darr;</code> crouches,
+    <code>x</code> pecks, <code>c</code> crows, <code>z</code> squeaks,
+    <code>v</code> tumbles.
+  </p>
+</section>
+
+<section>
+  <div class="sec-head"><h2>The model</h2></div>
+  <div class="turn">
+    <img src="./assets/reference/turnaround.png"
+         alt="Eight-angle turnaround of the Mr. Cluckers model">
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><h2>Assets</h2></div>
+  <table>
+    <tbody>
+      <tr>
+        <td><a href="./assets/model/mrcluckers.glb">mrcluckers.glb</a></td>
+        <td>The rigged model with all 12 clips &mdash; Blender, Godot, Unity, three.js</td>
+      </tr>
+      <tr>
+        <td><a href="./assets/model/mrcluckers.obj">mrcluckers.obj</a></td>
+        <td>Static rest pose with materials and texture maps</td>
+      </tr>
+      <tr>
+        <td><a href="./assets/sprites/mrcluckers_side.png">mrcluckers_side.png</a></td>
+        <td>The sprite sheet, one row per animation</td>
+      </tr>
+      <tr>
+        <td><a href="./assets/sprites/mrcluckers_side.json">mrcluckers_side.json</a></td>
+        <td>Frame boxes, timings, and the foot anchor</td>
+      </tr>
+      <tr>
+        <td><a href="./assets/textures/">textures/</a></td>
+        <td>Six tiling fabric maps: fur, corduroy and felt</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<footer>
+  <span>Everything generated by <code>python3 build.py</code> &mdash; pure stdlib</span>
+  <span><a href="https://github.com/mearkus/mrcluckers">github.com/mearkus/mrcluckers</a></span>
+</footer>
+
+</div>
+</body>
+</html>
