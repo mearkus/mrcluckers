@@ -18,6 +18,7 @@ python3 build.py
 | Path | What it is |
 | --- | --- |
 | `assets/model/mrcluckers.glb` | The 3D model with all 12 animation clips. Drop into Blender, Godot, Unity or three.js. |
+| `assets/model/ginger.glb` | Ginger, the dog he is trying to reach. Rest pose only so far — no rig, no clips. |
 | `assets/model/mrcluckers.gltf` | Same thing as text-plus-data-URI, if you want to read it. |
 | `assets/model/mrcluckers.obj` + `.mtl` | Static rest pose for tools that prefer OBJ. |
 | `assets/sprites/mrcluckers_side.png` | The sprite sheet: one row per animation. |
@@ -177,6 +178,31 @@ demo URL to force the pad on for testing.
 TouchControls.mount({ actions: [{ code: 'KeyX', label: 'peck' }] });
 TouchControls.mount({ container: el, inline: true });  // flows, doesn't float
 ```
+
+## Ginger
+
+`tools/mc/ginger.py` builds the dog, from photographs, the same way — lofted
+tubes along the spine and limbs rather than rigid parts, since a dog is not a
+plush toy. She stands about 1.15 units at the shoulder against Mr. Cluckers'
+1.0, so she is properly bigger than the toy.
+
+Markings are painted onto faces by position rather than modelled — the white
+blaze, chest bib, belly, socks and tail tip, and the dark mask around each
+eye — with the boundaries jittered by noise so they read as fur rather than
+decals.
+
+The skeleton is laid out (spine, neck, head, ears, three tail segments, and
+the full four legs) but **nothing is rigged or animated yet**. This pass is
+the model and a turnaround:
+
+```
+python3 build.py --only ginger
+```
+
+Reference notes worth keeping, since they were the corrections that mattered:
+she is leggier than a pure Staffordshire, front legs about half her shoulder
+height, deep-chested with a clear waist tuck, and her tail is long and
+whip-like rather than stubby.
 
 ## Textures
 
