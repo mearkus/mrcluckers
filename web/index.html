@@ -1,14 +1,26 @@
 <!doctype html>
 <meta charset="utf-8">
 <title>Mr. Cluckers - three.js</title>
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <style>
   html, body { margin: 0; height: 100%; background: #9cc3dc; overflow: hidden;
-               font: 13px/1.5 system-ui, sans-serif; color: #eaf0f4; }
+               font: 13px/1.5 system-ui, sans-serif; color: #eaf0f4;
+               overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
+  /* 100dvh so the mobile browser's collapsing toolbar doesn't clip the view. */
+  body { height: 100dvh; }
   canvas { display: block; width: 100%; height: 100%; touch-action: none; }
-  #hud { position: fixed; left: 0; right: 0; bottom: 0; padding: 10px 14px;
+  #hud { position: fixed; left: 0; right: 0; top: 0; padding: 10px 14px;
          display: flex; gap: 8px 18px; flex-wrap: wrap; align-items: center;
-         background: linear-gradient(transparent, rgba(8,10,14,.85)); }
+         background: linear-gradient(rgba(8,10,14,.75), transparent);
+         padding-top: calc(10px + env(safe-area-inset-top, 0px));
+         pointer-events: none; }
+  body.touch #hud .keyhint { display: none; }
+  #rotate { position: fixed; left: 50%; top: 14px; transform: translateX(-50%);
+            padding: 7px 14px; border-radius: 999px; font-size: 12px;
+            background: rgba(8,10,14,.6); display: none; pointer-events: none;
+            padding-top: calc(7px + env(safe-area-inset-top, 0px)); }
+  body.touch.portrait #rotate { display: block; }
+  body.touch.portrait #hud { display: none; }
   kbd { background: #232831; border: 1px solid #3a414c; border-bottom-width: 2px;
         border-radius: 3px; padding: 1px 6px; font: 11px monospace; }
   b { color: #f0f3f6; }
@@ -18,16 +30,18 @@
 </style>
 <div id="loading">Loading&hellip;</div>
 <div id="hud" hidden>
-  <span><kbd>&larr;</kbd><kbd>&rarr;</kbd> move</span>
-  <span><kbd>space</kbd> jump</span>
-  <span><kbd>&darr;</kbd> crouch</span>
-  <span><kbd>x</kbd> peck</span>
-  <span><kbd>c</kbd> crow</span>
-  <span><kbd>z</kbd> squeak</span>
-  <span><kbd>v</kbd> tumble</span>
+  <span class="keyhint"><kbd>&larr;</kbd><kbd>&rarr;</kbd> move</span>
+  <span class="keyhint"><kbd>space</kbd> jump</span>
+  <span class="keyhint"><kbd>&darr;</kbd> crouch</span>
+  <span class="keyhint"><kbd>x</kbd> peck</span>
+  <span class="keyhint"><kbd>c</kbd> crow</span>
+  <span class="keyhint"><kbd>z</kbd> squeak</span>
+  <span class="keyhint"><kbd>v</kbd> tumble</span>
   <span>state <b id="state">idle</b></span>
   <span><b id="fps">--</b> fps</span>
 </div>
+<div id="rotate">Turn sideways for a wider view</div>
+<script src="../shared/controls.js"></script>
 
 <script type="importmap">
 {
@@ -44,7 +58,15 @@ import { Cluckers, sideCamera, resizeSideCamera, plushLighting }
 
 // --- physics, in world units (he is 1.0 unit tall) ------------------------
 const GRAVITY = 24, RUN = 3.4, WALK = 1.45, ACCEL = 20, FRICTION = 26;
-const JUMPV = 8.8, COYOTE = 0.09, BUFFER = 0.11, VIEW_HEIGHT = 3.6;
+const JUMPV = 8.8, COYOTE = 0.09, BUFFER = 0.11;
+
+// Frame by how much of the level should be visible horizontally, not by a
+// fixed height -- otherwise a tall phone screen shows almost nothing ahead.
+const MIN_WORLD_WIDTH = 6.0, MIN_VIEW_H = 3.6, MAX_VIEW_H = 7.0;
+function viewHeight() {
+  const aspect = innerWidth / innerHeight;
+  return Math.min(MAX_VIEW_H, Math.max(MIN_VIEW_H, MIN_WORLD_WIDTH / aspect));
+}
 
 const PLATFORMS = [
   { x: 0, y: 0, w: 60, h: 1, ground: true },
@@ -55,15 +77,18 @@ const PLATFORMS = [
   { x: 16.2, y: 1.6, w: 3.0, h: 0.3 }
 ];
 
+const coarse = matchMedia('(pointer: coarse)').matches;
 const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+// Phones are fill-rate bound long before they are triangle bound, so cap the
+// pixel ratio harder on touch devices than on desktop.
+renderer.setPixelRatio(Math.min(devicePixelRatio, coarse ? 1.5 : 2));
 renderer.setSize(innerWidth, innerHeight);
 document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color('#9cc3dc');
 scene.fog = new THREE.Fog('#b8d3e4', 16, 40);
-const camera = sideCamera(innerWidth / innerHeight, VIEW_HEIGHT);
+const camera = sideCamera(innerWidth / innerHeight, viewHeight());
 plushLighting(scene);
 
 // --- level ---------------------------------------------------------------
@@ -95,6 +120,19 @@ const bird = await Cluckers.load('../assets/model/mrcluckers.glb');
 scene.add(bird.root);
 document.getElementById('loading').remove();
 document.getElementById('hud').hidden = false;
+
+if (window.TouchControls && window.TouchControls.isTouch) {
+  window.TouchControls.mount({
+    actions: [
+      { code: 'KeyX', label: 'peck' },
+      { code: 'KeyC', label: 'crow' },
+      { code: 'KeyZ', label: 'squeak' },
+      { code: 'KeyV', label: 'tumble' }
+    ]
+  });
+  document.body.classList.add('touch');
+}
+onResize();
 
 // --- input ---------------------------------------------------------------
 const keys = {}; let pressed = {};
@@ -194,10 +232,13 @@ function update(dt) {
   document.getElementById('state').textContent = bird.current.getClip().name;
 }
 
-addEventListener('resize', () => {
+function onResize() {
   renderer.setSize(innerWidth, innerHeight);
-  resizeSideCamera(camera, innerWidth / innerHeight, VIEW_HEIGHT);
-});
+  resizeSideCamera(camera, innerWidth / innerHeight, viewHeight());
+  document.body.classList.toggle('portrait', innerHeight > innerWidth);
+}
+addEventListener('resize', onResize);
+addEventListener('orientationchange', () => setTimeout(onResize, 120));
 
 let last = performance.now(), acc = 0, frames = 0;
 renderer.setAnimationLoop((now) => {
