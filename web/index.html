@@ -177,8 +177,11 @@ function update(dt) {
     P.actionTime += dt;
     const limit = ACTION_TIME[P.action];
     const repeat = pressed[P.action];
-    const shrugged = repeat || pressed.left || pressed.right ||
-                     pressed.down || pressed.jump;
+    // Jumping outranks a flourish. A direction only shrugs off `tumble`,
+    // which is a stun -- otherwise you could never peck on the run.
+    const shrugged = repeat || pressed.jump ||
+                     (P.action === 'tumble' &&
+                      (pressed.left || pressed.right || pressed.down));
     const expired = limit !== undefined && P.actionTime >= limit;
     if (shrugged || expired) {
       // Don't let the same press immediately restart what it cancelled.
@@ -196,10 +199,10 @@ function update(dt) {
         break;
       }
   }
-  const busy = !!P.action;
-
+  // Actions are cosmetic: they never stop the character. Movement follows the
+  // keys that are *held*, so an action fired mid-run keeps the run.
   let target = 0;
-  if (!busy && !crouching) { if (keys.left) target -= 1; if (keys.right) target += 1; }
+  if (!crouching) { if (keys.left) target -= 1; if (keys.right) target += 1; }
   const speed = keys.down ? WALK : RUN;
   if (target !== 0) {
     P.vx += target * ACCEL * dt;
@@ -212,7 +215,7 @@ function update(dt) {
 
   P.coyote = P.onGround ? COYOTE : Math.max(0, P.coyote - dt);
   P.buffer = pressed.jump ? BUFFER : Math.max(0, P.buffer - dt);
-  if (P.buffer > 0 && P.coyote > 0 && !busy) {
+  if (P.buffer > 0 && P.coyote > 0) {
     P.vy = JUMPV; P.onGround = false; P.coyote = 0; P.buffer = 0;
   }
   if (P.vy > 0 && !keys.jump) P.vy -= GRAVITY * 1.6 * dt;
@@ -280,4 +283,5 @@ renderer.setAnimationLoop((now) => {
   }
 });
 window.__bird = bird;   // handy for poking at it from the console
+window.__player = P;    // used by the automated input tests
 </script>
