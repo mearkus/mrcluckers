@@ -23,20 +23,46 @@ python3 build.py
 | `assets/sprites/mrcluckers_side.png` | The sprite sheet: one row per animation. |
 | `assets/sprites/mrcluckers_side.json` | Frame rectangles, timings, and the foot anchor. |
 | `assets/sprites/mrcluckers_side.js` | The same data as a `<script>` tag, for `file://` demos. |
+| `assets/textures/*.png` | Tiling fabric maps: base colour and normals for fur, corduroy and felt. |
 | `assets/reference/turnaround.png` | Eight-angle turnaround for reference. |
 
-## The demo
+## Two demos
 
-`demo/index.html` is a small platformer that runs the sheet through a real
-character controller. Open it directly in a browser — no server needed.
+Both play the same way: arrow keys move, <kbd>Space</kbd> jumps,
+<kbd>&darr;</kbd> crouches, <kbd>X</kbd> pecks, <kbd>C</kbd> crows,
+<kbd>Z</kbd> squeaks, <kbd>V</kbd> tumbles.
 
-Arrow keys move, <kbd>Space</kbd> jumps, <kbd>&darr;</kbd> crouches,
-<kbd>X</kbd> pecks, <kbd>C</kbd> crows, <kbd>Z</kbd> squeaks,
-<kbd>V</kbd> tumbles.
+**`demo/index.html` — sprites on a 2D canvas.** Open it directly in a
+browser, no server needed. `demo/game.js` is meant to be read as much as
+played: `Anim` handles frame timing, `pickState` is the animation state
+machine, and the draw call shows how to use the anchor so the sprite's feet
+land on the floor.
 
-`demo/game.js` is meant to be read as much as played: `Anim` handles frame
-timing, `pickState` is the animation state machine, and the draw call shows
-how to use the anchor so the sprite's feet land on the floor.
+**`web/index.html` — the live 3D model in three.js.** An orthographic camera
+locked to the same side-on angle as the sprites, so it looks like the sheet
+but animates continuously and lights dynamically. Needs a local server
+because browsers block module and glTF loads over `file://`:
+
+```
+python3 -m http.server 8000     # then open localhost:8000/web/
+```
+
+`web/mrcluckers.js` is the reusable part — a small character API you can drop
+into your own scene:
+
+```js
+import { Cluckers, sideCamera, plushLighting } from './mrcluckers.js';
+
+const bird = await Cluckers.load('../assets/model/mrcluckers.glb');
+scene.add(bird.root);
+bird.play('run');          // cross-fades from whatever was playing
+bird.setFacing(-1);        // turns rather than mirroring
+bird.update(dt);           // in your loop
+```
+
+It handles cross-fade timing per state (impacts snap, ambient states ease),
+sets the one-shot clips to hold their last frame, and fires `onFinished` so
+your controller knows when `peck` or `land` is done.
 
 ## Animations
 
@@ -54,6 +80,37 @@ how to use the anchor so the sprite's feet land on the floor.
 | `hurt` | 3 | no | taking damage |
 | `squeak` | 6 | no | the squeaker gag — crushed flat, pops back |
 | `tumble` | 8 | yes | knocked across the room, everything flailing |
+
+## Textures
+
+Three fabric families cover the whole toy, all generated procedurally and
+seamlessly tiling:
+
+| Family | Where | What it is |
+| --- | --- | --- |
+| `fur` | body, head, wing tops, tail | Fine fibres gathered into soft clumps |
+| `corduroy` | legs, wing undersides | Rounded parallel ribs with a woven surface |
+| `felt` | comb, wattle, beak, feet | Short dense nap, almost flat |
+
+Each family is one height field, which the base colour and normal map are
+both derived from — so they always agree. The base colour maps are near-white
+greyscale that *multiply* the material's colour, which is why one fur tile
+serves both greys and one felt tile serves the red, the yellow and the black.
+Six maps at 128px come to 153 KB total.
+
+UVs are generated analytically per primitive — cylindrical for surfaces of
+revolution, along-and-around for lofts — and stored in world units, so a
+single `REPEAT` factor in `texture.py` gives every part the same texel
+density. Tangents are computed for normal mapping and exported, so engines
+don't have to derive them.
+
+The software renderer samples the same maps, which is why the sprite sheet
+and the 3D model don't drift apart.
+
+```
+python3 build.py --texture-size 256   # sharper fabric, ~500 KB of maps
+python3 build.py --no-textures        # flat colours
+```
 
 ## It moves like a dog toy
 
@@ -87,7 +144,24 @@ python3 build.py --only sprites             # skip the model export
 python3 build.py --views side,threequarter  # bake another camera angle
 python3 build.py --flop 1.6                 # floppier
 python3 build.py --no-fuzz                  # smooth surface, no plush noise
+python3 build.py --texture-size 256         # sharper fabric maps
 ```
+
+## Budget
+
+Measured by loading the GLB into three.js r180:
+
+| | |
+| --- | --- |
+| Model | 584 KB (152 KB of that is textures) |
+| Triangles | 8,496 |
+| Draw calls | 23 |
+| Shader programs | 2 |
+| Skinning | none — rigid parts on animated nodes |
+
+No skinned meshes and no morph targets, so playback is just node transforms.
+Dropping `TANGENT` from the export saves ~90 KB if you are happy letting
+three.js derive tangents from screen-space derivatives instead.
 
 See [`docs/pipeline.md`](docs/pipeline.md) for how the pieces fit together
 and where to change the character's shape.

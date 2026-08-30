@@ -14,12 +14,15 @@ class Mesh:
     def __init__(self):
         self.verts = []          # list[(x, y, z)]
         self.norms = []          # parallel to verts
+        self.uvs = []            # parallel to verts, in world-ish units
+        self.tans = []           # parallel to verts, (x, y, z, handedness)
         self.faces = []          # list[(ia, ib, ic, material)]
 
     # ------------------------------------------------------------- basics
-    def add_vert(self, p, n=(0.0, 1.0, 0.0)):
+    def add_vert(self, p, n=(0.0, 1.0, 0.0), uv=(0.0, 0.0)):
         self.verts.append(p)
         self.norms.append(n)
+        self.uvs.append(uv)
         return len(self.verts) - 1
 
     def add_face(self, a, b, c, material):
@@ -33,6 +36,8 @@ class Mesh:
         off = len(self.verts)
         self.verts.extend(other.verts)
         self.norms.extend(other.norms)
+        self.uvs.extend(other.uvs)
+        self.tans.extend(other.tans)
         for a, b, c, m in other.faces:
             self.faces.append((a + off, b + off, c + off, m))
         return self
@@ -41,6 +46,8 @@ class Mesh:
         m = Mesh()
         m.verts = list(self.verts)
         m.norms = list(self.norms)
+        m.uvs = list(self.uvs)
+        m.tans = list(self.tans)
         m.faces = list(self.faces)
         return m
 
@@ -61,6 +68,8 @@ class Mesh:
     def transform(self, m):
         self.verts = [v.transform_point(m, p) for p in self.verts]
         self.norms = [v.normalize(v.transform_dir(m, n)) for n in self.norms]
+        self.tans = [v.normalize(v.transform_dir(m, t[:3])) + (t[3],)
+                     for t in self.tans]
         return self
 
     def translate(self, t):
@@ -76,12 +85,18 @@ class Mesh:
             v.normalize((n[0] * inv[0], n[1] * inv[1], n[2] * inv[2]))
             for n in self.norms
         ]
+        self.tans = [
+            v.normalize((t[0] * s[0], t[1] * s[1], t[2] * s[2])) + (t[3],)
+            for t in self.tans
+        ]
         return self
 
     def mirror_x(self):
         """Mirror across the YZ plane, flipping winding so faces stay outward."""
         self.verts = [(-p[0], p[1], p[2]) for p in self.verts]
         self.norms = [(-n[0], n[1], n[2]) for n in self.norms]
+        # Mirroring reverses handedness, so the bitangent has to flip with it.
+        self.tans = [(-t[0], t[1], t[2], -t[3]) for t in self.tans]
         self.faces = [(a, c, b, m) for a, b, c, m in self.faces]
         return self
 
@@ -89,6 +104,7 @@ class Mesh:
         """Reverse triangle winding (and normals)."""
         self.faces = [(a, c, b, m) for a, b, c, m in self.faces]
         self.norms = [(-n[0], -n[1], -n[2]) for n in self.norms]
+        self.tans = [(t[0], t[1], t[2], -t[3]) for t in self.tans]
         return self
 
     def set_material(self, material):
@@ -119,15 +135,55 @@ class Mesh:
 
     def flat_normals(self):
         """Split every triangle so each gets its own hard-edged normal."""
-        verts, norms, faces = [], [], []
+        verts, norms, uvs, faces = [], [], [], []
         for f in self.faces:
             n = self.face_normal(f)
             base = len(verts)
             for i in f[:3]:
                 verts.append(self.verts[i])
                 norms.append(n)
+                uvs.append(self.uvs[i])
             faces.append((base, base + 1, base + 2, f[3]))
-        self.verts, self.norms, self.faces = verts, norms, faces
+        self.verts, self.norms, self.uvs, self.faces = verts, norms, uvs, faces
+        self.tans = []
+        return self
+
+    def compute_tangents(self):
+        """Per-vertex tangents from the UVs, for normal mapping.
+
+        Standard accumulate-then-orthonormalize: sum each triangle's tangent
+        onto its corners, then Gram-Schmidt against the vertex normal. The
+        fourth component is handedness, which is what glTF and three.js want.
+        """
+        acc = [(0.0, 0.0, 0.0)] * len(self.verts)
+        bacc = [(0.0, 0.0, 0.0)] * len(self.verts)
+        for a, b, c, _ in self.faces:
+            p0, p1, p2 = self.verts[a], self.verts[b], self.verts[c]
+            u0, u1, u2 = self.uvs[a], self.uvs[b], self.uvs[c]
+            e1, e2 = v.sub(p1, p0), v.sub(p2, p0)
+            du1, dv1 = u1[0] - u0[0], u1[1] - u0[1]
+            du2, dv2 = u2[0] - u0[0], u2[1] - u0[1]
+            det = du1 * dv2 - du2 * dv1
+            if abs(det) < 1e-12:
+                continue
+            r = 1.0 / det
+            t = v.mul(v.sub(v.mul(e1, dv2), v.mul(e2, dv1)), r)
+            bt = v.mul(v.sub(v.mul(e2, du1), v.mul(e1, du2)), r)
+            for i in (a, b, c):
+                acc[i] = v.add(acc[i], t)
+                bacc[i] = v.add(bacc[i], bt)
+
+        self.tans = []
+        for i, n in enumerate(self.norms):
+            t = acc[i]
+            if v.dot(t, t) < 1e-16:
+                # Degenerate UVs: any vector perpendicular to the normal works.
+                t = v.cross(n, (0.0, 0.0, 1.0))
+                if v.dot(t, t) < 1e-12:
+                    t = v.cross(n, (0.0, 1.0, 0.0))
+            t = v.normalize(v.sub(t, v.mul(n, v.dot(n, t))))
+            w = -1.0 if v.dot(v.cross(n, t), bacc[i]) < 0.0 else 1.0
+            self.tans.append((t[0], t[1], t[2], w))
         return self
 
     def displace(self, fn):
@@ -145,44 +201,69 @@ def revolve(profile, material, segments=24, close_bottom=True, close_top=True):
     """Surface of revolution around the Y axis.
 
     `profile` is a bottom-to-top list of (radius, y) pairs. Rings with radius
-    0 collapse to a pole; open ends are capped with a flat fan when asked.
+    0 collapse to a pole. UVs are laid out in world units -- u runs around the
+    circumference, v along the profile -- so one global repeat factor gives
+    every part the same texel density. The ring is closed with a duplicated
+    seam column so u can reach full circumference instead of wrapping to 0.
     """
     m = Mesh()
-    rings = []
-    for r, y in profile:
-        if r <= 1e-9:
-            rings.append([m.add_vert((0.0, y, 0.0))])
-        else:
-            ring = []
-            for s in range(segments):
-                a = 2.0 * math.pi * s / segments
-                ring.append(m.add_vert((r * math.cos(a), y, r * math.sin(a))))
-            rings.append(ring)
+    r_ref = max(r for r, _ in profile) or 1.0
+    circumference = 2.0 * math.pi * r_ref
 
-    for lo, hi in zip(rings, rings[1:]):
-        if len(lo) == 1 and len(hi) == 1:
+    # v is arc length along the profile polyline.
+    vs, run = [0.0], 0.0
+    for (r0, y0), (r1, y1) in zip(profile, profile[1:]):
+        run += math.hypot(r1 - r0, y1 - y0)
+        vs.append(run)
+
+    rings, is_pole = [], []
+    for (r, y), vv in zip(profile, vs):
+        pole = r <= 1e-9
+        is_pole.append(pole)
+        ring = []
+        for sgm in range(segments + 1):
+            a = 2.0 * math.pi * sgm / segments
+            u = circumference * sgm / segments
+            pt = (0.0, y, 0.0) if pole else (r * math.cos(a), y, r * math.sin(a))
+            ring.append(m.add_vert(pt, uv=(u, vv)))
+        rings.append(ring)
+
+    for j in range(len(rings) - 1):
+        lo, hi = rings[j], rings[j + 1]
+        if is_pole[j] and is_pole[j + 1]:
             continue
-        if len(lo) == 1:                       # bottom pole fan
-            for s in range(segments):
-                m.add_face(lo[0], hi[s], hi[(s + 1) % segments], material)
-        elif len(hi) == 1:                     # top pole fan
-            for s in range(segments):
-                m.add_face(lo[s], lo[(s + 1) % segments], hi[0], material)
-        else:
-            for s in range(segments):
-                t = (s + 1) % segments
-                m.add_quad(lo[s], lo[t], hi[t], hi[s], material)
+        for sgm in range(segments):
+            if is_pole[j]:
+                m.add_face(lo[sgm], hi[sgm], hi[sgm + 1], material)
+            elif is_pole[j + 1]:
+                m.add_face(lo[sgm], lo[sgm + 1], hi[sgm], material)
+            else:
+                m.add_quad(lo[sgm], lo[sgm + 1], hi[sgm + 1], hi[sgm], material)
 
-    if close_bottom and len(rings[0]) > 1:
-        c = m.add_vert((0.0, profile[0][1], 0.0))
-        for s in range(segments):
-            m.add_face(c, rings[0][(s + 1) % segments], rings[0][s], material)
-    if close_top and len(rings[-1]) > 1:
-        c = m.add_vert((0.0, profile[-1][1], 0.0))
-        for s in range(segments):
-            m.add_face(c, rings[-1][s], rings[-1][(s + 1) % segments], material)
+    if close_bottom and not is_pole[0]:
+        _disk(m, rings[0], (0.0, profile[0][1], 0.0), segments, material, False)
+    if close_top and not is_pole[-1]:
+        _disk(m, rings[-1], (0.0, profile[-1][1], 0.0), segments, material, True)
+
     # Rings run bottom-to-top, which winds the quads inward; face them out.
     return m.flip().smooth_normals()
+
+
+def _disk(m, ring, centre, segments, material, upward):
+    """Flat cap across an open ring, planar-mapped in world units.
+
+    The rim is duplicated rather than reused: these vertices need planar UVs,
+    and the wall vertices at the same positions need cylindrical ones.
+    """
+    c = m.add_vert(centre, uv=(centre[0], centre[2]))
+    rim = [m.add_vert(m.verts[i], uv=(m.verts[i][0], m.verts[i][2]))
+           for i in ring[:segments + 1]]
+    for i in range(segments):
+        a, b = rim[i], rim[i + 1]
+        if upward:
+            m.add_face(c, a, b, material)
+        else:
+            m.add_face(c, b, a, material)
 
 
 def sphere(radius, material, segments=24, rings=16):
@@ -194,24 +275,54 @@ def sphere(radius, material, segments=24, rings=16):
 
 
 def loft(sections, material, cap_start=True, cap_end=True, closed_rings=True):
-    """Skin a sequence of equally-sized point rings into a tube."""
+    """Skin a sequence of equally-sized point rings into a tube.
+
+    u follows the perimeter of the first ring and v the run between ring
+    centres, both in world units. Closed rings get a duplicated seam column.
+    """
     m = Mesh()
-    idx = [[m.add_vert(p) for p in ring] for ring in sections]
     n = len(sections[0])
+
+    # u from ring 0's spacing, reused down the tube so the texture doesn't shear.
+    us, run = [0.0], 0.0
+    for i in range(n):
+        a = sections[0][i]
+        b = sections[0][(i + 1) % n]
+        run += v.length(v.sub(b, a))
+        us.append(run)
+
+    centres = [_centroid(r) for r in sections]
+    vs, run = [0.0], 0.0
+    for a, b in zip(centres, centres[1:]):
+        run += v.length(v.sub(b, a))
+        vs.append(run)
+
     span = n if closed_rings else n - 1
+    cols = span + 1
+    idx = []
+    for ring, vv in zip(sections, vs):
+        row = [m.add_vert(ring[i % n], uv=(us[i], vv)) for i in range(cols)]
+        idx.append(row)
+
     for lo, hi in zip(idx, idx[1:]):
-        for s in range(span):
-            t = (s + 1) % n
-            m.add_quad(lo[s], lo[t], hi[t], hi[s], material)
+        for sgm in range(span):
+            m.add_quad(lo[sgm], lo[sgm + 1], hi[sgm + 1], hi[sgm], material)
+
     if cap_start:
-        c = m.add_vert(_centroid([m.verts[i] for i in idx[0]]))
-        for s in range(span):
-            m.add_face(c, idx[0][(s + 1) % n], idx[0][s], material)
+        _loft_cap(m, idx[0], centres[0], span, material, reverse=True)
     if cap_end:
-        c = m.add_vert(_centroid([m.verts[i] for i in idx[-1]]))
-        for s in range(span):
-            m.add_face(c, idx[-1][s], idx[-1][(s + 1) % n], material)
+        _loft_cap(m, idx[-1], centres[-1], span, material, reverse=False)
     return m.smooth_normals()
+
+
+def _loft_cap(m, row, centre, span, material, reverse):
+    c = m.add_vert(centre, uv=(centre[0], centre[2]))
+    for i in range(span):
+        a, b = row[i], row[i + 1]
+        if reverse:
+            m.add_face(c, b, a, material)
+        else:
+            m.add_face(c, a, b, material)
 
 
 def extrude(poly, thickness, material, z0=None):
@@ -219,18 +330,33 @@ def extrude(poly, thickness, material, z0=None):
     z0 = -thickness * 0.5 if z0 is None else z0
     z1 = z0 + thickness
     m = Mesh()
-    back = [m.add_vert((x, y, z0)) for x, y in poly]
-    front = [m.add_vert((x, y, z1)) for x, y in poly]
     n = len(poly)
-    for s in range(n):
-        t = (s + 1) % n
-        m.add_quad(back[s], back[t], front[t], front[s], material)
-    cb = m.add_vert((_avg(p[0] for p in poly), _avg(p[1] for p in poly), z0))
-    cf = m.add_vert((_avg(p[0] for p in poly), _avg(p[1] for p in poly), z1))
-    for s in range(n):
-        t = (s + 1) % n
-        m.add_face(cb, back[t], back[s], material)
-        m.add_face(cf, front[s], front[t], material)
+
+    us, run = [0.0], 0.0
+    for i in range(n):
+        ax, ay = poly[i]
+        bx, by = poly[(i + 1) % n]
+        run += math.hypot(bx - ax, by - ay)
+        us.append(run)
+
+    back, front = [], []
+    for i in range(n + 1):
+        x, y = poly[i % n]
+        back.append(m.add_vert((x, y, z0), uv=(us[i], 0.0)))
+        front.append(m.add_vert((x, y, z1), uv=(us[i], thickness)))
+    for i in range(n):
+        m.add_quad(back[i], back[i + 1], front[i + 1], front[i], material)
+
+    cx, cy = _avg(p[0] for p in poly), _avg(p[1] for p in poly)
+    for z, flip_face in ((z0, True), (z1, False)):
+        c = m.add_vert((cx, cy, z), uv=(cx, cy))
+        rim = [m.add_vert((x, y, z), uv=(x, y)) for x, y in poly]
+        for i in range(n):
+            a, b = rim[i], rim[(i + 1) % n]
+            if flip_face:
+                m.add_face(c, b, a, material)
+            else:
+                m.add_face(c, a, b, material)
     return m.flat_normals()
 
 

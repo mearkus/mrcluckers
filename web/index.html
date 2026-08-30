@@ -1,0 +1,215 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Mr. Cluckers - three.js</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  html, body { margin: 0; height: 100%; background: #9cc3dc; overflow: hidden;
+               font: 13px/1.5 system-ui, sans-serif; color: #eaf0f4; }
+  canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+  #hud { position: fixed; left: 0; right: 0; bottom: 0; padding: 10px 14px;
+         display: flex; gap: 8px 18px; flex-wrap: wrap; align-items: center;
+         background: linear-gradient(transparent, rgba(8,10,14,.85)); }
+  kbd { background: #232831; border: 1px solid #3a414c; border-bottom-width: 2px;
+        border-radius: 3px; padding: 1px 6px; font: 11px monospace; }
+  b { color: #f0f3f6; }
+  #loading { position: fixed; inset: 0; display: grid; place-items: center;
+             color: #2c3d4a; font-size: 14px; letter-spacing: .1em;
+             text-transform: uppercase; }
+</style>
+<div id="loading">Loading&hellip;</div>
+<div id="hud" hidden>
+  <span><kbd>&larr;</kbd><kbd>&rarr;</kbd> move</span>
+  <span><kbd>space</kbd> jump</span>
+  <span><kbd>&darr;</kbd> crouch</span>
+  <span><kbd>x</kbd> peck</span>
+  <span><kbd>c</kbd> crow</span>
+  <span><kbd>z</kbd> squeak</span>
+  <span><kbd>v</kbd> tumble</span>
+  <span>state <b id="state">idle</b></span>
+  <span><b id="fps">--</b> fps</span>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { Cluckers, sideCamera, resizeSideCamera, plushLighting }
+  from './mrcluckers.js';
+
+// --- physics, in world units (he is 1.0 unit tall) ------------------------
+const GRAVITY = 24, RUN = 3.4, WALK = 1.45, ACCEL = 20, FRICTION = 26;
+const JUMPV = 8.8, COYOTE = 0.09, BUFFER = 0.11, VIEW_HEIGHT = 3.6;
+
+const PLATFORMS = [
+  { x: 0, y: 0, w: 60, h: 1, ground: true },
+  { x: 3.4, y: 1.15, w: 2.2, h: 0.3 },
+  { x: 6.6, y: 2.0, w: 1.7, h: 0.3 },
+  { x: 9.6, y: 1.3, w: 2.6, h: 0.3 },
+  { x: 13.2, y: 2.3, w: 1.6, h: 0.3 },
+  { x: 16.2, y: 1.6, w: 3.0, h: 0.3 }
+];
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#9cc3dc');
+scene.fog = new THREE.Fog('#b8d3e4', 16, 40);
+const camera = sideCamera(innerWidth / innerHeight, VIEW_HEIGHT);
+plushLighting(scene);
+
+// --- level ---------------------------------------------------------------
+// A side-on orthographic camera only ever sees the front face, so the grass
+// is a separate cap sitting proud of the dirt rather than a top-face material.
+const dirtMat = new THREE.MeshStandardMaterial({ color: '#6b4b34', roughness: 1 });
+const grassMat = new THREE.MeshStandardMaterial({ color: '#5da041', roughness: 1 });
+const GRASS = 0.16;
+for (const p of PLATFORMS) {
+  const depth = p.ground ? 3 : 1.2;
+  const dirt = new THREE.Mesh(new THREE.BoxGeometry(p.w, p.h, depth), dirtMat);
+  dirt.position.set(p.x + p.w / 2, p.y - p.h / 2, 0);
+  scene.add(dirt);
+  const cap = new THREE.Mesh(
+    new THREE.BoxGeometry(p.w, GRASS, depth + 0.06), grassMat);
+  cap.position.set(p.x + p.w / 2, p.y - GRASS / 2, 0);
+  scene.add(cap);
+}
+
+// A blob shadow costs nothing and suits the toy better than a shadow map.
+const shadow = new THREE.Mesh(
+  new THREE.CircleGeometry(0.34, 24),
+  new THREE.MeshBasicMaterial({ color: 0x24401c, transparent: true, opacity: 0.3 })
+);
+shadow.rotation.x = -Math.PI / 2;
+scene.add(shadow);
+
+const bird = await Cluckers.load('../assets/model/mrcluckers.glb');
+scene.add(bird.root);
+document.getElementById('loading').remove();
+document.getElementById('hud').hidden = false;
+
+// --- input ---------------------------------------------------------------
+const keys = {}; let pressed = {};
+const MAP = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right',
+  ArrowDown: 'down', KeyS: 'down', ArrowUp: 'jump', KeyW: 'jump', Space: 'jump',
+  KeyX: 'peck', KeyC: 'crow', KeyZ: 'squeak', KeyV: 'tumble' };
+addEventListener('keydown', e => {
+  const k = MAP[e.code]; if (!k) return;
+  if (!keys[k]) pressed[k] = true; keys[k] = true; e.preventDefault();
+});
+addEventListener('keyup', e => {
+  const k = MAP[e.code]; if (!k) return; keys[k] = false; e.preventDefault();
+});
+
+// --- character controller (same shape as the sprite demo) -----------------
+const P = { x: 1.5, y: 0, vx: 0, vy: 0, onGround: true, coyote: 0, buffer: 0,
+            landTimer: 0, action: null };
+bird.onFinished = (name) => { if (P.action === name) P.action = null; };
+
+function pickState(crouching) {
+  if (P.action) return P.action;
+  if (!P.onGround) return P.vy > 0.4 ? 'jump' : 'fall';
+  if (P.landTimer > 0.12) return 'land';
+  if (crouching) return 'crouch';
+  const s = Math.abs(P.vx);
+  if (s > WALK + 0.4) return 'run';
+  if (s > 0.16) return 'walk';
+  return 'idle';
+}
+
+function update(dt) {
+  const crouching = keys.down && P.onGround;
+  if (!P.action) {
+    for (const a of ['peck', 'crow', 'squeak', 'tumble'])
+      if (pressed[a]) { P.action = a; bird.play(a, { restart: true }); break; }
+  }
+  const busy = P.action && P.action !== 'tumble';
+
+  let target = 0;
+  if (!busy && !crouching) { if (keys.left) target -= 1; if (keys.right) target += 1; }
+  const speed = keys.down ? WALK : RUN;
+  if (target !== 0) {
+    P.vx += target * ACCEL * dt;
+    if (Math.abs(P.vx) > speed) P.vx = target * speed;
+    bird.setFacing(target);
+  } else {
+    const drop = FRICTION * dt;
+    P.vx = Math.abs(P.vx) <= drop ? 0 : P.vx - Math.sign(P.vx) * drop;
+  }
+
+  P.coyote = P.onGround ? COYOTE : Math.max(0, P.coyote - dt);
+  P.buffer = pressed.jump ? BUFFER : Math.max(0, P.buffer - dt);
+  if (P.buffer > 0 && P.coyote > 0 && !busy) {
+    P.vy = JUMPV; P.onGround = false; P.coyote = 0; P.buffer = 0;
+  }
+  if (P.vy > 0 && !keys.jump) P.vy -= GRAVITY * 1.6 * dt;
+
+  P.vy -= GRAVITY * dt;
+  P.x += P.vx * dt;
+  const prevY = P.y;
+  P.y += P.vy * dt;
+
+  const wasAir = !P.onGround;
+  P.onGround = false;
+  if (P.vy <= 0) {
+    for (const p of PLATFORMS) {
+      if (P.x + 0.22 > p.x && P.x - 0.22 < p.x + p.w &&
+          prevY >= p.y - 0.001 && P.y <= p.y) {
+        P.y = p.y; P.vy = 0; P.onGround = true;
+        if (wasAir) P.landTimer = 0.26;
+        break;
+      }
+    }
+  }
+  if (P.y < -6) { P.x = 1.5; P.y = 4; P.vy = 0; }
+  P.landTimer = Math.max(0, P.landTimer - dt);
+
+  bird.play(pickState(crouching));
+  bird.root.position.set(P.x, P.y, 0);
+  bird.update(dt);
+
+  // Shadow sits on whatever surface is under him and fades with height.
+  let floor = -6;
+  for (const p of PLATFORMS)
+    if (P.x + 0.22 > p.x && P.x - 0.22 < p.x + p.w && p.y <= P.y + 0.001)
+      floor = Math.max(floor, p.y);
+  const gap = Math.max(0, P.y - floor);
+  const t = Math.max(0, 1 - gap / 2.6);
+  shadow.position.set(P.x, floor + 0.012, 0);
+  shadow.scale.setScalar(0.55 + 0.45 * t);
+  shadow.material.opacity = 0.34 * t;
+
+  camera.position.x += (P.x - camera.position.x) * Math.min(1, dt * 6);
+  camera.position.y += (P.y + 0.9 - camera.position.y) * Math.min(1, dt * 4);
+
+  pressed = {};
+  document.getElementById('state').textContent = bird.current.getClip().name;
+}
+
+addEventListener('resize', () => {
+  renderer.setSize(innerWidth, innerHeight);
+  resizeSideCamera(camera, innerWidth / innerHeight, VIEW_HEIGHT);
+});
+
+let last = performance.now(), acc = 0, frames = 0;
+renderer.setAnimationLoop((now) => {
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+  update(dt);
+  renderer.render(scene, camera);
+  acc += dt; frames++;
+  if (acc > 0.5) {
+    document.getElementById('fps').textContent = Math.round(frames / acc);
+    acc = 0; frames = 0;
+  }
+});
+window.__bird = bird;   // handy for poking at it from the console
+</script>

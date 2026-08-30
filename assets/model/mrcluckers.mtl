@@ -5,6 +5,8 @@ Ks 0.05 0.05 0.05
 Ns 10.0
 d 1.0
 illum 2
+map_Kd ../textures/fur_basecolor.png
+norm ../textures/fur_normal.png
 
 newmtl plush_shade
 Kd 0.478431 0.482353 0.462745
@@ -13,6 +15,8 @@ Ks 0.05 0.05 0.05
 Ns 10.0
 d 1.0
 illum 2
+map_Kd ../textures/fur_basecolor.png
+norm ../textures/fur_normal.png
 
 newmtl comb_red
 Kd 0.811765 0.125490 0.152941
@@ -21,6 +25,8 @@ Ks 0.05 0.05 0.05
 Ns 40.0
 d 1.0
 illum 2
+map_Kd ../textures/felt_basecolor.png
+norm ../textures/felt_normal.png
 
 newmtl cord_red
 Kd 0.647059 0.125490 0.168627
@@ -29,6 +35,8 @@ Ks 0.05 0.05 0.05
 Ns 30.0
 d 1.0
 illum 2
+map_Kd ../textures/corduroy_basecolor.png
+norm ../textures/corduroy_normal.png
 
 newmtl beak_yellow
 Kd 0.878431 0.709804 0.172549
@@ -37,6 +45,8 @@ Ks 0.05 0.05 0.05
 Ns 60.0
 d 1.0
 illum 2
+map_Kd ../textures/felt_basecolor.png
+norm ../textures/felt_normal.png
 
 newmtl foot_black
 Kd 0.109804 0.113725 0.133333
@@ -45,6 +55,8 @@ Ks 0.05 0.05 0.05
 Ns 80.0
 d 1.0
 illum 2
+map_Kd ../textures/felt_basecolor.png
+norm ../textures/felt_normal.png
 
 newmtl eye_white
 Kd 0.941176 0.937255 0.913725
