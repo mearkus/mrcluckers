@@ -16,35 +16,38 @@
   var SCALE = 2;
   var VIEW_WORLD_H = 280;              // world units we aim to show vertically
 
-  // --- world tuning, in sprite pixels per second -------------------------
-  var GRAVITY = 1750;
-  var RUN_SPEED = 250;
-  var WALK_SPEED = 105;
-  var ACCEL = 1500;
-  var FRICTION = 1900;
-  var JUMP_VELOCITY = 640;
-  var COYOTE_TIME = 0.09;              // grace period after leaving a ledge
-  var JUMP_BUFFER = 0.11;              // remembers an early jump press
+  // --- world tuning ------------------------------------------------------
+  // Derived from shared/jump.js so the two demos and the level editor all
+  // agree about what a jump can clear.
+  var J = window.Jump.C;
+  var PX = J.PX_PER_HEIGHT;            // world pixels per character height
+  var GRAVITY = J.GRAVITY * PX;
+  var RUN_SPEED = J.RUN * PX;
+  var WALK_SPEED = J.WALK * PX;
+  var ACCEL = J.ACCEL * PX;
+  var FRICTION = J.FRICTION * PX;
+  var JUMP_VELOCITY = J.JUMP_VELOCITY * PX;
+  var COYOTE_TIME = J.COYOTE;          // grace period after leaving a ledge
+  var JUMP_BUFFER = J.JUMP_BUFFER;     // remembers an early jump press
+  var HALF_W = J.HALF_WIDTH * PX;
 
   // Actions normally end when their clip does, but `tumble` loops, so it needs
   // an explicit limit or he spins forever. Roughly two turns of the clip.
   var ACTION_TIME = { tumble: 1.2 };
   var ACTION_KEYS = ["peck", "crow", "squeak", "tumble"];
 
-  var LEVEL = {
-    width: 2400,
-    ground: 430,
-    platforms: [
-      { x: 0, y: 430, w: 2400, h: 200 },
-      { x: 300, y: 350, w: 190, h: 24 },
-      { x: 560, y: 282, w: 150, h: 24 },
-      { x: 820, y: 350, w: 220, h: 24 },
-      { x: 1130, y: 300, w: 120, h: 24 },
-      { x: 1330, y: 234, w: 200, h: 24 },
-      { x: 1640, y: 320, w: 260, h: 24 },
-      { x: 2000, y: 250, w: 180, h: 24 }
-    ]
-  };
+  // --- level -------------------------------------------------------------
+  function pickLevel() {
+    var order = window.MRCLUCKERS_LEVEL_ORDER || [];
+    var want = (location.search.match(/[?&]level=([\w-]+)/) || [])[1];
+    var slug = (want && window.MRCLUCKERS_LEVELS[want]) ? want : order[0];
+    return { slug: slug, data: window.MRCLUCKERS_LEVELS[slug] };
+  }
+
+  var picked = pickLevel();
+  // Authored in world units with Y up; the canvas works in pixels with Y down.
+  var LEVEL = window.Level.toPixels(picked.data, PX);
+  var collected = {};
 
   // ---------------------------------------------------------------- input
   var keys = {};
@@ -103,7 +106,7 @@
 
   // --------------------------------------------------------------- player
   var player = {
-    x: 120, y: LEVEL.ground, vx: 0, vy: 0,
+    x: LEVEL.spawn.x, y: LEVEL.spawn.y, vx: 0, vy: 0,
     facing: 1, onGround: true, coyote: 0, buffer: 0,
     landTimer: 0, action: null, actionTime: 0,
     anim: new Anim("idle")
@@ -181,6 +184,41 @@
     var prevY = player.y;
     player.y += player.vy * dt;
     player.x = Math.max(20, Math.min(LEVEL.width - 20, player.x));
+
+    // Hazards and falling out of the world put him back at the start.
+    var fell = player.y > LEVEL.ground + 400;
+    var inHazard = false;
+    for (var hi = 0; hi < LEVEL.hazards.length; hi++) {
+      var hz = LEVEL.hazards[hi];
+      if (player.x + HALF_W > hz.x && player.x - HALF_W < hz.x + hz.w &&
+          player.y > hz.y - 4 && player.y < hz.y + hz.h + 20) inHazard = true;
+    }
+    if (fell || inHazard) {
+      player.x = LEVEL.spawn.x;
+      player.y = LEVEL.spawn.y;
+      player.vx = player.vy = 0;
+      player.action = null;
+    }
+
+    // Pickups are collected on touch; the goal ends the level.
+    for (var pi = 0; pi < LEVEL.pickups.length; pi++) {
+      if (collected[pi]) continue;
+      var pk = LEVEL.pickups[pi];
+      if (Math.abs(pk.x - player.x) < 26 &&
+          Math.abs(pk.y - (player.y - 34)) < 40) {
+        collected[pi] = true;
+        if (!player.action) { player.action = "squeak"; player.actionTime = 0;
+                              player.anim.set("squeak", true); }
+      }
+    }
+    if (LEVEL.goal && !player.reached &&
+        Math.abs(LEVEL.goal.x - player.x) < 34 &&
+        Math.abs(LEVEL.goal.y - player.y) < 60) {
+      player.reached = true;
+      player.action = "crow";
+      player.actionTime = 0;
+      player.anim.set("crow", true);
+    }
 
     var wasAir = !player.onGround;
     player.onGround = false;
@@ -313,6 +351,36 @@
       ctx.fillRect(p.x, p.y, p.w, 2);
     }
 
+    for (var hi2 = 0; hi2 < LEVEL.hazards.length; hi2++) {
+      var hz2 = LEVEL.hazards[hi2];
+      ctx.fillStyle = "rgba(70, 140, 190, .55)";
+      ctx.fillRect(hz2.x, hz2.y, hz2.w, hz2.h);
+      ctx.fillStyle = "rgba(150, 205, 235, .75)";
+      ctx.fillRect(hz2.x, hz2.y, hz2.w, 3);
+    }
+
+    for (var pi2 = 0; pi2 < LEVEL.pickups.length; pi2++) {
+      if (collected[pi2]) continue;
+      var pk2 = LEVEL.pickups[pi2];
+      var bob = Math.sin(Date.now() / 260 + pi2) * 3;
+      ctx.fillStyle = "#c8892f";
+      ctx.beginPath();
+      ctx.ellipse(pk2.x, pk2.y - 12 + bob, 7, 5, 0.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    if (LEVEL.goal) {
+      var g = LEVEL.goal;
+      ctx.fillStyle = player.reached ? "#e0b52c" : "#cf2027";
+      ctx.fillRect(g.x - 2, g.y - 62, 4, 62);
+      ctx.beginPath();
+      ctx.moveTo(g.x + 2, g.y - 62);
+      ctx.lineTo(g.x + 34, g.y - 52);
+      ctx.lineTo(g.x + 2, g.y - 42);
+      ctx.closePath();
+      ctx.fill();
+    }
+
     // Soft contact shadow, sized by how far above the floor the bird is.
     var floor = LEVEL.ground;
     for (var k = 0; k < LEVEL.platforms.length; k++) {
@@ -339,10 +407,16 @@
 
     var label = document.getElementById("state");
     if (label) label.textContent = player.anim.name;
+    var title = document.getElementById("levelName");
+    if (title) {
+      var got = Object.keys(collected).length;
+      title.textContent = LEVEL.name + "  " + got + "/" + LEVEL.pickups.length +
+        (player.reached ? "  \u2014 reunited!" : "");
+    }
   }
 
   // Exposed for debugging and for the automated input tests.
-  window.mrCluckers = { player: player, level: LEVEL };
+  window.mrCluckers = { player: player, level: LEVEL, slug: picked.slug };
 
   var last = 0;
   function frame(now) {

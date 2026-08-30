@@ -9,6 +9,8 @@ No third-party dependencies -- geometry, rendering and export are all here.
 """
 
 import argparse
+import glob
+import json
 import os
 import sys
 import time
@@ -23,6 +25,46 @@ VIEWS = {
     "threequarter": sprites.THREE_QUARTER,
     "front": sprites.FRONT,
 }
+
+
+LEVEL_KEYS = {"name", "theme", "width", "spawn", "goal",
+              "platforms", "pickups", "hazards"}
+
+
+def build_levels(levels_dir):
+    """Bundle the hand-authored level JSON into one <script>-able file.
+
+    Browsers block fetch() over file://, so the demos load this bundle the
+    same way they load the sprite metadata.
+    """
+    paths = sorted(glob.glob(os.path.join(levels_dir, "*.json")))
+    if not paths:
+        print("  %-38s none found" % "levels/")
+        return []
+
+    levels, order = {}, []
+    for path in paths:
+        slug = os.path.splitext(os.path.basename(path))[0]
+        with open(path) as fh:
+            data = json.load(fh)
+        unknown = set(data) - LEVEL_KEYS
+        if unknown:
+            raise SystemExit("%s: unknown keys %s" % (path, sorted(unknown)))
+        for p in data.get("platforms", []):
+            for k in ("x", "y", "w"):
+                if k not in p:
+                    raise SystemExit("%s: platform missing %r" % (path, k))
+        levels[slug] = data
+        order.append(slug)
+
+    out = os.path.join(levels_dir, "levels.js")
+    with open(out, "w") as fh:
+        fh.write("window.MRCLUCKERS_LEVELS = %s;\n"
+                 % json.dumps(levels, indent=2))
+        fh.write("window.MRCLUCKERS_LEVEL_ORDER = %s;\n" % json.dumps(order))
+    total = sum(len(l.get("platforms", [])) for l in levels.values())
+    print("  %-38s %d levels, %d platforms" % ("levels/levels.js", len(order), total))
+    return order
 
 
 def build_textures(out_dir, size):
@@ -128,13 +170,20 @@ def main():
                     help="fabric tile resolution in px (128 or 256)")
     ap.add_argument("--no-textures", action="store_true",
                     help="flat colours, no fabric maps")
-    ap.add_argument("--only", choices=["model", "sprites", "turnaround"],
+    ap.add_argument("--levels", default="levels", help="level source directory")
+    ap.add_argument("--only", choices=["model", "sprites", "turnaround", "levels"],
                     action="append", help="build only these (repeatable)")
     args = ap.parse_args()
 
-    only = set(args.only or ["model", "sprites", "turnaround"])
+    only = set(args.only or ["model", "sprites", "turnaround", "levels"])
     print("Mr. Cluckers build")
     t0 = time.time()
+
+    if "levels" in only:
+        build_levels(args.levels)
+    if only == {"levels"}:
+        print("  done in %.1fs" % (time.time() - t0))
+        return
 
     parts = rig.build_parts(fuzz=not args.no_fuzz)
     base = po.fit_base(parts)
