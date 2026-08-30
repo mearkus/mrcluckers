@@ -21,7 +21,12 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 /** Yaw that puts him side-on facing screen-right, matching the sprite sheet. */
 export const SIDE_VIEW = Math.PI / 2;
 
-/** Clips that play once and then hold their last frame. */
+/** Clips that play once and then hold their last frame.
+ *
+ * `tumble` is deliberately absent: it is a continuous spin, so it loops, and
+ * the *controller* decides how long a knockback lasts. Adding it here would
+ * be the wrong fix -- bound it with a timer instead, or it never ends.
+ */
 const ONE_SHOT = new Set(['jump', 'land', 'crouch', 'peck', 'crow', 'hurt',
                           'squeak']);
 

@@ -86,6 +86,11 @@ your controller knows when `peck` or `land` is done.
 | `squeak` | 6 | no | the squeaker gag — crushed flat, pops back |
 | `tumble` | 8 | yes | knocked across the room, everything flailing |
 
+`tumble` is the one action clip that loops — it's a continuous spin. The
+demos bound it to 1.2s (about two turns) and let any deliberate input shrug
+it off early, which is the controller's job rather than the clip's. If you
+wire it up yourself, give it a time limit or it never ends.
+
 ## Touch controls
 
 `shared/controls.js` mounts a d-pad, a jump button and the action buttons on

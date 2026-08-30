@@ -63,6 +63,11 @@ const JUMPV = 8.8, COYOTE = 0.09, BUFFER = 0.11;
 // Frame by how much of the level should be visible horizontally, not by a
 // fixed height -- otherwise a tall phone screen shows almost nothing ahead.
 const MIN_WORLD_WIDTH = 6.0, MIN_VIEW_H = 3.6, MAX_VIEW_H = 7.0;
+
+// Actions normally end when their clip does, but `tumble` loops, so it needs
+// an explicit limit or he spins forever. Roughly two turns of the clip.
+const ACTION_TIME = { tumble: 1.2 };
+const ACTION_KEYS = ['peck', 'crow', 'squeak', 'tumble'];
 function viewHeight() {
   const aspect = innerWidth / innerHeight;
   return Math.min(MAX_VIEW_H, Math.max(MIN_VIEW_H, MIN_WORLD_WIDTH / aspect));
@@ -149,7 +154,7 @@ addEventListener('keyup', e => {
 
 // --- character controller (same shape as the sprite demo) -----------------
 const P = { x: 1.5, y: 0, vx: 0, vy: 0, onGround: true, coyote: 0, buffer: 0,
-            landTimer: 0, action: null };
+            landTimer: 0, action: null, actionTime: 0 };
 bird.onFinished = (name) => { if (P.action === name) P.action = null; };
 
 function pickState(crouching) {
@@ -165,11 +170,33 @@ function pickState(crouching) {
 
 function update(dt) {
   const crouching = keys.down && P.onGround;
-  if (!P.action) {
-    for (const a of ['peck', 'crow', 'squeak', 'tumble'])
-      if (pressed[a]) { P.action = a; bird.play(a, { restart: true }); break; }
+
+  // Resolve any action already running first, so a cancelling press takes
+  // effect on the same frame rather than the next one.
+  if (P.action) {
+    P.actionTime += dt;
+    const limit = ACTION_TIME[P.action];
+    const repeat = pressed[P.action];
+    const shrugged = repeat || pressed.left || pressed.right ||
+                     pressed.down || pressed.jump;
+    const expired = limit !== undefined && P.actionTime >= limit;
+    if (shrugged || expired) {
+      // Don't let the same press immediately restart what it cancelled.
+      if (repeat) pressed[P.action] = false;
+      P.action = null;
+    }
   }
-  const busy = P.action && P.action !== 'tumble';
+
+  if (!P.action) {
+    for (const a of ACTION_KEYS)
+      if (pressed[a]) {
+        P.action = a;
+        P.actionTime = 0;
+        bird.play(a, { restart: true });
+        break;
+      }
+  }
+  const busy = !!P.action;
 
   let target = 0;
   if (!busy && !crouching) { if (keys.left) target -= 1; if (keys.right) target += 1; }
