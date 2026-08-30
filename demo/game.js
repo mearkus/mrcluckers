@@ -26,6 +26,11 @@
   var COYOTE_TIME = 0.09;              // grace period after leaving a ledge
   var JUMP_BUFFER = 0.11;              // remembers an early jump press
 
+  // Actions normally end when their clip does, but `tumble` loops, so it needs
+  // an explicit limit or he spins forever. Roughly two turns of the clip.
+  var ACTION_TIME = { tumble: 1.2 };
+  var ACTION_KEYS = ["peck", "crow", "squeak", "tumble"];
+
   var LEVEL = {
     width: 2400,
     ground: 430,
@@ -100,7 +105,7 @@
   var player = {
     x: 120, y: LEVEL.ground, vx: 0, vy: 0,
     facing: 1, onGround: true, coyote: 0, buffer: 0,
-    landTimer: 0, action: null,
+    landTimer: 0, action: null, actionTime: 0,
     anim: new Anim("idle")
   };
 
@@ -108,15 +113,37 @@
     var wantLeft = keys.left, wantRight = keys.right;
     var crouching = keys.down && player.onGround;
 
-    // One-shot actions take over until their clip finishes.
-    if (!player.action) {
-      if (pressed.peck) player.action = "peck";
-      else if (pressed.crow) player.action = "crow";
-      else if (pressed.squeak) player.action = "squeak";
-      else if (pressed.tumble) player.action = "tumble";
-      if (player.action) player.anim.set(player.action, true);
+    // Resolve any action already running first, so a cancelling press takes
+    // effect on the same frame rather than the next one.
+    if (player.action) {
+      player.actionTime += dt;
+      var limit = ACTION_TIME[player.action];
+      var repeat = pressed[player.action];
+      var shrugged = repeat || pressed.left || pressed.right ||
+                     pressed.down || pressed.jump;
+      var expired = limit !== undefined && player.actionTime >= limit;
+      if (shrugged || expired || player.anim.done) {
+        // Don't let the same press immediately restart what it cancelled.
+        if (repeat) pressed[player.action] = false;
+        player.action = null;
+      }
     }
-    var busy = player.action && player.action !== "tumble";
+
+    // Actions take over until their clip finishes, they time out, or the
+    // player shrugs them off with any deliberate input.
+    if (!player.action) {
+      for (var ai = 0; ai < ACTION_KEYS.length; ai++) {
+        if (pressed[ACTION_KEYS[ai]]) {
+          player.action = ACTION_KEYS[ai];
+          break;
+        }
+      }
+      if (player.action) {
+        player.actionTime = 0;
+        player.anim.set(player.action, true);
+      }
+    }
+    var busy = !!player.action;
 
     var target = 0;
     if (!busy && !crouching) {
@@ -168,7 +195,6 @@
       }
     }
 
-    if (player.action && player.anim.done) player.action = null;
     player.landTimer = Math.max(0, player.landTimer - dt);
     player.anim.set(pickState(crouching));
     player.anim.update(dt);
