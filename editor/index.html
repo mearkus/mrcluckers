@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mr. Cluckers - level editor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,400..800&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+  :root {
+    --bg: #1a1c21; --panel: #22252b; --sunk: #14161a; --line: #333840;
+    --ink: #e3e4e1; --ink-2: #a3a7ac; --ink-3: #6f757c;
+    --comb: #ef4a4f; --beak: #e5b53a; --ok: #5da041; --water: #4a8fbe;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
+    font: 13px/1.5 "JetBrains Mono", ui-monospace, Menlo, monospace;
+    overflow: hidden; }
+  #app { display: grid; grid-template-columns: 1fr 264px; height: 100dvh; }
+  #view { position: relative; }
+  canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
+  aside { background: var(--panel); border-left: 1px solid var(--line);
+    padding: 14px; overflow-y: auto; display: flex; flex-direction: column;
+    gap: 14px; }
+  h1 { font-family: Archivo, sans-serif; font-variation-settings: "wght" 800;
+    font-size: 15px; letter-spacing: .12em; text-transform: uppercase;
+    margin: 0 0 2px; }
+  h2 { font-family: Archivo, sans-serif; font-variation-settings: "wght" 700;
+    font-size: 10px; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--ink-3); margin: 0 0 6px; }
+  .tools { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  button, select, textarea {
+    font: inherit; background: var(--sunk); color: var(--ink);
+    border: 1px solid var(--line); border-radius: 3px; padding: 6px 8px;
+    cursor: pointer; }
+  button:hover { border-color: var(--ink-3); }
+  button[aria-pressed="true"] { background: var(--comb); border-color: var(--comb);
+    color: #fff; }
+  button:focus-visible, select:focus-visible { outline: 2px solid var(--beak);
+    outline-offset: 1px; }
+  select { width: 100%; }
+  textarea { width: 100%; height: 132px; resize: vertical; cursor: text;
+    font-size: 11px; line-height: 1.45; white-space: pre; }
+  .row { display: flex; gap: 6px; }
+  .row > * { flex: 1; }
+  dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 2px 10px;
+    font-size: 11.5px; }
+  dt { color: var(--ink-3); }
+  dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+  .warn { color: var(--comb); }
+  .hint { color: var(--ink-3); font-size: 11px; line-height: 1.5; }
+  kbd { background: var(--sunk); border: 1px solid var(--line);
+    border-radius: 3px; padding: 0 4px; font-size: 10.5px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="view"><canvas id="c"></canvas></div>
+  <aside>
+    <div>
+      <h1>Level editor</h1>
+      <div class="hint">Grid is 0.5 heights. The arc under the cursor is
+        Mr.&nbsp;Cluckers' real jump.</div>
+    </div>
+
+    <div>
+      <h2>Level</h2>
+      <select id="levelPick"></select>
+      <div class="row" style="margin-top:6px">
+        <button id="newLevel">New</button>
+        <button id="fit">Fit view</button>
+      </div>
+    </div>
+
+    <div>
+      <h2>Tool</h2>
+      <div class="tools">
+        <button data-tool="select" aria-pressed="true">Select</button>
+        <button data-tool="platform" aria-pressed="false">Platform</button>
+        <button data-tool="pickup" aria-pressed="false">Kibble</button>
+        <button data-tool="hazard" aria-pressed="false">Water</button>
+        <button data-tool="spawn" aria-pressed="false">Spawn</button>
+        <button data-tool="goal" aria-pressed="false">Goal</button>
+      </div>
+      <div class="hint" style="margin-top:6px">
+        Drag to draw &middot; <kbd>Del</kbd> removes &middot; arrows nudge
+        &middot; wheel zooms &middot; drag empty space to pan
+      </div>
+    </div>
+
+    <div>
+      <h2>Budget</h2>
+      <dl id="budget"></dl>
+    </div>
+
+    <div>
+      <h2>Checks</h2>
+      <div id="checks" class="hint">&mdash;</div>
+    </div>
+
+    <div>
+      <h2>JSON</h2>
+      <textarea id="json" spellcheck="false"></textarea>
+      <div class="row" style="margin-top:6px">
+        <button id="copy">Copy</button>
+        <button id="download">Download</button>
+        <button id="load">Load</button>
+      </div>
+      <div class="hint" style="margin-top:6px">
+        Save into <code>levels/</code>, then run
+        <code>python3&nbsp;build.py&nbsp;--only&nbsp;levels</code>.
+      </div>
+    </div>
+  </aside>
+</div>
+
+<script src="../shared/jump.js"></script>
+<script src="../shared/level.js"></script>
+<script src="../levels/levels.js"></script>
+<script src="editor.js"></script>
+</body>
+</html>

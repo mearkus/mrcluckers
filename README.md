@@ -26,6 +26,9 @@ python3 build.py
 | `assets/textures/*.png` | Tiling fabric maps: base colour and normals for fur, corduroy and felt. |
 | `assets/reference/turnaround.png` | Eight-angle turnaround for reference. |
 | `shared/controls.js` | On-screen controls for touch devices, used by both demos. |
+| `shared/jump.js` | The movement budget — the numbers that decide what a level can ask. |
+| `shared/level.js` | Level format, and the conversion the canvas demo needs. |
+| `levels/*.json` | The levels themselves. `levels.js` is the generated bundle. |
 
 ## Two demos
 
@@ -102,6 +105,60 @@ keeps the run, and jumping works throughout.
 
 If you wire `tumble` up yourself, give it a time limit. Don't make it a
 one-shot clip instead — that caps it at exactly one turn forever.
+
+## Designing levels
+
+Levels live in `levels/*.json`, authored **once** and read by both demos and
+the editor. Coordinates are world units — 1 unit is Mr. Cluckers' height —
+with **Y up** and the ground's top surface at `y = 0`. A platform's `y` is its
+top surface, the edge that matters for landing.
+
+```json
+{
+  "name": "Living Room",
+  "width": 33,
+  "spawn": { "x": 1.5, "y": 0 },
+  "goal":  { "x": 30.5, "y": 0 },
+  "platforms": [ { "x": 4, "y": 1, "w": 2.5, "h": 0.5 } ],
+  "pickups":   [ { "x": 5.25, "y": 1.6 } ],
+  "hazards":   [ { "x": 10, "y": 0, "w": 2.5, "h": 0.4, "kind": "water" } ]
+}
+```
+
+Open [`editor/`](editor/) to draw one. It snaps to a half-height grid and
+draws **his real jump arc under the cursor**, so you can see what's reachable
+before playtesting. It flags platforms nothing can reach and gaps within 15%
+of the limit. Export the JSON, save it into `levels/`, then:
+
+```
+python3 build.py --only levels
+```
+
+That bundles every level into `levels/levels.js`, which the demos load with a
+`<script>` tag — browsers block `fetch()` over `file://`, so a bundle is what
+makes the demos work by double-clicking. Add `?level=the-garden` to either
+demo to pick one.
+
+### What a jump can do
+
+Measured from the real physics in `shared/jump.js`, in character heights:
+
+| | |
+| --- | --- |
+| Max jump (hold) | **1.54** |
+| Tap jump | 0.64 |
+| Gap at full run | **2.44** |
+| Gap at walk speed | 1.04 |
+| Onto a ledge +1.0 up | 1.98 |
+| Onto a ledge +1.5 up | 1.42 |
+
+Rules of thumb: **comfortable gap 1.6–1.8**, **comfortable step up ≤1.0**,
+nothing more than 1.5 above the surface that has to reach it, and a landing
+platform at least 1.0 wide — his collision box is only 0.44 across, but he
+arrives carrying momentum.
+
+Both demos derive their constants from `shared/jump.js`, so the editor's arc
+is the arc you actually get.
 
 ## Touch controls
 

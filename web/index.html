@@ -37,10 +37,14 @@
   <span class="keyhint"><kbd>c</kbd> crow</span>
   <span class="keyhint"><kbd>z</kbd> squeak</span>
   <span class="keyhint"><kbd>v</kbd> tumble</span>
+  <span><b id="levelName">&nbsp;</b></span>
   <span>state <b id="state">idle</b></span>
   <span><b id="fps">--</b> fps</span>
 </div>
 <div id="rotate">Turn sideways for a wider view</div>
+<script src="../shared/jump.js"></script>
+<script src="../shared/level.js"></script>
+<script src="../levels/levels.js"></script>
 <script src="../shared/controls.js"></script>
 
 <script type="importmap">
@@ -57,8 +61,12 @@ import { Cluckers, sideCamera, resizeSideCamera, plushLighting }
   from './mrcluckers.js';
 
 // --- physics, in world units (he is 1.0 unit tall) ------------------------
-const GRAVITY = 24, RUN = 3.4, WALK = 1.45, ACCEL = 20, FRICTION = 26;
-const JUMPV = 8.8, COYOTE = 0.09, BUFFER = 0.11;
+// Derived from shared/jump.js so the two demos and the editor agree.
+const J = window.Jump.C;
+const GRAVITY = J.GRAVITY, RUN = J.RUN, WALK = J.WALK;
+const ACCEL = J.ACCEL, FRICTION = J.FRICTION;
+const JUMPV = J.JUMP_VELOCITY, COYOTE = J.COYOTE, BUFFER = J.JUMP_BUFFER;
+const HALF_W = J.HALF_WIDTH;
 
 // Frame by how much of the level should be visible horizontally, not by a
 // fixed height -- otherwise a tall phone screen shows almost nothing ahead.
@@ -73,14 +81,14 @@ function viewHeight() {
   return Math.min(MAX_VIEW_H, Math.max(MIN_VIEW_H, MIN_WORLD_WIDTH / aspect));
 }
 
-const PLATFORMS = [
-  { x: 0, y: 0, w: 60, h: 1, ground: true },
-  { x: 3.4, y: 1.15, w: 2.2, h: 0.3 },
-  { x: 6.6, y: 2.0, w: 1.7, h: 0.3 },
-  { x: 9.6, y: 1.3, w: 2.6, h: 0.3 },
-  { x: 13.2, y: 2.3, w: 1.6, h: 0.3 },
-  { x: 16.2, y: 1.6, w: 3.0, h: 0.3 }
-];
+// Authored in world units in levels/*.json -- the same file the canvas demo
+// and the editor read, so a level only has to be designed once.
+const want = (location.search.match(/[?&]level=([\w-]+)/) || [])[1];
+const SLUG = (want && window.MRCLUCKERS_LEVELS[want])
+  ? want : window.MRCLUCKERS_LEVEL_ORDER[0];
+const LEVEL = window.Level.normalize(window.MRCLUCKERS_LEVELS[SLUG]);
+const PLATFORMS = LEVEL.platforms;
+const collected = new Set();
 
 const coarse = matchMedia('(pointer: coarse)').matches;
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -113,6 +121,39 @@ for (const p of PLATFORMS) {
   scene.add(cap);
 }
 
+const kibbleMat = new THREE.MeshStandardMaterial({ color: '#c8892f', roughness: .7 });
+const kibbleGeo = new THREE.SphereGeometry(0.09, 12, 8);
+const kibbles = LEVEL.pickups.map((p, i) => {
+  const m = new THREE.Mesh(kibbleGeo, kibbleMat);
+  m.position.set(p.x, p.y + 0.18, 0);
+  m.userData.index = i;
+  scene.add(m);
+  return m;
+});
+
+const waterMat = new THREE.MeshStandardMaterial({
+  color: '#4a8fbe', roughness: .25, transparent: true, opacity: .75 });
+for (const h of LEVEL.hazards) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(h.w, h.h, 2.4), waterMat);
+  m.position.set(h.x + h.w / 2, h.y - h.h / 2, 0);
+  scene.add(m);
+}
+
+let goalFlag = null;
+if (LEVEL.goal) {
+  goalFlag = new THREE.Group();
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.4, 8),
+    new THREE.MeshStandardMaterial({ color: '#d8d4c8', roughness: .8 }));
+  pole.position.y = 0.7;
+  const flag = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.32, 0.03),
+    new THREE.MeshStandardMaterial({ color: '#cf2027', roughness: .8 }));
+  flag.position.set(0.27, 1.2, 0);
+  goalFlag.add(pole, flag);
+  goalFlag.position.set(LEVEL.goal.x, LEVEL.goal.y, 0);
+  scene.add(goalFlag);
+  goalFlag.userData.flag = flag;
+}
+
 // A blob shadow costs nothing and suits the toy better than a shadow map.
 const shadow = new THREE.Mesh(
   new THREE.CircleGeometry(0.34, 24),
@@ -121,6 +162,7 @@ const shadow = new THREE.Mesh(
 shadow.rotation.x = -Math.PI / 2;
 scene.add(shadow);
 
+document.title = LEVEL.name + ' - Mr. Cluckers';
 const bird = await Cluckers.load('../assets/model/mrcluckers.glb');
 scene.add(bird.root);
 document.getElementById('loading').remove();
@@ -153,8 +195,9 @@ addEventListener('keyup', e => {
 });
 
 // --- character controller (same shape as the sprite demo) -----------------
-const P = { x: 1.5, y: 0, vx: 0, vy: 0, onGround: true, coyote: 0, buffer: 0,
-            landTimer: 0, action: null, actionTime: 0 };
+const P = { x: LEVEL.spawn.x, y: LEVEL.spawn.y, vx: 0, vy: 0, onGround: true,
+            coyote: 0, buffer: 0, landTimer: 0, action: null, actionTime: 0,
+            reached: false };
 bird.onFinished = (name) => { if (P.action === name) P.action = null; };
 
 function pickState(crouching) {
@@ -237,7 +280,36 @@ function update(dt) {
       }
     }
   }
-  if (P.y < -6) { P.x = 1.5; P.y = 4; P.vy = 0; }
+  // Hazards and falling out of the world put him back at the start.
+  let inHazard = false;
+  for (const h of LEVEL.hazards)
+    if (P.x + HALF_W > h.x && P.x - HALF_W < h.x + h.w &&
+        P.y < h.y + 0.05 && P.y > h.y - h.h - 0.4) inHazard = true;
+  if (P.y < -6 || inHazard) {
+    P.x = LEVEL.spawn.x; P.y = LEVEL.spawn.y; P.vx = P.vy = 0; P.action = null;
+  }
+
+  for (const k of kibbles) {
+    if (!k.visible) continue;
+    if (Math.abs(k.position.x - P.x) < 0.36 &&
+        Math.abs(k.position.y - (P.y + 0.5)) < 0.55) {
+      k.visible = false;
+      collected.add(k.userData.index);
+      if (!P.action) { P.action = 'squeak'; P.actionTime = 0;
+                       bird.play('squeak', { restart: true }); }
+    }
+  }
+  if (goalFlag) {
+    goalFlag.userData.flag.rotation.z = Math.sin(performance.now() / 320) * 0.12;
+    if (!P.reached && Math.abs(LEVEL.goal.x - P.x) < 0.5 &&
+        Math.abs(LEVEL.goal.y - P.y) < 0.9) {
+      P.reached = true;
+      P.action = 'crow';
+      P.actionTime = 0;
+      bird.play('crow', { restart: true });
+      goalFlag.userData.flag.material.color.set('#e0b52c');
+    }
+  }
   P.landTimer = Math.max(0, P.landTimer - dt);
 
   bird.play(pickState(crouching));
@@ -260,6 +332,9 @@ function update(dt) {
 
   pressed = {};
   document.getElementById('state').textContent = bird.current.getClip().name;
+  document.getElementById('levelName').textContent =
+    LEVEL.name + '  ' + collected.size + '/' + LEVEL.pickups.length +
+    (P.reached ? '  \u2014 reunited!' : '');
 }
 
 function onResize() {
