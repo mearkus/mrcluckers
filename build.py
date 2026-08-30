@@ -1,0 +1,134 @@
+#!/usr/bin/env python3
+"""Build Mr. Cluckers: 3D model files and 2D platformer sprite sheets.
+
+    python3 build.py                 # everything, default settings
+    python3 build.py --only sprites  # just re-bake the sheets
+    python3 build.py --size 128      # bigger sprite cells
+
+No third-party dependencies -- geometry, rendering and export are all here.
+"""
+
+import argparse
+import os
+import sys
+import time
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "tools"))
+
+from mc import anim, gltf, obj, png, pose as po, raster, rig, sprites  # noqa: E402
+from mc import vmath as v  # noqa: E402
+
+VIEWS = {
+    "side": sprites.SIDE_RIGHT,
+    "threequarter": sprites.THREE_QUARTER,
+    "front": sprites.FRONT,
+}
+
+
+def build_model(parts, base, out_dir, clips):
+    os.makedirs(out_dir, exist_ok=True)
+    doc, blob = gltf.build_gltf(parts, rig.MATERIALS, clips=clips, base=base)
+
+    glb = os.path.join(out_dir, "mrcluckers.glb")
+    size = gltf.write_glb(glb, doc, blob)
+    print("  %-38s %7.1f KB" % ("mrcluckers.glb", size / 1024.0))
+
+    gtf = os.path.join(out_dir, "mrcluckers.gltf")
+    gltf.write_gltf(gtf, doc, blob)
+    print("  %-38s %7.1f KB" % ("mrcluckers.gltf", os.path.getsize(gtf) / 1024.0))
+
+    rest = po.bake(parts, anim.make_pose(), base)
+    obj.write_obj(os.path.join(out_dir, "mrcluckers.obj"),
+                  os.path.join(out_dir, "mrcluckers.mtl"),
+                  rest, rig.MATERIALS, mtl_name="mrcluckers.mtl")
+    print("  %-38s %7.1f KB" % ("mrcluckers.obj",
+                                os.path.getsize(os.path.join(out_dir, "mrcluckers.obj")) / 1024.0))
+    return rest
+
+
+def build_sprites(parts, base, clips, out_dir, cell, view, supersample, outline):
+    os.makedirs(out_dir, exist_ok=True)
+    camera = sprites.make_camera(cell, yaw=VIEWS[view])
+    order = ["idle", "walk", "run", "jump", "fall", "land", "crouch",
+             "peck", "crow", "hurt", "squeak", "tumble"]
+    rows, total = [], 0
+    start = time.time()
+    for name in order:
+        clip = clips[name]
+        frames = sprites.render_frames(parts, rig.MATERIALS, clip.poses(),
+                                       camera, cell, base=base,
+                                       supersample=supersample, outline=outline)
+        rows.append((name, frames))
+        total += len(frames)
+        sys.stdout.write("\r  rendering %s (%d frames)      " % (name, total))
+        sys.stdout.flush()
+
+    stem = "mrcluckers_%s" % view
+    w, h = sprites.write_sheet(os.path.join(out_dir, stem + ".png"),
+                               os.path.join(out_dir, stem + ".json"),
+                               rows, clips, cell, camera, view_name=view)
+    print("\r  %-38s %4dx%-4d %d frames, %.1fs" %
+          (stem + ".png", w, h, total, time.time() - start))
+    return os.path.join(out_dir, stem + ".png")
+
+
+def build_turnaround(parts, base, out_dir, size=256, steps=8, supersample=3):
+    os.makedirs(out_dir, exist_ok=True)
+    mesh = po.bake(parts, anim.make_pose(wing_lift_l=0, wing_lift_r=0,
+                                         wing_sweep_l=0, wing_sweep_r=0), base)
+    sheet = bytearray(size * steps * size * 4)
+    for i in range(steps):
+        cam = raster.Camera(yaw=v.deg(360.0 * i / steps), pitch=v.deg(6),
+                            target=(0.0, 0.52, 0.0), height=1.26)
+        buf = raster.render(mesh, rig.MATERIALS, size, size, cam,
+                            supersample=supersample, outline=0.25)
+        png.blit(sheet, size * steps, buf, size, size, i * size, 0)
+    path = os.path.join(out_dir, "turnaround.png")
+    png.write_rgba(path, size * steps, size, sheet)
+    print("  %-38s %4dx%-4d" % ("turnaround.png", size * steps, size))
+    return path
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--out", default="assets", help="output directory")
+    ap.add_argument("--size", type=int, default=96, help="sprite cell size in px")
+    ap.add_argument("--supersample", type=int, default=3, help="anti-aliasing factor")
+    ap.add_argument("--outline", type=float, default=0.30, help="silhouette darkening 0-1")
+    ap.add_argument("--views", default="side",
+                    help="comma separated: side,threequarter,front")
+    ap.add_argument("--no-fuzz", action="store_true", help="skip plush surface noise")
+    ap.add_argument("--flop", type=float, default=1.0,
+                    help="secondary-motion amount: 0 stiff, 1 plush, >1 cartoon")
+    ap.add_argument("--only", choices=["model", "sprites", "turnaround"],
+                    action="append", help="build only these (repeatable)")
+    args = ap.parse_args()
+
+    only = set(args.only or ["model", "sprites", "turnaround"])
+    print("Mr. Cluckers build")
+    t0 = time.time()
+
+    parts = rig.build_parts(fuzz=not args.no_fuzz)
+    base = po.fit_base(parts)
+    tris = sum(len(p.faces) for p in parts.values())
+    print("  rig: %d parts, %d triangles" % (len(parts), tris))
+    clips = anim.all_clips(flop=args.flop)
+
+    if "model" in only:
+        build_model(parts, base, os.path.join(args.out, "model"), clips)
+    if "sprites" in only:
+        for view in args.views.split(","):
+            view = view.strip()
+            if view not in VIEWS:
+                raise SystemExit("unknown view %r" % view)
+            build_sprites(parts, base, clips, os.path.join(args.out, "sprites"),
+                          args.size, view, args.supersample, args.outline)
+    if "turnaround" in only:
+        build_turnaround(parts, base, os.path.join(args.out, "reference"))
+
+    print("  done in %.1fs" % (time.time() - t0))
+
+
+if __name__ == "__main__":
+    main()

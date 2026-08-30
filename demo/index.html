@@ -1,0 +1,26 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Mr. Cluckers - platformer demo</title>
+<style>
+  body { margin: 0; background: #1b1d22; color: #cdd2d8;
+         font: 14px/1.5 system-ui, sans-serif; display: flex;
+         flex-direction: column; align-items: center; gap: 12px; padding: 20px; }
+  canvas { image-rendering: pixelated; border-radius: 8px;
+           box-shadow: 0 12px 40px rgba(0,0,0,.5); max-width: 100%; }
+  kbd { background: #2f333b; border: 1px solid #444a55; border-bottom-width: 2px;
+        border-radius: 4px; padding: 1px 6px; font: inherit; font-size: 12px; }
+  .row { display: flex; gap: 18px; flex-wrap: wrap; justify-content: center; }
+</style>
+<canvas id="stage" width="960" height="540"></canvas>
+<div class="row">
+  <span><kbd>&larr;</kbd><kbd>&rarr;</kbd> move</span>
+  <span><kbd>Space</kbd> jump</span>
+  <span><kbd>&darr;</kbd> crouch / walk</span>
+  <span><kbd>X</kbd> peck</span>
+  <span><kbd>C</kbd> crow</span>
+  <span><kbd>Z</kbd> squeak</span>
+  <span><kbd>V</kbd> tumble</span>
+  <span>state: <b id="state">idle</b></span>
+</div>
+<script src="../assets/sprites/mrcluckers_side.js"></script>
+<script src="game.js"></script>
