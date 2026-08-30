@@ -27,12 +27,14 @@ SHOULDER_H = 1.15
 MATERIALS = {
     "coat":       {"color": "#ad7c55", "rough": 0.88, "fuzz": 0.45, "tex": "shortcoat"},
     "coat_dark":  {"color": "#7d5537", "rough": 0.88, "fuzz": 0.45, "tex": "shortcoat"},
-    "mask":       {"color": "#4a3527", "rough": 0.85, "fuzz": 0.35, "tex": "shortcoat"},
+    "mask":       {"color": "#6d5039", "rough": 0.85, "fuzz": 0.35, "tex": "shortcoat"},
     "white":      {"color": "#e8ded0", "rough": 0.85, "fuzz": 0.40, "tex": "shortcoat"},
     "nose":       {"color": "#241d1b", "rough": 0.42, "fuzz": 0.00, "tex": None},
     "mouth":      {"color": "#9a5b62", "rough": 0.55, "fuzz": 0.00, "tex": None},
-    "eye_iris":   {"color": "#5a3a20", "rough": 0.30, "fuzz": 0.00, "tex": None},
-    "eye_dark":   {"color": "#141010", "rough": 0.25, "fuzz": 0.00, "tex": None},
+    "eye_iris":   {"color": "#77471f", "rough": 0.22, "fuzz": 0.00, "tex": None},
+    "eye_dark":   {"color": "#120e0d", "rough": 0.18, "fuzz": 0.00, "tex": None},
+    "eye_rim":    {"color": "#1a1412", "rough": 0.45, "fuzz": 0.00, "tex": None},
+    "eye_glint":  {"color": "#f6f4ef", "rough": 0.06, "fuzz": 0.00, "tex": None},
     "collar":     {"color": "#1b191e", "rough": 0.60, "fuzz": 0.10, "tex": None},
     "tag":        {"color": "#0f0f13", "rough": 0.35, "fuzz": 0.00, "tex": None},
 }
@@ -139,6 +141,27 @@ def wobble(x, y, z, amp=0.030, freq=6.0, seed=5):
     return amp * ms.value_noise3((x * freq, y * freq, z * freq), seed)
 
 
+def almond(w, h, depth, material, segments=20, rings=4, power=1.5):
+    """A shallow dome with pointed corners -- the shape of an eye.
+
+    A superellipse exponent below 2 pulls the corners out, which is what
+    separates an eye from a bead stuck on the side of the head.
+    """
+    sections = []
+    for r in range(rings + 1):
+        t = r / float(rings)
+        k = math.sqrt(max(0.0, 1.0 - t * t))
+        ring = []
+        for sg in range(segments):
+            a = 2.0 * math.pi * sg / segments
+            ca, sa = math.cos(a), math.sin(a)
+            ex = math.copysign(abs(ca) ** (2.0 / power), ca) if ca else 0.0
+            ey = math.copysign(abs(sa) ** (2.0 / power), sa) if sa else 0.0
+            ring.append((ex * w * k, ey * h * k, t * depth))
+        sections.append(ring)
+    return ms.loft(sections, material, cap_start=True, cap_end=False)
+
+
 def paint(mesh, predicate, material):
     """Reassign faces whose centroid satisfies `predicate` -- how the white
     markings and the dark mask get applied without extra geometry."""
@@ -209,9 +232,11 @@ def head():
         (0.800, 1.304, 0.143, 0.139),
         (0.858, 1.282, 0.113, 0.112),
     ]
-    skull = smooth(skull, 3)
+    # Markings are painted per face, so the boundary can only be as smooth as
+    # the mesh -- the head is deliberately denser than the body for that.
+    skull = smooth(skull, 10)
     out.merge(tube([(0.0, y, z) for z, y, _, _ in skull],
-                   [(rx, ry) for _, _, rx, ry in skull], "coat", segments=24))
+                   [(rx, ry) for _, _, rx, ry in skull], "coat", segments=52))
 
     muzzle = [
         (0.836, 1.262, 0.101, 0.095),
@@ -220,19 +245,20 @@ def head():
         (0.995, 1.232, 0.073, 0.067),
         (1.022, 1.228, 0.049, 0.046),
     ]
-    muzzle = smooth(muzzle, 3)
+    muzzle = smooth(muzzle, 10)
     out.merge(tube([(0.0, y, z) for z, y, _, _ in muzzle],
-                   [(rx, ry) for _, _, rx, ry in muzzle], "coat", segments=22))
+                   [(rx, ry) for _, _, rx, ry in muzzle], "coat", segments=44))
 
     # Dark mask around each eye, white blaze up the centre, white lower muzzle.
     # A rounded patch centred on each eye, rather than a band across the skull.
     def near_eye(x, y, z):
-        dx, dy, dz = abs(x) - 0.100, y - 1.306, z - 0.795
-        return (dx * dx * 1.3 + dy * dy + dz * dz * 0.8) < 0.0052
+        dx, dy, dz = abs(x) - 0.104, y - 1.298, z - 0.836
+        r = dx * dx * 1.1 + dy * dy * 1.4 + dz * dz * 0.7
+        return r < 0.0044 + wobble(x, y, z, 0.00035, 30, seed=41)
     paint(out, near_eye, "mask")
-    paint(out, lambda x, y, z: abs(x) < 0.028 + wobble(x, y, z, 0.012, 14)
+    paint(out, lambda x, y, z: abs(x) < 0.029 + wobble(x, y, z, 0.0035, 26)
           and z > 0.660 and y > 1.245, "white")
-    paint(out, lambda x, y, z: y < 1.245 + wobble(x, y, z, 0.020, 12, seed=31)
+    paint(out, lambda x, y, z: y < 1.246 + wobble(x, y, z, 0.004, 24, seed=31)
           and z > 0.845, "white")
 
     nose = ms.sphere(0.044, "nose", segments=16, rings=12)
@@ -255,16 +281,31 @@ def _lip(side):
 
 
 def eye(side):
+    """Rim, iris, pupil and a highlight, stacked outward along the eye axis.
+
+    Placed on the skull surface just behind the stop and angled forward, which
+    is where a dog's eyes actually sit -- forward enough to be seen head-on.
+    """
     out = ms.Mesh()
-    iris = ms.sphere(0.029, "eye_iris", segments=16, rings=12)
-    iris.scale((1.0, 0.92, 0.55))
-    pupil = ms.sphere(0.015, "eye_dark", segments=12, rings=8)
-    pupil.scale((1.0, 1.0, 0.6))
-    pupil.translate((0.0, 0.0, 0.016))
+    out.merge(almond(0.046, 0.027, 0.009, "eye_rim"))
+
+    iris = almond(0.036, 0.020, 0.011, "eye_iris")
+    iris.translate((0.0, 0.0, 0.004))
     out.merge(iris)
+
+    pupil = almond(0.016, 0.015, 0.010, "eye_dark", power=1.9)
+    pupil.translate((0.0, 0.0, 0.011))
     out.merge(pupil)
-    out.transform(v.rot_y(v.deg(32 * side)))
-    out.translate((0.100 * side, 1.306, 0.800))
+
+    glint = ms.sphere(0.0058, "eye_glint", segments=10, rings=8)
+    glint.translate((-0.011 * side, 0.008, 0.016))
+    out.merge(glint)
+
+    # Outer corner slightly higher than the inner, the way a dog's eye sits.
+    out.transform(v.rot_z(v.deg(-9 * side)))
+    out.transform(v.rot_x(v.deg(-6)))
+    out.transform(v.rot_y(v.deg(48 * side)))
+    out.translate((0.113 * side, 1.295, 0.845))
     return out
 
 

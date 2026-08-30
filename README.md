@@ -189,7 +189,12 @@ plush toy. She stands about 1.15 units at the shoulder against Mr. Cluckers'
 Markings are painted onto faces by position rather than modelled — the white
 blaze, chest bib, belly, socks and tail tip, and the dark mask around each
 eye — with the boundaries jittered by noise so they read as fur rather than
-decals.
+decals. Because a face is painted whole, the boundary can only be as smooth
+as the mesh, which is why her head is deliberately denser than her body.
+
+The eyes are built as almond lenses — a superellipse with the corners pulled
+out — stacked rim, iris, pupil and highlight, and seated on the skull surface
+just behind the stop so they read from the front as well as in profile.
 
 The skeleton is laid out (spine, neck, head, ears, three tail segments, and
 the full four legs) but **nothing is rigged or animated yet**. This pass is
