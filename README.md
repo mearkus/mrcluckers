@@ -86,10 +86,22 @@ your controller knows when `peck` or `land` is done.
 | `squeak` | 6 | no | the squeaker gag — crushed flat, pops back |
 | `tumble` | 8 | yes | knocked across the room, everything flailing |
 
-`tumble` is the one action clip that loops — it's a continuous spin. The
-demos bound it to 1.2s (about two turns) and let any deliberate input shrug
-it off early, which is the controller's job rather than the clip's. If you
-wire it up yourself, give it a time limit or it never ends.
+### How the demos treat actions
+
+Actions are **cosmetic**: `peck`, `crow`, `squeak` and `tumble` never stop the
+character. Movement follows the keys that are *held*, so firing one mid-run
+keeps the run, and jumping works throughout.
+
+| Rule | Why |
+| --- | --- |
+| An action ends when its clip finishes | the normal case |
+| `tumble` also ends after 1.2s | it's the one clip that **loops** — a continuous spin — so it would otherwise never end |
+| Jump ends any action | movement states outrank a flourish |
+| A direction ends `tumble` only | it's a stun you shrug off; ending `peck` too would mean you could never peck on the run |
+| Pressing the same key again ends it | and doesn't restart it |
+
+If you wire `tumble` up yourself, give it a time limit. Don't make it a
+one-shot clip instead — that caps it at exactly one turn forever.
 
 ## Touch controls
 

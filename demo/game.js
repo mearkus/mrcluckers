@@ -119,8 +119,11 @@
       player.actionTime += dt;
       var limit = ACTION_TIME[player.action];
       var repeat = pressed[player.action];
-      var shrugged = repeat || pressed.left || pressed.right ||
-                     pressed.down || pressed.jump;
+      // Jumping outranks a flourish. A direction only shrugs off `tumble`,
+      // which is a stun -- otherwise you could never peck on the run.
+      var shrugged = repeat || pressed.jump ||
+                     (player.action === "tumble" &&
+                      (pressed.left || pressed.right || pressed.down));
       var expired = limit !== undefined && player.actionTime >= limit;
       if (shrugged || expired || player.anim.done) {
         // Don't let the same press immediately restart what it cancelled.
@@ -143,10 +146,10 @@
         player.anim.set(player.action, true);
       }
     }
-    var busy = !!player.action;
-
+    // Actions are cosmetic: they never stop the character. Movement follows
+    // the keys that are *held*, so an action fired mid-run keeps the run.
     var target = 0;
-    if (!busy && !crouching) {
+    if (!crouching) {
       if (wantLeft) target -= 1;
       if (wantRight) target += 1;
     }
@@ -163,7 +166,7 @@
 
     player.coyote = player.onGround ? COYOTE_TIME : Math.max(0, player.coyote - dt);
     player.buffer = pressed.jump ? JUMP_BUFFER : Math.max(0, player.buffer - dt);
-    if (player.buffer > 0 && player.coyote > 0 && !busy) {
+    if (player.buffer > 0 && player.coyote > 0) {
       player.vy = -JUMP_VELOCITY;
       player.onGround = false;
       player.coyote = 0;
@@ -337,6 +340,9 @@
     var label = document.getElementById("state");
     if (label) label.textContent = player.anim.name;
   }
+
+  // Exposed for debugging and for the automated input tests.
+  window.mrCluckers = { player: player, level: LEVEL };
 
   var last = 0;
   function frame(now) {
