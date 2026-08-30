@@ -17,7 +17,8 @@ import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "tools"))
 
-from mc import anim, ginger, gltf, obj, png, pose as po, raster, rig, sprites  # noqa: E402
+from mc import anim, ginger, ginger_anim, gltf, obj, png, pose as po  # noqa: E402
+from mc import raster, rig, sprites  # noqa: E402
 from mc import mesh as ms, texture, vmath as v  # noqa: E402
 
 VIEWS = {
@@ -84,10 +85,11 @@ def build_textures(out_dir, size):
     return maps, encoded
 
 
-def build_ginger(out_dir, ref_dir, textures=None, maps=None):
-    """Ginger: rest-pose model and a turnaround. No rig or clips yet."""
+def build_ginger(out_dir, ref_dir, textures=None, maps=None, flop=1.0):
+    """Ginger: model, rig and her clips, plus a turnaround."""
     os.makedirs(out_dir, exist_ok=True)
     parts = ginger.build_parts()
+    clips = ginger_anim.all_clips(flop=flop)
 
     world = {}
     for name in ginger.ORDER:
@@ -100,12 +102,12 @@ def build_ginger(out_dir, ref_dir, textures=None, maps=None):
         c.transform(world[name])
         flat.merge(c)
 
-    doc, blob = gltf.build_gltf(parts, ginger.MATERIALS, base=None,
+    doc, blob = gltf.build_gltf(parts, ginger.MATERIALS, clips=clips, base=None,
                                 name="Ginger", textures=textures,
                                 skeleton=ginger)
     size = gltf.write_glb(os.path.join(out_dir, "ginger.glb"), doc, blob)
-    print("  %-38s %7.1f KB  %d tris" % ("ginger.glb", size / 1024.0,
-                                         len(flat.faces)))
+    print("  %-38s %7.1f KB  %d tris, %d clips"
+          % ("ginger.glb", size / 1024.0, len(flat.faces), len(clips)))
     obj.write_obj(os.path.join(out_dir, "ginger.obj"),
                   os.path.join(out_dir, "ginger.mtl"),
                   flat, ginger.MATERIALS, mtl_name="ginger.mtl",

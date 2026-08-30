@@ -41,10 +41,13 @@ class Pose(dict):
         return out
 
 
-def local_matrices(pose):
+def local_matrices(pose, skel=None):
+    """`skel` is any module exposing ORDER / PARENT / REST_T; defaults to
+    Mr. Cluckers' rig, but Ginger has her own."""
+    skel = skel or rig
     out = {}
-    for name in rig.ORDER:
-        t = rig.REST_T[name]
+    for name in skel.ORDER:
+        t = skel.REST_T[name]
         if name == "root":
             t = v.add(t, getattr(pose, "root_offset", (0.0, 0.0, 0.0)))
         rx, ry, rz = pose.get(name, (0.0, 0.0, 0.0))
@@ -56,11 +59,12 @@ def local_matrices(pose):
     return out
 
 
-def world_matrices(pose, base=None):
-    local = local_matrices(pose)
+def world_matrices(pose, base=None, skel=None):
+    skel = skel or rig
+    local = local_matrices(pose, skel)
     out = {}
-    for name in rig.ORDER:
-        parent = rig.PARENT[name]
+    for name in skel.ORDER:
+        parent = skel.PARENT[name]
         m = local[name]
         if parent is None:
             out[name] = v.mat_mul(base, m) if base else m
@@ -69,10 +73,10 @@ def world_matrices(pose, base=None):
     return out
 
 
-def bake(parts, pose=None, base=None):
+def bake(parts, pose=None, base=None, skel=None):
     """Flatten the posed rig into one world-space mesh."""
     pose = pose if pose is not None else Pose()
-    world = world_matrices(pose, base)
+    world = world_matrices(pose, base, skel)
     out = ms.Mesh()
     for name, part in parts.items():
         c = part.copy()
@@ -81,9 +85,9 @@ def bake(parts, pose=None, base=None):
     return out
 
 
-def fit_base(parts, target_height=1.0):
+def fit_base(parts, target_height=1.0, skel=None):
     """Uniform scale + offset putting feet on y=0, centred on x, unit tall."""
-    rest = bake(parts)
+    rest = bake(parts, skel=skel)
     lo, hi = rest.bounds()
     # Height ignores the outstretched wings; use the vertical extent.
     s = target_height / (hi[1] - lo[1])

@@ -18,7 +18,7 @@ python3 build.py
 | Path | What it is |
 | --- | --- |
 | `assets/model/mrcluckers.glb` | The 3D model with all 12 animation clips. Drop into Blender, Godot, Unity or three.js. |
-| `assets/model/ginger.glb` | Ginger, the dog he is trying to reach. Rest pose only so far — no rig, no clips. |
+| `assets/model/ginger.glb` | Ginger, the dog he is trying to reach, with five clips. |
 | `assets/model/mrcluckers.gltf` | Same thing as text-plus-data-URI, if you want to read it. |
 | `assets/model/mrcluckers.obj` + `.mtl` | Static rest pose for tools that prefer OBJ. |
 | `assets/sprites/mrcluckers_side.png` | The sprite sheet: one row per animation. |
@@ -196,13 +196,21 @@ The eyes are built as almond lenses — a superellipse with the corners pulled
 out — stacked rim, iris, pupil and highlight, and seated on the skull surface
 just behind the stop so they read from the front as well as in profile.
 
-The skeleton is laid out (spine, neck, head, ears, three tail segments, and
-the full four legs) but **nothing is rigged or animated yet**. This pass is
-the model and a turnaround:
+She is rigged and has five clips — `stand`, `wag`, `sit`, `sit_idle` and
+`greet` — in `tools/mc/ginger_anim.py`. Her tail is three segments driven
+through the same spring solver as Mr. Cluckers' comb, which is what turns a
+keyframed sweep into a whip: the tip travels about twice as far as the
+keyframes ask.
 
 ```
 python3 build.py --only ginger
 ```
+
+The sit poses were **solved numerically**, not eyeballed. Her front legs stay
+straight and planted, the body offset is whatever keeps the front paw still
+as the body pitches, and the hind angles are the ones that put the stifle
+forward alongside her belly with the hock low behind it. Constraining only
+the paw — the obvious thing — gave a dog whose knee stuck up behind her.
 
 Reference notes worth keeping, since they were the corrections that mattered:
 she is leggier than a pure Staffordshire, front legs about half her shoulder
