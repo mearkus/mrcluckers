@@ -7,6 +7,7 @@ two shades only the pixels that survived, which keeps pure-Python cost down.
 import math
 from array import array
 
+from . import texture as _texture
 from . import vmath as v
 
 BACKGROUND = (0, 0, 0, 0)
@@ -44,8 +45,12 @@ class Light:
 
 
 def render(mesh, materials, width, height, camera, light=None, supersample=3,
-           outline=0.0, outline_color=(0.10, 0.09, 0.11)):
-    """Render `mesh` to an RGBA bytearray of width*height pixels."""
+           outline=0.0, outline_color=(0.10, 0.09, 0.11), textures=None):
+    """Render `mesh` to an RGBA bytearray of width*height pixels.
+
+    Passing `textures` (the dict from texture.build) samples the same fabric
+    maps the 3D model uses, so the sprites and the glTF stay in agreement.
+    """
     light = light or Light()
     W, H = width * supersample, height * supersample
 
@@ -64,6 +69,13 @@ def render(mesh, materials, width, height, camera, light=None, supersample=3,
     nx = array("f", [0.0] * n_v)
     ny = array("f", [0.0] * n_v)
     nz = array("f", [0.0] * n_v)
+    use_tex = bool(textures) and bool(mesh.uvs) and bool(mesh.tans)
+    tu = array("f", [0.0] * n_v)
+    tv = array("f", [0.0] * n_v)
+    tx = array("f", [0.0] * n_v)
+    ty = array("f", [0.0] * n_v)
+    tz = array("f", [0.0] * n_v)
+    tw = array("f", [1.0] * n_v)
 
     m00, m01, m02, m03 = view[0]
     m10, m11, m12, m13 = view[1]
@@ -80,6 +92,15 @@ def render(mesh, materials, width, height, camera, light=None, supersample=3,
         nx[i] = m00 * a + m01 * b + m02 * c
         ny[i] = m10 * a + m11 * b + m12 * c
         nz[i] = m20 * a + m21 * b + m22 * c
+        if use_tex:
+            uu, vv = mesh.uvs[i]
+            tu[i] = uu * _texture.REPEAT
+            tv[i] = vv * _texture.REPEAT
+            a, b, c, w = mesh.tans[i]
+            tx[i] = m00 * a + m01 * b + m02 * c
+            ty[i] = m10 * a + m11 * b + m12 * c
+            tz[i] = m20 * a + m21 * b + m22 * c
+            tw[i] = w
 
     size = W * H
     depth = array("f", [-1e30]) * 0
@@ -138,7 +159,10 @@ def render(mesh, materials, width, height, camera, light=None, supersample=3,
     mat_cache = {}
     for name, spec in materials.items():
         r, g, b = hex_to_rgb(spec["color"])
-        mat_cache[name] = (r, g, b, spec.get("fuzz", 0.0), spec.get("rough", 0.9))
+        fam = spec.get("tex") if use_tex else None
+        tex = textures.get(fam) if fam else None
+        mat_cache[name] = (r, g, b, spec.get("fuzz", 0.0), spec.get("rough", 0.9),
+                           tex)
 
     lx, ly, lz = v.transform_dir(view, light.direction)
     fx, fy, fz = v.transform_dir(view, light.fill)
@@ -163,7 +187,44 @@ def render(mesh, materials, width, height, camera, light=None, supersample=3,
         vny /= ln
         vnz /= ln
 
-        cr, cg, cb, fuzz, rough = mat_cache[mat]
+        cr, cg, cb, fuzz, rough, tex = mat_cache[mat]
+
+        if tex is not None:
+            ts = tex["size"]
+            iu = int((w0 * tu[ia] + w1 * tu[ib] + w2 * tu[ic]) * ts) % ts
+            iv = int((w0 * tv[ia] + w1 * tv[ib] + w2 * tv[ic]) * ts) % ts
+            texel = iv * ts + iu
+            detail = tex["gray"][texel] * (1.0 / 255.0)
+            cr *= detail
+            cg *= detail
+            cb *= detail
+            # Perturb the shading normal through the interpolated tangent frame.
+            k = texel * 3
+            nmx = tex["normal"][k] * (2.0 / 255.0) - 1.0
+            nmy = tex["normal"][k + 1] * (2.0 / 255.0) - 1.0
+            nmz = tex["normal"][k + 2] * (2.0 / 255.0) - 1.0
+            ttx = w0 * tx[ia] + w1 * tx[ib] + w2 * tx[ic]
+            tty = w0 * ty[ia] + w1 * ty[ib] + w2 * ty[ic]
+            ttz = w0 * tz[ia] + w1 * tz[ib] + w2 * tz[ic]
+            # Gram-Schmidt against the interpolated normal.
+            d = ttx * vnx + tty * vny + ttz * vnz
+            ttx -= vnx * d
+            tty -= vny * d
+            ttz -= vnz * d
+            tl = math.sqrt(ttx * ttx + tty * tty + ttz * ttz)
+            if tl > 1e-9:
+                ttx /= tl
+                tty /= tl
+                ttz /= tl
+                hw = tw[ia]
+                btx = (vny * ttz - vnz * tty) * hw
+                bty = (vnz * ttx - vnx * ttz) * hw
+                btz = (vnx * tty - vny * ttx) * hw
+                px2 = ttx * nmx + btx * nmy + vnx * nmz
+                py2 = tty * nmx + bty * nmy + vny * nmz
+                pz2 = ttz * nmx + btz * nmy + vnz * nmz
+                pl = math.sqrt(px2 * px2 + py2 * py2 + pz2 * pz2) or 1.0
+                vnx, vny, vnz = px2 / pl, py2 / pl, pz2 / pl
 
         ndl = vnx * lx + vny * ly + vnz * lz
         # Wrapped diffuse: soft terminator, the way light behaves on fur.

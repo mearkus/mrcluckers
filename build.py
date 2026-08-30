@@ -16,7 +16,7 @@ import time
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "tools"))
 
 from mc import anim, gltf, obj, png, pose as po, raster, rig, sprites  # noqa: E402
-from mc import vmath as v  # noqa: E402
+from mc import texture, vmath as v  # noqa: E402
 
 VIEWS = {
     "side": sprites.SIDE_RIGHT,
@@ -25,9 +25,27 @@ VIEWS = {
 }
 
 
-def build_model(parts, base, out_dir, clips):
+def build_textures(out_dir, size):
+    """Generate the fabric maps, write them out, and return the PNG bytes."""
     os.makedirs(out_dir, exist_ok=True)
-    doc, blob = gltf.build_gltf(parts, rig.MATERIALS, clips=clips, base=base)
+    maps = texture.build(size=size)
+    encoded, total = {}, 0
+    for family, m in maps.items():
+        base_png = png.encode_gray(size, size, m["gray"])
+        norm_png = png.encode_rgb(size, size, m["normal"])
+        png.write_bytes(os.path.join(out_dir, "%s_basecolor.png" % family), base_png)
+        png.write_bytes(os.path.join(out_dir, "%s_normal.png" % family), norm_png)
+        encoded[family] = {"basecolor": base_png, "normal": norm_png}
+        total += len(base_png) + len(norm_png)
+    print("  %-38s %7.1f KB  (%d families at %dpx)"
+          % ("textures/", total / 1024.0, len(maps), size))
+    return maps, encoded
+
+
+def build_model(parts, base, out_dir, clips, textures=None):
+    os.makedirs(out_dir, exist_ok=True)
+    doc, blob = gltf.build_gltf(parts, rig.MATERIALS, clips=clips, base=base,
+                                textures=textures)
 
     glb = os.path.join(out_dir, "mrcluckers.glb")
     size = gltf.write_glb(glb, doc, blob)
@@ -40,13 +58,15 @@ def build_model(parts, base, out_dir, clips):
     rest = po.bake(parts, anim.make_pose(), base)
     obj.write_obj(os.path.join(out_dir, "mrcluckers.obj"),
                   os.path.join(out_dir, "mrcluckers.mtl"),
-                  rest, rig.MATERIALS, mtl_name="mrcluckers.mtl")
+                  rest, rig.MATERIALS, mtl_name="mrcluckers.mtl",
+                  texture_dir="../textures" if textures else None)
     print("  %-38s %7.1f KB" % ("mrcluckers.obj",
                                 os.path.getsize(os.path.join(out_dir, "mrcluckers.obj")) / 1024.0))
     return rest
 
 
-def build_sprites(parts, base, clips, out_dir, cell, view, supersample, outline):
+def build_sprites(parts, base, clips, out_dir, cell, view, supersample, outline,
+                  textures=None):
     os.makedirs(out_dir, exist_ok=True)
     camera = sprites.make_camera(cell, yaw=VIEWS[view])
     order = ["idle", "walk", "run", "jump", "fall", "land", "crouch",
@@ -57,7 +77,8 @@ def build_sprites(parts, base, clips, out_dir, cell, view, supersample, outline)
         clip = clips[name]
         frames = sprites.render_frames(parts, rig.MATERIALS, clip.poses(),
                                        camera, cell, base=base,
-                                       supersample=supersample, outline=outline)
+                                       supersample=supersample, outline=outline,
+                                       textures=textures)
         rows.append((name, frames))
         total += len(frames)
         sys.stdout.write("\r  rendering %s (%d frames)      " % (name, total))
@@ -72,7 +93,8 @@ def build_sprites(parts, base, clips, out_dir, cell, view, supersample, outline)
     return os.path.join(out_dir, stem + ".png")
 
 
-def build_turnaround(parts, base, out_dir, size=256, steps=8, supersample=3):
+def build_turnaround(parts, base, out_dir, size=256, steps=8, supersample=3,
+                     textures=None):
     os.makedirs(out_dir, exist_ok=True)
     mesh = po.bake(parts, anim.make_pose(wing_lift_l=0, wing_lift_r=0,
                                          wing_sweep_l=0, wing_sweep_r=0), base)
@@ -81,7 +103,8 @@ def build_turnaround(parts, base, out_dir, size=256, steps=8, supersample=3):
         cam = raster.Camera(yaw=v.deg(360.0 * i / steps), pitch=v.deg(6),
                             target=(0.0, 0.52, 0.0), height=1.26)
         buf = raster.render(mesh, rig.MATERIALS, size, size, cam,
-                            supersample=supersample, outline=0.25)
+                            supersample=supersample, outline=0.25,
+                            textures=textures)
         png.blit(sheet, size * steps, buf, size, size, i * size, 0)
     path = os.path.join(out_dir, "turnaround.png")
     png.write_rgba(path, size * steps, size, sheet)
@@ -101,6 +124,10 @@ def main():
     ap.add_argument("--no-fuzz", action="store_true", help="skip plush surface noise")
     ap.add_argument("--flop", type=float, default=1.0,
                     help="secondary-motion amount: 0 stiff, 1 plush, >1 cartoon")
+    ap.add_argument("--texture-size", type=int, default=128,
+                    help="fabric tile resolution in px (128 or 256)")
+    ap.add_argument("--no-textures", action="store_true",
+                    help="flat colours, no fabric maps")
     ap.add_argument("--only", choices=["model", "sprites", "turnaround"],
                     action="append", help="build only these (repeatable)")
     args = ap.parse_args()
@@ -115,17 +142,23 @@ def main():
     print("  rig: %d parts, %d triangles" % (len(parts), tris))
     clips = anim.all_clips(flop=args.flop)
 
+    maps = encoded = None
+    if not args.no_textures:
+        maps, encoded = build_textures(os.path.join(args.out, "textures"),
+                                       args.texture_size)
+
     if "model" in only:
-        build_model(parts, base, os.path.join(args.out, "model"), clips)
+        build_model(parts, base, os.path.join(args.out, "model"), clips, encoded)
     if "sprites" in only:
         for view in args.views.split(","):
             view = view.strip()
             if view not in VIEWS:
                 raise SystemExit("unknown view %r" % view)
             build_sprites(parts, base, clips, os.path.join(args.out, "sprites"),
-                          args.size, view, args.supersample, args.outline)
+                          args.size, view, args.supersample, args.outline, maps)
     if "turnaround" in only:
-        build_turnaround(parts, base, os.path.join(args.out, "reference"))
+        build_turnaround(parts, base, os.path.join(args.out, "reference"),
+                         textures=maps)
 
     print("  done in %.1fs" % (time.time() - t0))
 

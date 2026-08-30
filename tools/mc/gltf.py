@@ -10,12 +10,16 @@ import json
 import struct
 
 from . import rig
+from . import texture
 from . import vmath as v
 
 FLOAT = 5126
 UNSIGNED_INT = 5125
 ARRAY_BUFFER = 34962
 ELEMENT_ARRAY_BUFFER = 34963
+REPEAT = 10497
+LINEAR = 9729
+LINEAR_MIPMAP_LINEAR = 9987
 
 
 def _srgb_to_linear(c):
@@ -63,12 +67,24 @@ class _Buffer:
         self.accessors.append(acc)
         return len(self.accessors) - 1
 
-    def add_vec4(self, values):
+    def add_vec2(self, values):
+        payload = bytearray()
+        for a, b in values:
+            payload += struct.pack("<ff", a, b)
+        self.accessors.append({
+            "bufferView": self.add_view(payload, ARRAY_BUFFER),
+            "componentType": FLOAT,
+            "count": len(values),
+            "type": "VEC2",
+        })
+        return len(self.accessors) - 1
+
+    def add_vec4(self, values, target=None):
         payload = bytearray()
         for a, b, c, d in values:
             payload += struct.pack("<ffff", a, b, c, d)
         self.accessors.append({
-            "bufferView": self.add_view(payload),
+            "bufferView": self.add_view(payload, target),
             "componentType": FLOAT,
             "count": len(values),
             "type": "VEC4",
@@ -104,7 +120,7 @@ class _Buffer:
         return len(self.accessors) - 1
 
 
-def _mesh_primitives(mesh, buf, material_index):
+def _mesh_primitives(mesh, buf, material_index, textured):
     """One primitive per material, each with its own compacted vertex range."""
     by_material = {}
     for a, b, c, mat in mesh.faces:
@@ -113,7 +129,7 @@ def _mesh_primitives(mesh, buf, material_index):
     primitives = []
     for mat, faces in by_material.items():
         remap = {}
-        positions, normals, indices = [], [], []
+        positions, normals, uvs, tans, indices = [], [], [], [], []
         for tri in faces:
             for i in tri:
                 j = remap.get(i)
@@ -122,12 +138,21 @@ def _mesh_primitives(mesh, buf, material_index):
                     remap[i] = j
                     positions.append(mesh.verts[i])
                     normals.append(mesh.norms[i])
+                    # UVs are stored in world units; REPEAT wrapping turns
+                    # the scaled value into a tiling detail map.
+                    u, w = mesh.uvs[i]
+                    uvs.append((u * texture.REPEAT, w * texture.REPEAT))
+                    tans.append(mesh.tans[i] if mesh.tans else (1.0, 0.0, 0.0, 1.0))
                 indices.append(j)
+        attrs = {
+            "POSITION": buf.add_vec3(positions, minmax=True),
+            "NORMAL": buf.add_vec3(normals),
+        }
+        if textured:
+            attrs["TEXCOORD_0"] = buf.add_vec2(uvs)
+            attrs["TANGENT"] = buf.add_vec4(tans, target=ARRAY_BUFFER)
         primitives.append({
-            "attributes": {
-                "POSITION": buf.add_vec3(positions, minmax=True),
-                "NORMAL": buf.add_vec3(normals),
-            },
+            "attributes": attrs,
             "indices": buf.add_indices(indices),
             "material": material_index[mat],
             "mode": 4,
@@ -135,30 +160,60 @@ def _mesh_primitives(mesh, buf, material_index):
     return primitives
 
 
-def build_gltf(parts, materials, clips=None, base=None, name="MrCluckers"):
-    """Assemble the glTF document and its binary blob."""
+def build_gltf(parts, materials, clips=None, base=None, name="MrCluckers",
+               textures=None):
+    """Assemble the glTF document and its binary blob.
+
+    `textures` maps a fabric family name to {"basecolor": png_bytes,
+    "normal": png_bytes}; pass None for an untextured, flat-colour model.
+    """
     buf = _Buffer()
     clips = clips or {}
+
+    # Named apart from the animation samplers below, which would shadow it.
+    images, tex_samplers, textures_json, tex_index = [], [], [], {}
+    if textures:
+        tex_samplers.append({
+            "wrapS": REPEAT, "wrapT": REPEAT,
+            "magFilter": LINEAR, "minFilter": LINEAR_MIPMAP_LINEAR,
+        })
+        for family in sorted(textures):
+            for kind in ("basecolor", "normal"):
+                png_bytes = textures[family][kind]
+                images.append({
+                    "name": "%s_%s" % (family, kind),
+                    "mimeType": "image/png",
+                    "bufferView": buf.add_view(png_bytes),
+                })
+                textures_json.append({"sampler": 0, "source": len(images) - 1})
+                tex_index[(family, kind)] = len(textures_json) - 1
 
     mats_json, material_index = [], {}
     for mat_name, spec in materials.items():
         material_index[mat_name] = len(mats_json)
-        mats_json.append({
-            "name": mat_name,
-            "doubleSided": False,
-            "pbrMetallicRoughness": {
-                "baseColorFactor": _hex_linear(spec["color"]),
-                "metallicFactor": 0.0,
-                "roughnessFactor": spec.get("rough", 0.9),
-            },
-        })
+        pbr = {
+            "baseColorFactor": _hex_linear(spec["color"]),
+            "metallicFactor": 0.0,
+            "roughnessFactor": spec.get("rough", 0.9),
+        }
+        mat = {"name": mat_name, "doubleSided": False,
+               "pbrMetallicRoughness": pbr}
+        family = spec.get("tex")
+        if family and (family, "basecolor") in tex_index:
+            pbr["baseColorTexture"] = {"index": tex_index[(family, "basecolor")]}
+            mat["normalTexture"] = {
+                "index": tex_index[(family, "normal")],
+                "scale": spec.get("normal_scale", 1.0),
+            }
+        mats_json.append(mat)
 
+    textured = bool(tex_index)
     meshes, mesh_index = [], {}
     for joint, mesh in parts.items():
         mesh_index[joint] = len(meshes)
         meshes.append({
             "name": "%s_mesh" % joint,
-            "primitives": _mesh_primitives(mesh, buf, material_index),
+            "primitives": _mesh_primitives(mesh, buf, material_index, textured),
         })
 
     # Nodes: one armature node carrying the fit transform, then the joints.
@@ -236,6 +291,10 @@ def build_gltf(parts, materials, clips=None, base=None, name="MrCluckers"):
     }
     if animations:
         doc["animations"] = animations
+    if images:
+        doc["images"] = images
+        doc["samplers"] = tex_samplers
+        doc["textures"] = textures_json
     return doc, bytes(buf.data)
 
 

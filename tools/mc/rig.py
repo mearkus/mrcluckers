@@ -12,16 +12,19 @@ from . import vmath as v
 
 # --------------------------------------------------------------- palette
 # sRGB hex sampled from the reference photos of the plush.
+# `tex` names a fabric family from texture.py. Detail maps are near-white and
+# multiply this colour, so one fur tile serves both greys and one felt tile
+# serves the red, the yellow and the black.
 MATERIALS = {
-    "plush_grey":  {"color": "#8d8e8a", "rough": 0.95, "fuzz": 0.85},
-    "plush_shade": {"color": "#7a7b76", "rough": 0.95, "fuzz": 0.85},
-    "comb_red":    {"color": "#cf2027", "rough": 0.80, "fuzz": 0.15},
-    "cord_red":    {"color": "#a5202b", "rough": 0.85, "fuzz": 0.35},
-    "beak_yellow": {"color": "#e0b52c", "rough": 0.70, "fuzz": 0.05},
-    "foot_black":  {"color": "#1c1d22", "rough": 0.60, "fuzz": 0.05},
-    "eye_white":   {"color": "#f0efe9", "rough": 0.45, "fuzz": 0.00},
-    "eye_dark":    {"color": "#14151a", "rough": 0.35, "fuzz": 0.00},
-    "eye_ring":    {"color": "#6e7069", "rough": 0.60, "fuzz": 0.00},
+    "plush_grey":  {"color": "#8d8e8a", "rough": 0.95, "fuzz": 0.85, "tex": "fur"},
+    "plush_shade": {"color": "#7a7b76", "rough": 0.95, "fuzz": 0.85, "tex": "fur"},
+    "comb_red":    {"color": "#cf2027", "rough": 0.80, "fuzz": 0.15, "tex": "felt"},
+    "cord_red":    {"color": "#a5202b", "rough": 0.85, "fuzz": 0.35, "tex": "corduroy"},
+    "beak_yellow": {"color": "#e0b52c", "rough": 0.70, "fuzz": 0.05, "tex": "felt"},
+    "foot_black":  {"color": "#1c1d22", "rough": 0.60, "fuzz": 0.05, "tex": "felt"},
+    "eye_white":   {"color": "#f0efe9", "rough": 0.45, "fuzz": 0.00, "tex": None},
+    "eye_dark":    {"color": "#14151a", "rough": 0.35, "fuzz": 0.00, "tex": None},
+    "eye_ring":    {"color": "#6e7069", "rough": 0.60, "fuzz": 0.00, "tex": None},
 }
 
 # ---------------------------------------------------------------- skeleton
@@ -297,7 +300,7 @@ def build_parts(fuzz=True):
     inner_r.mirror_x()
     outer_r.mirror_x()
 
-    return {
+    parts = {
         "hips": torso(fuzz),
         "neck": neck(fuzz),
         "head": head,
@@ -313,3 +316,6 @@ def build_parts(fuzz=True):
         "ankle_r": foot().mirror_x(),
         "tail": tail(fuzz),
     }
+    for part in parts.values():
+        part.compute_tangents()
+    return parts

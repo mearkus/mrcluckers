@@ -30,12 +30,13 @@ def anchor_pixel(camera, cell):
 
 
 def render_frames(parts, materials, poses, camera, cell, base=None,
-                  supersample=3, outline=0.30, on_frame=None):
+                  supersample=3, outline=0.30, on_frame=None, textures=None):
     frames = []
     for i, p in enumerate(poses):
         mesh = po.bake(parts, p, base)
         buf = raster.render(mesh, materials, cell, cell, camera,
-                            supersample=supersample, outline=outline)
+                            supersample=supersample, outline=outline,
+                            textures=textures)
         frames.append(buf)
         if on_frame:
             on_frame(i, len(poses))

@@ -4,9 +4,14 @@ The whole thing is four steps: build geometry, hang it off a skeleton, add
 floppiness, then export — either as a 3D model or as rendered sprites.
 
 ```
+                    texture.py ─────────────┐  (fabric maps)
+                                            ▼
 rig.py  ──►  pose.py  ──►  floppy.py  ──►  gltf.py / obj.py   (3D model)
                                        └►  raster.py ─► sprites.py  (2D sheets)
 ```
+
+Both output paths consume the same fabric maps, which is what keeps the
+sprites and the live model looking like the same character.
 
 ## The modules
 
@@ -15,6 +20,7 @@ rig.py  ──►  pose.py  ──►  floppy.py  ──►  gltf.py / obj.py   
 | `vmath.py` | Vectors, 4x4 matrices, quaternions. No numpy. |
 | `mesh.py` | Triangle meshes plus the primitives everything is built from: `revolve`, `loft`, `extrude`, and value noise for the plush lumpiness. |
 | `rig.py` | The character: materials, every body part, and the joint hierarchy. |
+| `texture.py` | Tiling fabric maps — fur, corduroy, felt — and the noise they are built from. |
 | `pose.py` | Joint angles to world matrices; bakes a posed rig into one mesh. |
 | `anim.py` | The clips, written as friendly parameters (`lean`, `wing_lift`, `squash`). |
 | `floppy.py` | Spring solver for secondary motion. |
@@ -28,6 +34,9 @@ rig.py  ──►  pose.py  ──►  floppy.py  ──►  gltf.py / obj.py   
 - One unit is the character's standing height. Feet rest on `y = 0`.
 - Sprites are rendered with the camera yawed −90°, so he faces screen-right.
   Flip horizontally for the other direction.
+- UVs are stored in **world units**, not 0–1. `texture.REPEAT` scales them at
+  export time and `REPEAT` wrapping does the tiling, so texel density is
+  automatically consistent across parts of different sizes.
 
 ## Changing the character
 
@@ -58,6 +67,23 @@ Shading is built for a fuzzy toy rather than realism:
 - **Depth-break outlines** — the silhouette is darkened, and so is any big
   depth discontinuity inside it. That's what separates a wing from the body
   when both are the same grey and the sprite is only 96 pixels tall.
+
+## UVs and tangents
+
+Nothing here is unwrapped in the usual sense — each primitive knows its own
+parameterisation, so it emits UVs directly:
+
+- `revolve` maps u around the circumference and v along the profile's arc
+  length. Closed rings get a duplicated seam column so u can reach full
+  circumference instead of wrapping back to zero.
+- `loft` maps u around the first ring's perimeter and v along the run between
+  ring centres, reusing ring zero's spacing so the texture doesn't shear.
+- `extrude` maps the sides by perimeter and depth, and the caps planar.
+
+`compute_tangents()` then does the standard accumulate-and-orthonormalise
+pass, with handedness in the fourth component the way glTF wants it.
+`mirror_x` flips that handedness, which is what keeps the mirrored right-hand
+limbs lit correctly.
 
 ## Sprite metadata
 
