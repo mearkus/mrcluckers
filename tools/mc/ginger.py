@@ -54,16 +54,16 @@ SKELETON = [
     ("tail_a",     "hips",    (0.000, 0.060, -0.210)),
     ("tail_b",     "tail_a",  (0.000, 0.070, -0.130)),
     ("tail_c",     "tail_b",  (0.000, 0.040, -0.130)),
-    ("sh_l",       "chest",   (0.110, -0.055, 0.035)),
-    ("sh_r",       "chest",   (-0.110, -0.055, 0.035)),
-    ("elbow_l",    "sh_l",    (0.010, -0.400, -0.030)),
-    ("elbow_r",    "sh_r",    (-0.010, -0.400, -0.030)),
+    ("sh_l",       "chest",   (0.108, 0.045, 0.165)),
+    ("sh_r",       "chest",   (-0.108, 0.045, 0.165)),
+    ("elbow_l",    "sh_l",    (0.012, -0.395, -0.029)),
+    ("elbow_r",    "sh_r",    (-0.012, -0.395, -0.029)),
     ("hip_l",      "hips",    (0.112, 0.005, 0.010)),
     ("hip_r",      "hips",    (-0.112, 0.005, 0.010)),
-    ("stifle_l",   "hip_l",   (0.005, -0.360, 0.110)),
-    ("stifle_r",   "hip_r",   (-0.005, -0.360, 0.110)),
-    ("hock_l",     "stifle_l", (0.000, -0.330, -0.185)),
-    ("hock_r",     "stifle_r", (0.000, -0.330, -0.185)),
+    ("stifle_l",   "hip_l",   (0.012, -0.355, 0.085)),
+    ("stifle_r",   "hip_r",   (-0.012, -0.355, 0.085)),
+    ("hock_l",     "stifle_l", (-0.006, -0.280, -0.160)),
+    ("hock_r",     "stifle_r", (0.006, -0.280, -0.160)),
 ]
 
 PARENT = {n: p for n, p, _ in SKELETON}
@@ -320,37 +320,40 @@ def ear(side):
 
 
 def foreleg(side):
-    """Long and straight, with real mass at the top."""
-    out = ms.Mesh()
-    upper = [(0.108 * side, 0.960, 0.345), (0.118 * side, 0.760, 0.328),
-             (0.120 * side, 0.560, 0.316)]
-    out.merge(tube(upper, [(0.098, 0.118), (0.076, 0.090), (0.058, 0.066)],
-                   "coat", segments=14, cap_start=False))
-    lower = [(0.120 * side, 0.560, 0.316), (0.120 * side, 0.330, 0.314),
-             (0.120 * side, 0.115, 0.312)]
-    out.merge(tube(lower, [(0.054, 0.058), (0.040, 0.042), (0.034, 0.036)],
-                   "coat", segments=12, cap_start=False))
-    out.merge(paw(side, 0.312, front=True))
-    return out
+    """Upper and lower, split at the elbow so the joint can bend.
+
+    Each piece overlaps the next by a station so a bend never opens a gap.
+    """
+    upper = tube([(0.108 * side, 0.960, 0.345), (0.118 * side, 0.760, 0.328),
+                  (0.120 * side, 0.560, 0.316), (0.120 * side, 0.470, 0.315)],
+                 [(0.098, 0.118), (0.076, 0.090), (0.058, 0.066), (0.052, 0.058)],
+                 "coat", segments=14, cap_start=False)
+    lower = ms.Mesh()
+    lower.merge(tube([(0.120 * side, 0.600, 0.316), (0.120 * side, 0.330, 0.314),
+                      (0.120 * side, 0.115, 0.312)],
+                     [(0.056, 0.062), (0.040, 0.042), (0.034, 0.036)],
+                     "coat", segments=12, cap_start=False))
+    lower.merge(paw(side, 0.312, front=True))
+    return {"upper": upper, "lower": lower}
 
 
 def hindleg(side):
     """The dog zigzag: heavy thigh, stifle forward, hock back and low."""
-    out = ms.Mesh()
-    thigh = [(0.112 * side, 0.955, -0.420), (0.128 * side, 0.770, -0.375),
-             (0.124 * side, 0.600, -0.335)]
-    out.merge(tube(thigh, [(0.122, 0.155), (0.104, 0.126), (0.064, 0.078)],
-                   "coat", segments=16, cap_start=False))
-    shin = [(0.124 * side, 0.600, -0.335), (0.120 * side, 0.455, -0.415),
-            (0.118 * side, 0.320, -0.495)]
-    out.merge(tube(shin, [(0.060, 0.070), (0.046, 0.052), (0.036, 0.040)],
-                   "coat", segments=12, cap_start=False))
-    rear = [(0.118 * side, 0.320, -0.495), (0.118 * side, 0.180, -0.470),
-            (0.118 * side, 0.065, -0.455)]
-    out.merge(tube(rear, [(0.035, 0.038), (0.031, 0.033), (0.029, 0.031)],
-                   "coat", segments=12, cap_start=False))
-    out.merge(paw(side, -0.455, front=False))
-    return out
+    thigh = tube([(0.112 * side, 0.955, -0.420), (0.128 * side, 0.770, -0.375),
+                  (0.124 * side, 0.600, -0.335), (0.123 * side, 0.530, -0.373)],
+                 [(0.122, 0.155), (0.104, 0.126), (0.064, 0.078), (0.056, 0.066)],
+                 "coat", segments=16, cap_start=False)
+    shin = tube([(0.124 * side, 0.645, -0.310), (0.120 * side, 0.455, -0.415),
+                 (0.118 * side, 0.320, -0.495), (0.118 * side, 0.265, -0.486)],
+                [(0.062, 0.074), (0.046, 0.052), (0.036, 0.040), (0.033, 0.036)],
+                "coat", segments=12, cap_start=False)
+    rear = ms.Mesh()
+    rear.merge(tube([(0.118 * side, 0.365, -0.503), (0.118 * side, 0.180, -0.470),
+                     (0.118 * side, 0.065, -0.455)],
+                    [(0.037, 0.041), (0.031, 0.033), (0.029, 0.031)],
+                    "coat", segments=12, cap_start=False))
+    rear.merge(paw(side, -0.455, front=False))
+    return {"thigh": thigh, "shin": shin, "rear": rear}
 
 
 def paw(side, z, front=True):
@@ -364,14 +367,23 @@ def paw(side, z, front=True):
 
 
 def tail():
-    """Long, thin and whip-like, carried in a gentle upward curve."""
+    """Long, thin and whip-like, in three segments so it can actually wag.
+
+    A whip tail is almost all follow-through, so the segments matter more
+    here than anywhere else on her.
+    """
     path = [(0.0, 1.010, -0.640), (0.0, 1.075, -0.760), (0.0, 1.120, -0.890),
             (0.0, 1.135, -1.010), (0.0, 1.120, -1.110)]
     radii = [(0.050, 0.052), (0.038, 0.040), (0.028, 0.029),
              (0.019, 0.020), (0.008, 0.008)]
-    m = tube(path, radii, "coat", segments=12, cap_start=False)
-    paint(m, lambda x, y, z: z < -1.035, "white")
-    return m
+
+    def piece(i0, i1, cap_end=True):
+        m = tube(path[i0:i1 + 1], radii[i0:i1 + 1], "coat", segments=12,
+                 cap_start=False, cap_end=cap_end)
+        paint(m, lambda x, y, z: z < -1.035, "white")
+        return m
+
+    return {"a": piece(0, 1), "b": piece(1, 2), "c": piece(2, 4, cap_end=False)}
 
 
 def collar():
@@ -410,18 +422,30 @@ def build_parts(fuzz=True):
     head_mesh = ms.Mesh()
     head_mesh.merge(head())
 
+    tl = tail()
+    fl, fr = foreleg(1.0), foreleg(-1.0)
+    hl, hr = hindleg(1.0), hindleg(-1.0)
+
     parts = {
         "hips": localize(body(), "hips"),
         "neck": localize(neck(), "neck"),
         "head": localize(head_mesh, "head"),
         "ear_l": ear(1.0),
         "ear_r": ear(-1.0),
-        "tail_a": localize(tail(), "tail_a"),
         "chest": localize(collar(), "chest"),
-        "sh_l": localize(foreleg(1.0), "sh_l"),
-        "sh_r": localize(foreleg(-1.0), "sh_r"),
-        "hip_l": localize(hindleg(1.0), "hip_l"),
-        "hip_r": localize(hindleg(-1.0), "hip_r"),
+        "tail_a": localize(tl["a"], "tail_a"),
+        "tail_b": localize(tl["b"], "tail_b"),
+        "tail_c": localize(tl["c"], "tail_c"),
+        "sh_l": localize(fl["upper"], "sh_l"),
+        "sh_r": localize(fr["upper"], "sh_r"),
+        "elbow_l": localize(fl["lower"], "elbow_l"),
+        "elbow_r": localize(fr["lower"], "elbow_r"),
+        "hip_l": localize(hl["thigh"], "hip_l"),
+        "hip_r": localize(hr["thigh"], "hip_r"),
+        "stifle_l": localize(hl["shin"], "stifle_l"),
+        "stifle_r": localize(hr["shin"], "stifle_r"),
+        "hock_l": localize(hl["rear"], "hock_l"),
+        "hock_r": localize(hr["rear"], "hock_r"),
     }
     for part in parts.values():
         part.compute_tangents()

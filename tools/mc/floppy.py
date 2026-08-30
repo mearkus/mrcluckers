@@ -79,15 +79,15 @@ SOFT = {
 GRAVITY = (0.0, -G_REF, 0.0)
 
 
-def _track(poses, joint):
+def _track(poses, joint, soft, skel):
     """World-space joint origin, centre of mass and parent frame per frame."""
-    com = SOFT[joint].com
+    com = soft[joint].com
     origins, coms, frames = [], [], []
     for p in poses:
-        w = po.world_matrices(p)
+        w = po.world_matrices(p, skel=skel)
         origins.append(v.transform_point(w[joint], (0.0, 0.0, 0.0)))
         coms.append(v.transform_point(w[joint], com))
-        frames.append(w[po.rig.PARENT[joint]])
+        frames.append(w[skel.PARENT[joint]])
     return origins, coms, frames
 
 
@@ -107,7 +107,7 @@ def _accelerations(coms, dt, loop):
     return out
 
 
-def solve(poses, fps, loop=True, amount=1.0, passes=4):
+def solve(poses, fps, loop=True, amount=1.0, passes=4, soft=None, skel=None):
     """Return new poses with lag, overshoot and droop baked in.
 
     Looping clips are simulated for several passes so the wobble is already
@@ -118,13 +118,15 @@ def solve(poses, fps, loop=True, amount=1.0, passes=4):
 
     n = len(poses)
     dt = 1.0 / float(fps)
-    joints = [j for j in SOFT if j in po.rig.PARENT]
+    soft = soft or SOFT
+    skel = skel or po.rig
+    joints = [j for j in soft if j in skel.PARENT]
 
     sim = {}
     for j in joints:
-        origins, coms, frames = _track(poses, j)
+        origins, coms, frames = _track(poses, j, soft, skel)
         radius = sum(v.length(v.sub(c, o)) for c, o in zip(coms, origins)) / n
-        drive_gain, sag_gain = SOFT[j].gains(radius)
+        drive_gain, sag_gain = soft[j].gains(radius)
         sim[j] = {
             "origins": origins,
             "coms": coms,
@@ -133,7 +135,8 @@ def solve(poses, fps, loop=True, amount=1.0, passes=4):
             "radius2": max(radius * radius, 1e-6),
             "drive": drive_gain,
             "sag": sag_gain,
-            "state": {ax: [0.0, 0.0] for ax in SOFT[j].axes},
+            "state": {ax: [0.0, 0.0] for ax in soft[j].axes},
+            "soft": soft[j],
         }
 
     # Let gravity settle before the clip starts so frame 0 is already sagging.
@@ -154,7 +157,7 @@ def _step_range(sim, joints, indices, dt, record=None, poses=None,
     for i in indices:
         for j in joints:
             s = sim[j]
-            soft = SOFT[j]
+            soft = s["soft"]
             r = v.sub(s["coms"][i], s["origins"][i])
             acc = (0.0, 0.0, 0.0) if static else s["acc"][i]
             # Dead weight resists the body's acceleration and hangs down.
@@ -180,7 +183,7 @@ def _step_range(sim, joints, indices, dt, record=None, poses=None,
             p = poses[i].copy()
             for j in joints:
                 d = [0.0, 0.0, 0.0]
-                for ax in SOFT[j].axes:
+                for ax in sim[j]["soft"].axes:
                     d[ax] = sim[j]["state"][ax][0] * amount
                 p.offset(j, tuple(d))
             record[i] = p
