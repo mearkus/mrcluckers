@@ -8,30 +8,100 @@
  * canvas demo converts exactly as it does for everything else.
  */
 (function (root, factory) {
-  var api = factory(root.Jump || (typeof require === 'function' ? require('./jump.js') : null));
+  var api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   root.Bonus = api;
-})(typeof self !== 'undefined' ? self : this, function (Jump) {
+})(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  var G = Jump ? Jump.C.GRAVITY : 24.0;
   var DT = 1 / 120;                // fixed step for the planning arcs
 
+  /* The throw does NOT use the platformer's gravity, and that is deliberate.
+   *
+   * At 24 units/s^2 a throw worth steering peaks about 3.7 units up and is
+   * over in 0.96s. Nothing that tall fits a phone screen -- the toy left the
+   * frame entirely in portrait -- and 0.96s is not long enough to read where
+   * he is going and do something about it. A tossed plush hangs; leaning into
+   * that buys a low, slow arc you can actually see and steer.
+   *
+   * The numbers below are chosen together so the whole throw fits the
+   * smallest view either demo can produce. Change one and check arcHeight()
+   * against the framing, or the toy goes off-screen again.
+   */
   var CFG = {
     throws: 3,
-    windUp: 0.55,          // seconds Ginger spends winding up
-    launchUp: 11.5,        // upward launch -> ~0.96s of hang time, 3.7 units up
-    launchOut: 2.4,        // and forward: he lands 2.65 units off if you idle
-    steer: 13.0,           // air control, units/s^2
-    steerMax: 6.0,         // and the sideways speed it tops out at
-    catchRadius: 0.70,     // how close to her counts as a catch
-    catchScore: 5,         // a catch is worth this many treats -- on the throw
-                           // that leads away, exactly as much as all of them
+    gravity: 7.0,          // gentle: he hangs rather than drops
+    windUp: 0.9,           // seconds Ginger spends winding up
+    launchUp: 4.35,        // -> ~1.25s of hang, peaking 2.3 units above her feet
+    launchOut: 1.5,        // and forward: he lands ~1.9 units off if you idle
+    steer: 6.0,            // air control, units/s^2
+    steerMax: 3.2,         // and the sideways speed it tops out at
+    catchRadius: 0.95,     // how close to her counts as a catch -- generous on
+                           // purpose, and drawn on the ground so you can aim
+    catchScore: 3,
     treats: 5,
-    treatRadius: 0.40,
-    reach: 0.70,           // how far into the steerable envelope treats sit
-    settle: 1.1            // pause after landing before the next throw
+    treatRadius: 0.42,
+    reach: 0.86,           // treats sit near the full-steer path, so holding a
+                           // direction sweeps them up -- aiming, not modulating
+    spin: 3.4,             // radians/s the toy turns over while thrown
+    settle: 1.2            // pause after landing before the next throw
   };
+
+  /** Peak of the throw above the dog's feet, in world units.
+   *
+   * Both demos frame the round from this rather than from a number typed into
+   * their own file, so the camera cannot drift out of step with the physics.
+   */
+  function arcHeight(cfg) {
+    cfg = cfg || CFG;
+    return 0.95 + cfg.launchUp * cfg.launchUp / (2 * cfg.gravity);
+  }
+
+  /**
+   * How far the round can range either side of the dog, in world units,
+   * counting both extremes of steering and every treat it might lay.
+   *
+   * A camera built from this cannot crop the round, whatever the screen. The
+   * first version framed to a number typed into each demo, and the toy flew
+   * off the top of a phone in portrait while every scoring test still passed.
+   */
+  function extent(dir, cfg) {
+    cfg = cfg || CFG;
+    var x0 = 0.35 * dir, y0 = 0.95;
+    var lo = Math.min(0, x0), hi = Math.max(0, x0);
+    function span(pts) {
+      for (var i = 0; i < pts.length; i++) {
+        if (pts[i].x < lo) lo = pts[i].x;
+        if (pts[i].x > hi) hi = pts[i].x;
+      }
+    }
+    span(arc(x0, y0, dir, 1, cfg));
+    span(arc(x0, y0, dir, -1, cfg));
+    span(arc(x0, y0, dir, 0, cfg));
+    for (var i = 0; i < cfg.throws; i++) span(layTreats(x0, y0, dir, i, cfg));
+    return { min: lo, max: hi };
+  }
+
+  /**
+   * Where the toy comes down if you stop steering right now.
+   *
+   * This is what makes the round readable: both demos draw it on the ground
+   * as a moving marker, so steering has a visible consequence at the moment
+   * you steer rather than a second later when he lands. Without it you are
+   * integrating acceleration in your head, which is the same reason the round
+   * felt like guesswork.
+   */
+  function predictLanding(s) {
+    var cfg = s.cfg;
+    var vy = s.toy.vy, y = s.toy.y, x = s.toy.x, floor = s.dog.y + 0.95;
+    for (var i = 0; i < 4096; i++) {
+      vy -= cfg.gravity * DT;
+      x += s.toy.vx * DT;
+      y += vy * DT;
+      if (vy < 0 && y <= floor) break;
+    }
+    return x;
+  }
 
   /**
    * Integrate one throw with a constant steering input. `steer` is -1, 0 or 1
@@ -48,7 +118,7 @@
         if (vx > cfg.steerMax) vx = cfg.steerMax;
         if (vx < -cfg.steerMax) vx = -cfg.steerMax;
       }
-      vy -= G * DT;
+      vy -= cfg.gravity * DT;
       x += vx * DT;
       y += vy * DT;
       pts.push({ x: x, y: y, t: (i + 1) * DT });
@@ -153,8 +223,11 @@
       s.treatsTaken = 0;
       s.caught = 0;
       s.treats = [];
-      s.toy.x = dogX;
-      s.toy.y = dogY;
+      // He is in her mouth from the moment the round starts, not standing in
+      // the middle of her waiting to be thrown.
+      s.toy.x = dogX + 0.35 * s.dog.dir;
+      s.toy.y = dogY + 0.95;
+      s.toy.vx = s.toy.vy = s.toy.spin = 0;
       return s;
     };
 
@@ -185,10 +258,10 @@
           if (s.toy.vx > cfg.steerMax) s.toy.vx = cfg.steerMax;
           if (s.toy.vx < -cfg.steerMax) s.toy.vx = -cfg.steerMax;
         }
-        s.toy.vy -= G * dt;
+        s.toy.vy -= cfg.gravity * dt;
         s.toy.x += s.toy.vx * dt;
         s.toy.y += s.toy.vy * dt;
-        s.toy.spin += dt * 7.0;
+        s.toy.spin += dt * cfg.spin;
 
         for (var i = 0; i < s.treats.length; i++) {
           var tr = s.treats[i];
@@ -224,6 +297,9 @@
       if (s.phase === 'settle' && s.t >= cfg.settle) {
         s.phase = 'wind';
         s.t = 0;
+        s.toy.x = s.dog.x + 0.35 * s.dog.dir;   // she picks him back up
+        s.toy.y = s.dog.y + 0.95;
+        s.toy.vx = s.toy.vy = 0;
       }
       return s;
     };
@@ -238,7 +314,8 @@
   }
 
   return {
-    create: create, nominalArc: nominalArc, arc: arc,
-    layTreats: layTreats, CFG: CFG
+    create: create, nominalArc: nominalArc, arc: arc, layTreats: layTreats,
+    arcHeight: arcHeight, extent: extent, predictLanding: predictLanding,
+    CFG: CFG
   };
 });

@@ -227,47 +227,79 @@ whip-like rather than stubby.
 
 Reaching her is not the end of the level. After the greeting she picks the toy
 up and throws him, three times, and you steer him through the air to collect
-treats — or bring him back down into her mouth for a catch.
+treats — or bring him back down into the ring at her feet for a catch.
 
 `shared/bonus.js` holds the whole thing: phases (`idle → wind → flight →
-settle → done`), the throw physics, scoring, and where the treats go. It draws
-nothing. Both demos create one instance and render it their own way, which is
-what keeps them playing the same game rather than merely looking alike — a
-touch-steered run scores identically in both, and identically again when the
-rules are stepped on their own under Node.
+settle → done`), the throw physics, scoring, treat placement, and the two
+measurements the demos frame the round from. It draws nothing. Both demos
+create one instance and render it their own way, which is what keeps them
+playing the same game rather than merely looking alike.
 
-It reuses the gravity from `shared/jump.js`, so a throw falls at exactly the
-rate a jump does.
+### The throw does not use the platformer's gravity
+
+At 24 units/s² a throw worth steering peaks 3.7 units up and is over in
+0.96 s. Nothing that tall fits a phone screen, and 0.96 s is not long enough
+to read where the toy is going and do something about it. A tossed plush
+hangs, so the round leans into that: gravity 7.0, a 1.24 s hang, peaking 2.3
+units above her feet.
+
+That is a deliberate departure from `shared/jump.js` rather than an oversight,
+and it is the difference between a bonus round and a quick-time event.
+
+### Two things that make it readable
+
+A **landing marker** slides along the ground showing where the toy comes down
+if you stop steering now, and the **catch zone** is drawn around her feet.
+Both turn green when the one is inside the other. Without them you are
+integrating acceleration in your head, which is exactly what made the first
+version feel like guesswork.
+
+In the three.js demo both stand *up* off the ground. A flat decal is the
+obvious way to draw a landing zone and it is invisible there — that camera is
+side-on and orthographic, so anything lying flat is edge-on.
 
 ### Treats are placed by the physics, not by hand
 
-Picking offsets by eye gives treats that are either free or impossible. So
-each one is placed a fixed fraction of the way from the do-nothing arc to the
-hardest steer in one direction, and then checked against the *whole*
+Each treat sits a fixed fraction of the way from the do-nothing arc to the
+hardest steer in one direction, and is then checked against the *whole*
 do-nothing path rather than the sample it came from. That second check
 matters: near the apex the arc is horizontal, so a sideways offset there buys
 no distance at all, and a treat placed by offset alone gets swept up by a
-player who never touches the controls. With the check in place, idling through
-all three throws scores zero.
+player who never touches the controls.
+
+They sit near the full-steer path, so **holding a direction sweeps them up**.
+Aiming, not modulating — an earlier version put them mid-envelope, where
+collecting them needed input you cannot time on purpose.
 
 ### The choice
 
-Which side the treats lead to alternates by throw. Leading away from her,
-taking all five and catching him are mutually exclusive and — deliberately —
-worth the same, so the throw is a real decision. Leading back toward her, the
-greedy line is also the safe one and you can have both.
-
-Measured against the shipped constants:
+Which side the treats lead to alternates by throw:
 
 | Line | Away throw | Toward throw |
 | --- | --- | --- |
 | Do nothing | 0 | 0 |
-| Take all five treats | 5 | 10 — the catch comes with them |
-| Catch, taking no treats | 5 | 5 |
-| Best available | **5** | **10** |
+| Hold toward the treats | 5 | 5 |
+| Turn back for the catch | 3 | 3 |
+| **Best available** | **5** | **8** — both |
 
-The catching window is about 150 ms wide — coast for roughly the first third
-of the flight, then hold back — and it is the same on every throw.
+On the away throw treats and a catch are exclusive; on the toward throw the
+greedy line is also the safe one. Idling through all three throws scores zero,
+which is what makes the steering the game.
+
+The catching window is about **410 ms** wide — coast for the first sixth of
+the flight, then hold back.
+
+### Framing is derived, never typed
+
+`arcHeight()` and `extent()` report how tall and how wide the round can get,
+and both demos build their camera from those rather than from a constant in
+their own file. The first version framed to a hand-written number and the toy
+flew off the top of the screen in portrait — while every scoring test passed,
+because they all measured the score and none of them checked that the thing
+you steer was on screen. There is a test for that now.
+
+Note that `arcHeight()` is where the toy's *origin* peaks; he is drawn a whole
+cell above it and spinning, so the demos add the sprite's own height on top.
 
 ## Textures
 

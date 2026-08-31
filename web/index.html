@@ -27,6 +27,14 @@
   #loading { position: fixed; inset: 0; display: grid; place-items: center;
              color: #2c3d4a; font-size: 14px; letter-spacing: .1em;
              text-transform: uppercase; }
+  /* Said once, at the start of the bonus round, because nothing else
+     explains it. */
+  #prompt { position: fixed; left: 0; right: 0; top: 16%; text-align: center;
+            background: rgba(20, 26, 32, .55); padding: 14px 10px;
+            pointer-events: none; font-family: system-ui, sans-serif; }
+  #prompt b { display: block; color: #fffae1; font-size: clamp(15px, 3.2vw, 26px); }
+  #prompt span { display: block; margin-top: 6px; color: #d2e6f5;
+                 font-size: clamp(11px, 2.2vw, 16px); }
 </style>
 <div id="loading">Loading&hellip;</div>
 <div id="hud" hidden>
@@ -42,6 +50,10 @@
   <span><b id="fps">--</b> fps</span>
 </div>
 <div id="rotate">Turn sideways for a wider view</div>
+<div id="prompt" hidden>
+  <b>She&rsquo;s going to throw him &mdash; steer with &#9664; &#9654;</b>
+  <span>sweep up the treats, or land on the ring to be caught</span>
+</div>
 <script src="../shared/jump.js"></script>
 <script src="../shared/level.js"></script>
 <script src="../levels/levels.js"></script>
@@ -84,14 +96,27 @@ const ACTION_KEYS = ['peck', 'crow', 'squeak', 'tumble'];
 // shared/bonus.js, the same file the sprite demo runs, so the two play the
 // same game rather than merely looking alike.
 const BONUS_DELAY = 1.4;        // beat between the greeting and act two
-const BONUS_VIEW_H = 6.4;       // the throw is ~3.7 units tall
 let bonus = null, bonusWait = 0, treatMeshes = [];
+// The box the round has to fit inside, from the physics rather than a number
+// typed here -- the two drifted apart once and the toy left the screen.
+let bonusBox = null, catchRing = null, landMark = null;
+function measureBonus() {
+  const e = window.Bonus.extent(bonus.dog.dir);
+  const pad = 0.55;                       // the toy is about a unit across
+  bonusBox = {
+    left: LEVEL.goal.x + e.min - pad, right: LEVEL.goal.x + e.max + pad,
+    top: LEVEL.goal.y + window.Bonus.arcHeight() + pad,
+    bottom: LEVEL.goal.y - 0.35
+  };
+}
 function viewHeight() {
   const aspect = innerWidth / innerHeight;
   const base = Math.min(MAX_VIEW_H, Math.max(MIN_VIEW_H, MIN_WORLD_WIDTH / aspect));
-  // The bonus round has to fit the whole throw, which is taller than anything
-  // the platforming ever asks for.
-  return bonus ? Math.max(base, BONUS_VIEW_H) : base;
+  if (!bonusBox) return base;
+  // Fit the round's box outright: tall enough for the arc, and wide enough
+  // for its full sideways range once the aspect is taken into account.
+  return Math.max(bonusBox.top - bonusBox.bottom,
+                  (bonusBox.right - bonusBox.left) / aspect);
 }
 
 // Authored in world units in levels/*.json -- the same file the canvas demo
@@ -260,6 +285,38 @@ function startBonus() {
   bonus.start(LEVEL.goal.x, LEVEL.goal.y, -1);   // she throws back down the level
   // The level's own kibble would read as treats, so it steps out of the way.
   for (const k of kibbles) k.visible = false;
+  measureBonus();
+  onResize();
+
+  // The stretch of ground that counts as a catch, and a marker for where he
+  // will come down if you stop steering. Between them the round stops being
+  // guesswork -- you can watch the marker slide as you hold a direction.
+  //
+  // Both stand *up* off the ground. A flat decal is the obvious way to draw a
+  // landing zone and it is invisible here: this camera is side-on and
+  // orthographic, so anything lying flat is edge-on and has no thickness.
+  const R = bonus.cfg.catchRadius;
+  catchRing = new THREE.Group();
+  const zoneMat = new THREE.MeshBasicMaterial({ color: 0xfff6cf, transparent: true,
+                                                opacity: 0.8 });
+  const bar = new THREE.Mesh(new THREE.BoxGeometry(R * 2, 0.05, 0.05), zoneMat);
+  bar.position.y = 0.03;
+  catchRing.add(bar);
+  for (const side of [-1, 1]) {
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.42, 0.07), zoneMat);
+    post.position.set(side * R, 0.21, 0);
+    catchRing.add(post);
+  }
+  catchRing.userData.mat = zoneMat;
+  catchRing.position.set(LEVEL.goal.x, LEVEL.goal.y + 0.01, 0);
+  scene.add(catchRing);
+
+  landMark = new THREE.Mesh(
+    new THREE.ConeGeometry(0.17, 0.38, 4),
+    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95 }));
+  landMark.rotation.x = Math.PI;          // point down at the ground
+  landMark.rotation.y = Math.PI / 4;      // a face toward the camera, not an edge
+  scene.add(landMark);
   treatMeshes = bonus.treats.map(() => {
     const m = new THREE.Mesh(kibbleGeo, kibbleMat);
     m.scale.setScalar(1.6);
@@ -291,12 +348,30 @@ function updateBonus(dt) {
     treatMeshes[i].rotation.y += dt * 2.2;
   }
 
+  if (catchRing && landMark) {
+    const live = bonus.phase === 'flight';
+    landMark.visible = live;
+    if (live) {
+      const lx = window.Bonus.predictLanding(bonus);
+      const homing = Math.abs(lx - bonus.dog.x) < bonus.cfg.catchRadius;
+      landMark.position.set(lx, LEVEL.goal.y + 0.26, 0);
+      landMark.material.color.setHex(homing ? 0x96f08c : 0xffffff);
+      catchRing.userData.mat.color.setHex(homing ? 0x96f08c : 0xfff6cf);
+      catchRing.userData.mat.opacity = homing ? 1.0 : 0.8;
+    }
+    catchRing.visible = bonus.phase !== 'done';
+  }
+
   for (const e of bonus.drain()) {
     if (e === 'squeak') bird.play('squeak', { restart: true });
     else if (e === 'catch') { bird.play('squeak', { restart: true });
                              if (ginger) ginger.play('greet', 0.08); }
     else if (e === 'land') bird.play('land', { restart: true });
   }
+
+  // Show the prompt through the first wind-up only.
+  document.getElementById('prompt').hidden =
+    !(bonus.throwIndex === 0 && bonus.phase === 'wind');
 
   if (bonus.phase === 'wind' && ginger) ginger.play('greet', 0.1);
   if (ginger) ginger.mixer.update(dt);
@@ -320,11 +395,12 @@ function updateBonus(dt) {
   shadow.scale.setScalar(0.55 + 0.45 * st);
   shadow.material.opacity = 0.34 * st;
 
-  // Frame her and the toy together, held so the ground stays near the bottom.
-  const midX = (LEVEL.goal.x + P.x) / 2;
-  camera.position.x += (midX - camera.position.x) * Math.min(1, dt * 6);
-  const wantY = LEVEL.goal.y + BONUS_VIEW_H * 0.36;
-  camera.position.y += (wantY - camera.position.y) * Math.min(1, dt * 4);
+  // Hold the whole box still. The round is short and the arc is what you are
+  // reading, so a fixed shot beats a camera chasing the toy you are aiming.
+  const cx = (bonusBox.left + bonusBox.right) / 2;
+  const cy = (bonusBox.top + bonusBox.bottom) / 2;
+  camera.position.x += (cx - camera.position.x) * Math.min(1, dt * 6);
+  camera.position.y += (cy - camera.position.y) * Math.min(1, dt * 4);
 
   pressed = {};
   document.getElementById('state').textContent = bird.current.getClip().name;
