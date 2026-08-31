@@ -36,6 +36,16 @@
   var ACTION_TIME = { tumble: 1.2 };
   var ACTION_KEYS = ["peck", "crow", "squeak", "tumble"];
 
+  // --- bonus round -------------------------------------------------------
+  // Once they are reunited she throws him and you steer. The rules live in
+  // shared/bonus.js so this demo and the three.js one play the same game;
+  // everything here is presentation.
+  var BONUS_DELAY = 1.4;               // beat between the greeting and act two
+  var BONUS_VIEW_H = 420;              // zoom out: the arc is ~270px tall
+  var bonus = null;                    // the shared rules object, once started
+  var bonusWait = 0;
+  var pops = [];                       // floating "+1" marks
+
   // --- level -------------------------------------------------------------
   function pickLevel() {
     var order = window.MRCLUCKERS_LEVEL_ORDER || [];
@@ -121,7 +131,73 @@
     anim: new Anim("idle")
   };
 
+  // Ginger stands at the goal, so the bonus round's origin is her feet.
+  // Its own units are the level's, just with Y the right way up.
+  function bx2px(x) { return LEVEL.goal.x + x * PX; }
+  function by2py(y) { return LEVEL.goal.y - y * PX; }
+
+  function startBonus() {
+    if (!window.Bonus || !LEVEL.goal) return null;
+    bonus = window.Bonus.create();
+    // She faces back down the level, which is the way she throws.
+    bonus.start(0, 0, -1);
+    pops = [];
+    return bonus;
+  }
+
+  function updateBonus(dt) {
+    bonus.update(dt, { left: keys.left, right: keys.right });
+
+    var evs = bonus.drain();
+    for (var i = 0; i < evs.length; i++) {
+      var e = evs[i];
+      if (e === "squeak") {
+        pops.push({ x: player.x, y: player.y, t: 0, text: "+1" });
+      } else if (e === "catch") {
+        pops.push({ x: player.x, y: player.y, t: 0,
+                    text: "+" + bonus.cfg.catchScore });
+        if (ginger) ginger.anim.set("greet", true);
+      } else if (e === "land") {
+        player.anim.set("land", true);
+      }
+    }
+
+    // He *is* the toy now, so drive the sprite straight off the physics.
+    player.x = bx2px(bonus.toy.x);
+    player.y = by2py(bonus.toy.y);
+    if (bonus.phase === "flight") {
+      player.facing = bonus.toy.vx < 0 ? -1 : 1;
+      if (player.anim.name !== "tumble") player.anim.set("tumble", true);
+    } else if (player.anim.name === "tumble") {
+      player.anim.set("idle", true);
+    }
+    player.anim.update(dt);
+
+    if (ginger) {
+      if (bonus.phase === "wind" && ginger.anim.name !== "greet") {
+        ginger.anim.set("greet", true);
+      } else if (ginger.anim.name === "greet" && ginger.anim.done) {
+        ginger.anim.set("wag", true);
+      }
+      ginger.anim.update(dt);
+    }
+
+    for (var pi = pops.length - 1; pi >= 0; pi--) {
+      pops[pi].t += dt;
+      if (pops[pi].t > 0.9) pops.splice(pi, 1);
+    }
+    pressed = {};
+  }
+
   function update(dt) {
+    if (bonus) return updateBonus(dt);
+
+    // The greeting plays out, then a beat, then she picks him up to throw.
+    if (player.reached && !bonus) {
+      bonusWait += dt;
+      if (bonusWait >= BONUS_DELAY && startBonus()) return;
+    }
+
     var wantLeft = keys.left, wantRight = keys.right;
     var crouching = keys.down && player.onGround;
 
@@ -297,7 +373,9 @@
       canvas.width = w;
       canvas.height = h;
     }
-    SCALE = Math.max(1, Math.min(12, Math.round(h / VIEW_WORLD_H)));
+    // The bonus round needs the whole throw in frame, so it zooms out.
+    var want = bonus ? BONUS_VIEW_H : VIEW_WORLD_H;
+    SCALE = Math.max(1, Math.min(12, Math.round(h / want)));
   }
 
   function clamp(v, lo, hi) {
@@ -307,6 +385,18 @@
   function updateCamera() {
     var viewW = canvas.width / SCALE;
     var viewH = canvas.height / SCALE;
+
+    if (bonus) {
+      // Keep her and the toy both on screen: centre on the pair, then hold
+      // the ground near the bottom of the view so the arc has room above.
+      var midX = (LEVEL.goal.x + player.x) / 2;
+      camX = clamp(midX - viewW / 2, 0, Math.max(0, LEVEL.width - viewW));
+      camY = LEVEL.goal.y + 70 - viewH;
+      camX = Math.round(camX * SCALE) / SCALE;
+      camY = Math.round(camY * SCALE) / SCALE;
+      return;
+    }
+
     camX = clamp(player.x - viewW * 0.42, 0,
                  Math.max(0, LEVEL.width - viewW));
     // Keep him around two thirds down the view, but never show far below the
@@ -346,6 +436,40 @@
     }
   }
 
+  function drawTreats() {
+    if (bonus.phase === "done") return;   // nothing left to collect
+    for (var i = 0; i < bonus.treats.length; i++) {
+      var tr = bonus.treats[i];
+      if (tr.taken) continue;
+      var tx = bx2px(tr.x), ty = by2py(tr.y);
+      var bob = Math.sin(Date.now() / 240 + i) * 2.5;
+      ctx.fillStyle = "rgba(255, 235, 160, .35)";
+      ctx.beginPath();
+      ctx.arc(tx, ty + bob, 13, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#c8892f";
+      ctx.beginPath();
+      ctx.ellipse(tx, ty + bob, 8, 6, 0.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#e8ab52";
+      ctx.beginPath();
+      ctx.ellipse(tx - 2, ty - 2 + bob, 3, 2, 0.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function drawPops() {
+    ctx.textAlign = "center";
+    ctx.font = "bold 20px system-ui, sans-serif";
+    for (var i = 0; i < pops.length; i++) {
+      var q = pops[i];
+      var a = Math.max(0, 1 - q.t / 0.9);
+      ctx.fillStyle = "rgba(255, 246, 214, " + a.toFixed(3) + ")";
+      ctx.fillText(q.text, q.x, q.y - 40 - q.t * 46);
+    }
+    ctx.textAlign = "start";
+  }
+
   function draw() {
     resize();
     updateCamera();
@@ -376,14 +500,18 @@
       ctx.fillRect(hz2.x, hz2.y, hz2.w, 3);
     }
 
-    for (var pi2 = 0; pi2 < LEVEL.pickups.length; pi2++) {
-      if (collected[pi2]) continue;
-      var pk2 = LEVEL.pickups[pi2];
-      var bob = Math.sin(Date.now() / 260 + pi2) * 3;
-      ctx.fillStyle = "#c8892f";
-      ctx.beginPath();
-      ctx.ellipse(pk2.x, pk2.y - 12 + bob, 7, 5, 0.5, 0, Math.PI * 2);
-      ctx.fill();
+    if (!bonus) {
+      for (var pi2 = 0; pi2 < LEVEL.pickups.length; pi2++) {
+        if (collected[pi2]) continue;
+        var pk2 = LEVEL.pickups[pi2];
+        var bob = Math.sin(Date.now() / 260 + pi2) * 3;
+        ctx.fillStyle = "#c8892f";
+        ctx.beginPath();
+        ctx.ellipse(pk2.x, pk2.y - 12 + bob, 7, 5, 0.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else {
+      drawTreats();
     }
 
     if (LEVEL.goal && ginger && gingerSheet) {
@@ -426,23 +554,52 @@
     ctx.save();
     ctx.translate(player.x, player.y);
     ctx.scale(player.facing, 1);
+    if (bonus && bonus.phase === "flight") {
+      // A thrown plush turns end over end. Spin about his middle, not his
+      // feet, or he swings around like a hammer.
+      ctx.translate(0, -ANCHOR.y * 0.5);
+      ctx.rotate(bonus.toy.spin * player.facing);
+      ctx.translate(0, ANCHOR.y * 0.5);
+    }
     ctx.drawImage(sheet, box.x, box.y, box.w, box.h,
                   -ANCHOR.x, -ANCHOR.y, CELL, CELL);
     ctx.restore();
+    if (bonus) drawPops();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
 
     var label = document.getElementById("state");
     if (label) label.textContent = player.anim.name;
     var title = document.getElementById("levelName");
     if (title) {
-      var got = Object.keys(collected).length;
-      title.textContent = LEVEL.name + "  " + got + "/" + LEVEL.pickups.length +
-        (player.reached ? "  \u2014 reunited!" : "");
+      if (bonus) {
+        var head = bonus.phase === "done"
+          ? "fetch! \u2014 final"
+          : "fetch! throw " + Math.min(bonus.throwIndex + 1, bonus.cfg.throws) +
+            "/" + bonus.cfg.throws;
+        title.textContent = head + "  score " + bonus.score +
+          "  \u2014 " + bonus.treatsTaken + " treats, " +
+          bonus.caught + " caught";
+      } else {
+        var got = Object.keys(collected).length;
+        title.textContent = LEVEL.name + "  " + got + "/" + LEVEL.pickups.length +
+          (player.reached ? "  \u2014 reunited!" : "");
+      }
     }
   }
 
   // Exposed for debugging and for the automated input tests.
-  window.mrCluckers = { player: player, level: LEVEL, slug: picked.slug };
+  window.mrCluckers = {
+    player: player, level: LEVEL, slug: picked.slug,
+    get bonus() { return bonus; },
+    // Used by the automated tests, and handy for looking at act two without
+    // replaying the level first.
+    skipToBonus: function () {
+      player.reached = true;
+      player.x = LEVEL.goal.x;
+      player.y = LEVEL.goal.y;
+      return startBonus();
+    }
+  };
 
   var last = 0;
   function frame(now) {

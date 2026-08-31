@@ -43,6 +43,7 @@ straight from the repository — nothing is built in CI.
 | `demo/` | The 2D canvas platformer |
 | `web/` | The three.js integration and its demo |
 | `shared/controls.js` | On-screen controls for touch devices, used by both demos |
+| `shared/bonus.js` | The post-reunion bonus round: rules and physics, no rendering |
 | `index.html` | The GitHub Pages landing page |
 
 `docs/pipeline.md` explains how the generator fits together and where to

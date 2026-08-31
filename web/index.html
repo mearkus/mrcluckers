@@ -45,6 +45,7 @@
 <script src="../shared/jump.js"></script>
 <script src="../shared/level.js"></script>
 <script src="../levels/levels.js"></script>
+<script src="../shared/bonus.js"></script>
 <script src="../shared/controls.js"></script>
 
 <script type="importmap">
@@ -77,9 +78,20 @@ const MIN_WORLD_WIDTH = 6.0, MIN_VIEW_H = 3.6, MAX_VIEW_H = 7.0;
 // an explicit limit or he spins forever. Roughly two turns of the clip.
 const ACTION_TIME = { tumble: 1.2 };
 const ACTION_KEYS = ['peck', 'crow', 'squeak', 'tumble'];
+
+// --- bonus round ----------------------------------------------------------
+// Once they are reunited she throws him and you steer. The rules come from
+// shared/bonus.js, the same file the sprite demo runs, so the two play the
+// same game rather than merely looking alike.
+const BONUS_DELAY = 1.4;        // beat between the greeting and act two
+const BONUS_VIEW_H = 6.4;       // the throw is ~3.7 units tall
+let bonus = null, bonusWait = 0, treatMeshes = [];
 function viewHeight() {
   const aspect = innerWidth / innerHeight;
-  return Math.min(MAX_VIEW_H, Math.max(MIN_VIEW_H, MIN_WORLD_WIDTH / aspect));
+  const base = Math.min(MAX_VIEW_H, Math.max(MIN_VIEW_H, MIN_WORLD_WIDTH / aspect));
+  // The bonus round has to fit the whole throw, which is taller than anything
+  // the platforming ever asks for.
+  return bonus ? Math.max(base, BONUS_VIEW_H) : base;
 }
 
 // Authored in world units in levels/*.json -- the same file the canvas demo
@@ -242,7 +254,98 @@ function pickState(crouching) {
   return 'idle';
 }
 
+function startBonus() {
+  if (!window.Bonus || !LEVEL.goal) return null;
+  bonus = window.Bonus.create();
+  bonus.start(LEVEL.goal.x, LEVEL.goal.y, -1);   // she throws back down the level
+  // The level's own kibble would read as treats, so it steps out of the way.
+  for (const k of kibbles) k.visible = false;
+  treatMeshes = bonus.treats.map(() => {
+    const m = new THREE.Mesh(kibbleGeo, kibbleMat);
+    m.scale.setScalar(1.6);
+    scene.add(m);
+    return m;
+  });
+  onResize();                                   // pull the camera back
+  return bonus;
+}
+
+function updateBonus(dt) {
+  bonus.update(dt, { left: keys.left, right: keys.right });
+
+  // Each throw lays a fresh set, so the meshes follow the current list.
+  if (bonus.treats.length !== treatMeshes.length) {
+    for (const m of treatMeshes) scene.remove(m);
+    treatMeshes = bonus.treats.map(() => {
+      const m = new THREE.Mesh(kibbleGeo, kibbleMat);
+      m.scale.setScalar(1.6);
+      scene.add(m);
+      return m;
+    });
+  }
+  for (let i = 0; i < treatMeshes.length; i++) {
+    const t = bonus.treats[i];
+    // Once the last throw has landed there is nothing left to collect.
+    treatMeshes[i].visible = !t.taken && bonus.phase !== 'done';
+    treatMeshes[i].position.set(t.x, t.y, 0);
+    treatMeshes[i].rotation.y += dt * 2.2;
+  }
+
+  for (const e of bonus.drain()) {
+    if (e === 'squeak') bird.play('squeak', { restart: true });
+    else if (e === 'catch') { bird.play('squeak', { restart: true });
+                             if (ginger) ginger.play('greet', 0.08); }
+    else if (e === 'land') bird.play('land', { restart: true });
+  }
+
+  if (bonus.phase === 'wind' && ginger) ginger.play('greet', 0.1);
+  if (ginger) ginger.mixer.update(dt);
+
+  // He *is* the toy now: position straight from the physics, and tumbling
+  // end over end the way a thrown plush does.
+  P.x = bonus.toy.x; P.y = bonus.toy.y;
+  bird.root.position.set(P.x, P.y, 0);
+  if (bonus.phase === 'flight') {
+    bird.play('tumble');
+    bird.root.rotation.z = bonus.toy.spin;
+  } else {
+    bird.root.rotation.z = 0;
+    if (bird.current.getClip().name === 'tumble') bird.play('idle');
+  }
+  bird.update(dt);
+
+  shadow.position.set(P.x, LEVEL.goal.y + 0.012, 0);
+  const gap = Math.max(0, P.y - LEVEL.goal.y);
+  const st = Math.max(0, 1 - gap / 3.4);
+  shadow.scale.setScalar(0.55 + 0.45 * st);
+  shadow.material.opacity = 0.34 * st;
+
+  // Frame her and the toy together, held so the ground stays near the bottom.
+  const midX = (LEVEL.goal.x + P.x) / 2;
+  camera.position.x += (midX - camera.position.x) * Math.min(1, dt * 6);
+  const wantY = LEVEL.goal.y + BONUS_VIEW_H * 0.36;
+  camera.position.y += (wantY - camera.position.y) * Math.min(1, dt * 4);
+
+  pressed = {};
+  document.getElementById('state').textContent = bird.current.getClip().name;
+  document.getElementById('levelName').textContent =
+    (bonus.phase === 'done'
+      ? 'fetch! \u2014 final'
+      : 'fetch! throw ' + Math.min(bonus.throwIndex + 1, bonus.cfg.throws) +
+        '/' + bonus.cfg.throws) +
+    '  score ' + bonus.score + '  \u2014 ' + bonus.treatsTaken + ' treats, ' +
+    bonus.caught + ' caught';
+}
+
 function update(dt) {
+  if (bonus) return updateBonus(dt);
+
+  // The greeting plays out, then a beat, then she picks him up to throw.
+  if (P.reached) {
+    bonusWait += dt;
+    if (bonusWait >= BONUS_DELAY && startBonus()) return;
+  }
+
   const crouching = keys.down && P.onGround;
 
   // Resolve any action already running first, so a cancelling press takes
@@ -390,4 +493,12 @@ renderer.setAnimationLoop((now) => {
 });
 window.__bird = bird;   // handy for poking at it from the console
 window.__player = P;    // used by the automated input tests
+// Used by the automated tests, and handy for looking at act two without
+// replaying the level first.
+window.__bonus = () => bonus;
+window.__skipToBonus = () => {
+  P.reached = true;
+  P.x = LEVEL.goal.x; P.y = LEVEL.goal.y;
+  return startBonus();
+};
 </script>
