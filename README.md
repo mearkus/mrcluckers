@@ -168,9 +168,16 @@ is the arc you actually get.
 `shared/controls.js` mounts a d-pad, a jump button and the action buttons on
 touch devices. Rather than giving each demo a second input path, the buttons
 dispatch synthetic keyboard events, so the existing `keydown` / `keyup`
-handlers pick them up unchanged and multi-touch works for free — holding
-*right* while tapping *jump* does what you'd expect, because each button owns
-its own pointer.
+handlers pick them up unchanged.
+
+Multi-touch does **not** come for free, which this file learned the hard way.
+Every button carried a window-level `pointerup` fallback to clear it if a
+thumb slid off — and that fallback did not check *which* pointer had ended,
+so lifting any finger anywhere released every held button. Holding a
+direction and tapping jump dropped the direction, which is the one thing two
+thumbs are for. Each button now records the pointer that pressed it and
+ignores the rest; only a `blur`, which has no pointer at all, still releases
+unconditionally.
 
 It only mounts where the *primary* pointer is coarse, so a laptop with a
 touchscreen keeps its keyboard and its screen space. Add `?touch=1` to any
