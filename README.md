@@ -30,6 +30,7 @@ python3 build.py
 | `shared/controls.js` | On-screen controls for touch devices, used by both demos. |
 | `shared/jump.js` | The movement budget — the numbers that decide what a level can ask. |
 | `shared/level.js` | Level format, and the conversion the canvas demo needs. |
+| `shared/bonus.js` | The bonus round's rules and physics, with no rendering. |
 | `levels/*.json` | The levels themselves. `levels.js` is the generated bundle. |
 
 ## Two demos
@@ -198,8 +199,8 @@ out — stacked rim, iris, pupil and highlight, and seated on the skull surface
 just behind the stop so they read from the front as well as in profile.
 
 She waits at each level's goal — sitting until Mr. Cluckers arrives, then
-`greet`, then wagging. Both demos show her: the canvas one from her sprite
-sheet, the three.js one from her glTF.
+`greet`, then wagging, and then she throws him. Both demos show her: the
+canvas one from her sprite sheet, the three.js one from her glTF.
 
 She is rigged and has five clips — `stand`, `wag`, `sit`, `sit_idle` and
 `greet` — in `tools/mc/ginger_anim.py`. Her tail is three segments driven
@@ -221,6 +222,52 @@ Reference notes worth keeping, since they were the corrections that mattered:
 she is leggier than a pure Staffordshire, front legs about half her shoulder
 height, deep-chested with a clear waist tuck, and her tail is long and
 whip-like rather than stubby.
+
+## The bonus round
+
+Reaching her is not the end of the level. After the greeting she picks the toy
+up and throws him, three times, and you steer him through the air to collect
+treats — or bring him back down into her mouth for a catch.
+
+`shared/bonus.js` holds the whole thing: phases (`idle → wind → flight →
+settle → done`), the throw physics, scoring, and where the treats go. It draws
+nothing. Both demos create one instance and render it their own way, which is
+what keeps them playing the same game rather than merely looking alike — a
+touch-steered run scores identically in both, and identically again when the
+rules are stepped on their own under Node.
+
+It reuses the gravity from `shared/jump.js`, so a throw falls at exactly the
+rate a jump does.
+
+### Treats are placed by the physics, not by hand
+
+Picking offsets by eye gives treats that are either free or impossible. So
+each one is placed a fixed fraction of the way from the do-nothing arc to the
+hardest steer in one direction, and then checked against the *whole*
+do-nothing path rather than the sample it came from. That second check
+matters: near the apex the arc is horizontal, so a sideways offset there buys
+no distance at all, and a treat placed by offset alone gets swept up by a
+player who never touches the controls. With the check in place, idling through
+all three throws scores zero.
+
+### The choice
+
+Which side the treats lead to alternates by throw. Leading away from her,
+taking all five and catching him are mutually exclusive and — deliberately —
+worth the same, so the throw is a real decision. Leading back toward her, the
+greedy line is also the safe one and you can have both.
+
+Measured against the shipped constants:
+
+| Line | Away throw | Toward throw |
+| --- | --- | --- |
+| Do nothing | 0 | 0 |
+| Take all five treats | 5 | 10 — the catch comes with them |
+| Catch, taking no treats | 5 | 5 |
+| Best available | **5** | **10** |
+
+The catching window is about 150 ms wide — coast for roughly the first third
+of the flight, then hold back — and it is the same on every throw.
 
 ## Textures
 
