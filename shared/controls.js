@@ -75,19 +75,31 @@
     el.setAttribute('role', 'button');
     el.setAttribute('aria-label', label);
 
+    // Which finger is on this button, so a different finger lifting somewhere
+    // else cannot release it. Without this the window-level fallback below
+    // released *every* button on any pointerup: holding a direction and
+    // tapping jump dropped the direction, which is the whole point of having
+    // two thumbs.
+    var pid = null;
+
     function press(e) {
       if (held[code]) return;
       held[code] = true;
+      pid = e.pointerId;
       el.classList.add('on');
       key('keydown', code);
       e.preventDefault();
     }
     function release(e) {
       if (!held[code]) return;
+      // Only the finger that pressed this button may release it. Events with
+      // no pointer at all (blur) are a real loss of input and always do.
+      if (e && e.pointerId !== undefined && pid !== null && e.pointerId !== pid) return;
       held[code] = false;
+      pid = null;
       el.classList.remove('on');
       key('keyup', code);
-      if (e) e.preventDefault();
+      if (e && e.cancelable) e.preventDefault();
     }
 
     el.addEventListener('pointerdown', function (e) {
@@ -98,9 +110,10 @@
     el.addEventListener('pointerup', release);
     el.addEventListener('pointercancel', release);
     el.addEventListener('lostpointercapture', release);
-    // Belt and braces: a pointer lost anywhere clears a stuck button.
+    // Belt and braces: this button's own pointer ending anywhere clears it.
     global.addEventListener('pointerup', release);
-    global.addEventListener('blur', release);
+    global.addEventListener('pointercancel', release);
+    global.addEventListener('blur', function () { release(null); });
     el.addEventListener('contextmenu', function (e) { e.preventDefault(); });
 
     return el;

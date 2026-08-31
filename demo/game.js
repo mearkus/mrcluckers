@@ -41,10 +41,31 @@
   // shared/bonus.js so this demo and the three.js one play the same game;
   // everything here is presentation.
   var BONUS_DELAY = 1.4;               // beat between the greeting and act two
-  var BONUS_VIEW_H = 420;              // zoom out: the arc is ~270px tall
   var bonus = null;                    // the shared rules object, once started
   var bonusWait = 0;
   var pops = [];                       // floating "+1" marks
+  // How tall the throw is, straight from the physics rather than a number
+  // typed here -- the two drifted apart once already and the toy flew off the
+  // top of the screen on a phone.
+  // The box the whole round has to fit inside, in world pixels, worked out
+  // once from the physics rather than from numbers typed here.
+  //
+  // It includes the sprite, not just the arc: arcHeight() is where his
+  // *origin* peaks, and he is drawn a cell upward from there while spinning.
+  // Framing to the arc alone cropped his head off the top of the screen, and
+  // every scoring test still passed while it did.
+  var bonusBox = null;
+  function measureBonus() {
+    var pad = Math.hypot(CELL, CELL) / 2;       // worst case while tumbling
+    var e = window.Bonus.extent(bonus.dog.dir);
+    var g = LEVEL.goal;
+    bonusBox = {
+      left: g.x + e.min * PX - pad,
+      right: g.x + e.max * PX + pad,
+      top: g.y - window.Bonus.arcHeight() * PX - Math.max(ANCHOR.y, pad),
+      bottom: g.y + 26
+    };
+  }
 
   // --- level -------------------------------------------------------------
   function pickLevel() {
@@ -141,6 +162,7 @@
     bonus = window.Bonus.create();
     // She faces back down the level, which is the way she throws.
     bonus.start(0, 0, -1);
+    measureBonus();
     pops = [];
     return bonus;
   }
@@ -373,9 +395,17 @@
       canvas.width = w;
       canvas.height = h;
     }
-    // The bonus round needs the whole throw in frame, so it zooms out.
-    var want = bonus ? BONUS_VIEW_H : VIEW_WORLD_H;
-    SCALE = Math.max(1, Math.min(12, Math.round(h / want)));
+    if (bonus && bonusBox) {
+      // Fit the round's own box. Whole-pixel scales keep the art crisp, so
+      // prefer one, but a short screen gets a fractional scale rather than a
+      // cropped round -- seeing what you are steering beats crisp edges.
+      var fit = Math.min(w / (bonusBox.right - bonusBox.left),
+                         h / (bonusBox.bottom - bonusBox.top));
+      SCALE = fit >= 1 ? Math.max(1, Math.min(12, Math.floor(fit)))
+                       : Math.max(0.3, Math.floor(fit * 8) / 8);
+      return;
+    }
+    SCALE = Math.max(1, Math.min(12, Math.round(h / VIEW_WORLD_H)));
   }
 
   function clamp(v, lo, hi) {
@@ -386,12 +416,12 @@
     var viewW = canvas.width / SCALE;
     var viewH = canvas.height / SCALE;
 
-    if (bonus) {
-      // Keep her and the toy both on screen: centre on the pair, then hold
-      // the ground near the bottom of the view so the arc has room above.
-      var midX = (LEVEL.goal.x + player.x) / 2;
-      camX = clamp(midX - viewW / 2, 0, Math.max(0, LEVEL.width - viewW));
-      camY = LEVEL.goal.y + 70 - viewH;
+    if (bonus && bonusBox) {
+      // Hold the whole box still. The round is short and the arc is the thing
+      // you are reading, so a fixed, fully framed shot beats a camera that
+      // chases the toy around while you are trying to aim it.
+      camX = (bonusBox.left + bonusBox.right) / 2 - viewW / 2;
+      camY = (bonusBox.top + bonusBox.bottom) / 2 - viewH / 2;
       camX = Math.round(camX * SCALE) / SCALE;
       camY = Math.round(camY * SCALE) / SCALE;
       return;
@@ -458,6 +488,66 @@
     }
   }
 
+  // Where he will come down if you stop steering now, and the patch of ground
+  // that counts as a catch. Between them the round stops being guesswork: you
+  // can see the marker slide as you hold a direction, and you can see the
+  // target it has to end up inside.
+  function drawCatchZone() {
+    var g = LEVEL.goal, r = bonus.cfg.catchRadius * PX;
+    var live = bonus.phase === "flight";
+    var land = live ? bx2px(window.Bonus.predictLanding(bonus)) : null;
+    var homing = live && Math.abs(land - g.x) < r;
+
+    ctx.save();
+    ctx.lineWidth = 2;
+    ctx.setLineDash([7, 6]);
+    ctx.strokeStyle = homing ? "rgba(150, 240, 140, .95)" : "rgba(255, 250, 210, .6)";
+    ctx.beginPath();
+    ctx.ellipse(g.x, g.y + 3, r, r * 0.30, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+
+    if (!live) return;
+    // The marker itself: a caret on the ground under the predicted landing.
+    ctx.save();
+    ctx.fillStyle = homing ? "rgba(150, 240, 140, .95)" : "rgba(255, 255, 255, .8)";
+    ctx.beginPath();
+    ctx.moveTo(land, g.y + 1);
+    ctx.lineTo(land - 9, g.y - 13);
+    ctx.lineTo(land + 9, g.y - 13);
+    ctx.closePath();
+    ctx.fill();
+    // A dotted line up to him, so the marker reads as *his* landing spot.
+    ctx.strokeStyle = "rgba(255, 255, 255, .28)";
+    ctx.setLineDash([3, 7]);
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(land, g.y - 14);
+    ctx.lineTo(player.x, player.y - 10);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Said once, at the start, because nothing else explains the round.
+  function drawPrompt(w, h) {
+    if (bonus.throwIndex > 0 || bonus.phase !== "wind") return;
+    var a = Math.min(1, bonus.t / 0.25);
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.textAlign = "center";
+    ctx.font = "bold " + Math.round(h / 22) + "px system-ui, sans-serif";
+    ctx.fillStyle = "rgba(20, 26, 32, " + (0.55 * a).toFixed(2) + ")";
+    ctx.fillRect(0, h * 0.13, w, h * 0.155);
+    ctx.fillStyle = "rgba(255, 250, 225, " + a.toFixed(2) + ")";
+    ctx.fillText("She's going to throw him \u2014 steer with \u25C0 \u25B6",
+                 w / 2, h * 0.19);
+    ctx.font = Math.round(h / 30) + "px system-ui, sans-serif";
+    ctx.fillStyle = "rgba(210, 230, 245, " + a.toFixed(2) + ")";
+    ctx.fillText("sweep up the treats, or land on the ring to be caught",
+                 w / 2, h * 0.245);
+    ctx.restore();
+  }
+
   function drawPops() {
     ctx.textAlign = "center";
     ctx.font = "bold 20px system-ui, sans-serif";
@@ -511,6 +601,7 @@
         ctx.fill();
       }
     } else {
+      drawCatchZone();
       drawTreats();
     }
 
@@ -565,6 +656,7 @@
                   -ANCHOR.x, -ANCHOR.y, CELL, CELL);
     ctx.restore();
     if (bonus) drawPops();
+    if (bonus) { ctx.setTransform(1, 0, 0, 1, 0, 0); drawPrompt(w, h); }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
 
     var label = document.getElementById("state");
@@ -591,6 +683,11 @@
   window.mrCluckers = {
     player: player, level: LEVEL, slug: picked.slug,
     get bonus() { return bonus; },
+    // The draw transform, so a test can check the character is actually on
+    // screen. Scoring tests all passed while he was flying off the top.
+    get camera() { return { camX: camX, camY: camY, scale: SCALE,
+                            w: canvas.width, h: canvas.height,
+                            cell: CELL, anchor: ANCHOR }; },
     // Used by the automated tests, and handy for looking at act two without
     // replaying the level first.
     skipToBonus: function () {
