@@ -190,9 +190,23 @@ get to each platform. Both shipped levels passed it. One of them could be
 completed by holding right for nine seconds; the other could not be completed
 at all.
 
-The two levels now sit at **86%** and **92%** of budget at their hardest
-forced jump, with the peak in the middle of each — failing still costs you the
-whole level, so the demanding jump should not be the last one.
+The two levels sit at **87%** and **92%** of budget at their hardest forced
+jump, and both now **build to it**:
+
+| | Living Room | The Garden |
+| --- | --- | --- |
+| | 66% | 74% |
+| | 74% | stepping stones — rhythm, not reach |
+| | **87%** | **92%** |
+| | | the climb to Ginger |
+
+They used to peak in the middle, because failing cost the whole level and the
+demanding jump should not be the last thing you meet. Checkpoints removed that
+constraint.
+
+The last jump in each is deliberately fiddly — it wants a late take-off, and
+it lands from about half the moments you could jump from. That is the right
+place for it: there is a checkpoint immediately before both.
 
 ## Checkpoints
 
@@ -230,8 +244,8 @@ replaced. So: stand him at **every** spot he can stand in both levels, kill
 him, and check he comes back to solid ground and is still there a second
 later. 70 spots, no traps.
 
-Now that a mistake is cheap, the levels could escalate to their end rather
-than peaking in the middle — that re-tune has not been done yet.
+Both levels were re-tuned once this landed, so they build to their hardest
+jump instead of peaking in the middle. See *What a jump can do*.
 
 ## The robot vacuum
 
