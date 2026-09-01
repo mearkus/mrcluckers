@@ -292,21 +292,6 @@
     player.y += player.vy * dt;
     player.x = Math.max(20, Math.min(LEVEL.width - 20, player.x));
 
-    // Hazards and falling out of the world put him back at the start.
-    var fell = player.y > LEVEL.ground + 400;
-    var inHazard = false;
-    for (var hi = 0; hi < LEVEL.hazards.length; hi++) {
-      var hz = LEVEL.hazards[hi];
-      if (player.x + HALF_W > hz.x && player.x - HALF_W < hz.x + hz.w &&
-          player.y > hz.y - 4 && player.y < hz.y + hz.h + 20) inHazard = true;
-    }
-    if (fell || inHazard) {
-      player.x = LEVEL.spawn.x;
-      player.y = LEVEL.spawn.y;
-      player.vx = player.vy = 0;
-      player.action = null;
-    }
-
     // Pickups are collected on touch; the goal ends the level.
     for (var pi = 0; pi < LEVEL.pickups.length; pi++) {
       if (collected[pi]) continue;
@@ -350,6 +335,30 @@
         }
       }
     }
+
+    // Hazards are judged *after* the platform collision has run, not before.
+    // A landing frame dips just below the ledge plane before the collision
+    // snaps him up, so checking first drowned him on the very frame he
+    // landed -- which made every water gap flush with its bank uncrossable.
+    var fell = player.y > LEVEL.ground + 400;
+    var inHazard = false;
+    for (var hi = 0; hi < LEVEL.hazards.length; hi++) {
+      var hz = LEVEL.hazards[hi];
+      // He drowns when he is *in* the water, not when he is level with it.
+      // The band used to start 4px above the surface, and a hazard's edge
+      // plus his half-width overlaps the ledge beside it -- so the first
+      // fifth of a unit of every bank was lethal and any water gap flush
+      // with its ledges could not be crossed at all.
+      if (player.x + HALF_W > hz.x && player.x - HALF_W < hz.x + hz.w &&
+          player.y > hz.y + 6 && player.y < hz.y + hz.h + 20) inHazard = true;
+    }
+    if (fell || inHazard) {
+      player.x = LEVEL.spawn.x;
+      player.y = LEVEL.spawn.y;
+      player.vx = player.vy = 0;
+      player.action = null;
+    }
+
 
     player.landTimer = Math.max(0, player.landTimer - dt);
     player.anim.set(pickState(crouching));

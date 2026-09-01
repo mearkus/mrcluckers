@@ -64,6 +64,33 @@
       if (r.ok && r.limit !== Infinity && r.run > r.limit * 0.85) tight++;
     }
     if (tight) msgs.push(tight + ' gap(s) within 15% of the limit');
+
+    // The question that actually matters: can the level be finished, and how
+    // hard is the hardest jump you are forced to make? `unreachable` only ever
+    // asked whether *something* could get to each platform, which both shipped
+    // levels passed while one could be walked end to end and the other could
+    // not be completed at all.
+    var r = window.Level.route(level);
+    if (r) {
+      if (!r.goalReachable) {
+        msgs.unshift('<span class="warn">the goal cannot be reached</span>');
+      } else {
+        var pct = Math.round(r.required * 100);
+        // Nothing to ask, or nothing left in reserve: both are worth saying.
+        var poor = pct === 0 || pct > 95;
+        msgs.push('<span ' + (poor ? 'class="warn"' : 'style="color:var(--ok)"') +
+          '>hardest forced jump ' + pct + '% of budget' +
+          (pct === 0 ? ' \u2014 no jump required' : '') + '</span>');
+      }
+      if (r.coyoteOnly.length) {
+        msgs.push('<span class="warn">' + r.coyoteOnly.length +
+          ' gap(s) only clearable with coyote time</span>');
+      }
+      if (r.lostPickups.length) {
+        msgs.push('<span class="warn">' + r.lostPickups.length +
+          ' pickup(s) cannot be collected</span>');
+      }
+    }
     if (!msgs.length) msgs.push('<span style="color:var(--ok)">all reachable</span>');
     el.innerHTML = msgs.join('<br>');
   }

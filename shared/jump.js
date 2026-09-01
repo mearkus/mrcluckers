@@ -29,15 +29,37 @@
 
   var DT = 1 / 60;
 
-  /** Trace a jump arc, in world units relative to the take-off point. */
+  /**
+   * Trace a jump arc, in world units relative to the take-off point.
+   *
+   * `coyote` walks him off the ledge first and jumps that many seconds later,
+   * which the grace period allows. It is worth real distance -- about half a
+   * unit on the flat -- so a gap can be crossable that way and not by jumping
+   * at the lip. Levels should not *require* it; see canReach's `tight`.
+   */
   function arc(opts) {
     opts = opts || {};
     var speed = opts.speed === undefined ? C.RUN : opts.speed;
     var vx = opts.vx0 === undefined ? speed : opts.vx0;
     var holdFor = opts.hold === undefined ? Infinity : opts.hold;
     var floor = opts.floor === undefined ? 0 : opts.floor;
+    var late = Math.min(opts.coyote || 0, C.COYOTE);
     var pts = [{ x: 0, y: 0 }];
-    var x = 0, y = 0, vy = C.JUMP_VELOCITY, t = 0;
+    var x = 0, y = 0, vy = 0, t = 0;
+    // Off the edge and falling, but still allowed to jump.
+    while (t < late) {
+      vy -= C.GRAVITY * DT;
+      y += vy * DT;
+      if (vx < speed) vx = Math.min(speed, vx + C.ACCEL * DT);
+      x += vx * DT;
+      t += DT;
+      pts.push({ x: x, y: y });
+    }
+    // Where the jump itself starts, so `reach` can ignore the falling
+    // pre-roll -- otherwise it sees y dropping and calls it a landing.
+    pts.jumpAt = pts.length - 1;
+    vy = C.JUMP_VELOCITY;
+    t = 0;
     while (t < 4) {
       if (vy > 0 && t >= holdFor) vy -= C.GRAVITY * C.RELEASE_CUT * DT;
       vy -= C.GRAVITY * DT;
@@ -57,10 +79,10 @@
   }
 
   /** Horizontal distance covered before falling back to `rise`. */
-  function reach(rise, speed) {
-    var pts = arc({ speed: speed, floor: -Infinity });
+  function reach(rise, speed, coyote) {
+    var pts = arc({ speed: speed, floor: -Infinity, coyote: coyote });
     var best = 0, climbing = true;
-    for (var i = 1; i < pts.length; i++) {
+    for (var i = (pts.jumpAt || 0) + 1; i < pts.length; i++) {
       if (pts[i].y < pts[i - 1].y) climbing = false;
       if (!climbing && pts[i].y <= rise) { best = pts[i].x; break; }
       if (pts[i].y >= rise) best = pts[i].x;
@@ -70,15 +92,29 @@
 
   /**
    * Can he get from a ledge at `from` to one at `to`? Both are
-   * {x, y} of the take-off and landing edges. Returns
-   * {ok, rise, run, limit} so a caller can explain the failure.
+   * {x, y} of the take-off and landing edges.
+   *
+   * Returns {ok, tight, rise, run, limit, stretch}:
+   *   ok      -- clears it jumping at the lip, which is what a level may ask
+   *   tight   -- only clears it using coyote time, which a level should not
+   *              require: it means stepping off the edge first and jumping
+   *              in mid-air, and nothing teaches that
+   *
+   * This used to treat any level or downhill gap as infinitely reachable
+   * (`rise <= 0 ? Infinity`), so a forty-unit chasm passed. Both of the
+   * water gaps shipped in The Garden are flat, so neither was ever checked.
    */
   function canReach(from, to, speed) {
     var rise = to.y - from.y;
     var run = to.x - from.x;
-    if (rise > maxHeight()) return { ok: false, rise: rise, run: run, limit: 0 };
-    var limit = rise <= 0 ? Infinity : reach(rise, speed);
-    return { ok: run <= limit, rise: rise, run: run, limit: limit };
+    if (rise > maxHeight()) {
+      return { ok: false, tight: false, rise: rise, run: run,
+               limit: 0, stretch: 0 };
+    }
+    var limit = reach(rise, speed);
+    var stretch = reach(rise, speed, C.COYOTE);
+    return { ok: run <= limit, tight: run > limit && run <= stretch,
+             rise: rise, run: run, limit: limit, stretch: stretch };
   }
 
   return {

@@ -491,10 +491,13 @@ function update(dt) {
     }
   }
   // Hazards and falling out of the world put him back at the start.
+  // He drowns when he is *in* the water, not when he is level with it: a
+  // hazard's edge plus his half-width overlaps the ledge beside it, so the
+  // bank itself used to be lethal and a flush water gap was uncrossable.
   let inHazard = false;
   for (const h of LEVEL.hazards)
     if (P.x + HALF_W > h.x && P.x - HALF_W < h.x + h.w &&
-        P.y < h.y + 0.05 && P.y > h.y - h.h - 0.4) inHazard = true;
+        P.y < h.y - 0.08 && P.y > h.y - h.h - 0.4) inHazard = true;
   if (P.y < -6 || inHazard) {
     P.x = LEVEL.spawn.x; P.y = LEVEL.spawn.y; P.vx = P.vy = 0; P.action = null;
   }
@@ -569,6 +572,7 @@ renderer.setAnimationLoop((now) => {
 });
 window.__bird = bird;   // handy for poking at it from the console
 window.__player = P;    // used by the automated input tests
+window.__level = LEVEL; // ditto: the autoplayer needs the route
 // Used by the automated tests, and handy for looking at act two without
 // replaying the level first.
 window.__bonus = () => bonus;
