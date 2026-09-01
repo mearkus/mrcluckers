@@ -85,6 +85,11 @@
   var picked = pickLevel();
   // Authored in world units with Y up; the canvas works in pixels with Y down.
   var LEVEL = window.Level.toPixels(picked.data, PX);
+  // The same level in its authored units, which is what the shared rules --
+  // patrols, checkpoints -- speak. The demo converts their answers.
+  var WORLD = window.Level.normalize(picked.data);
+  var checkpoint = window.Checkpoint ? window.Checkpoint.create(WORLD) : null;
+  var respawnFlash = 0;
   var collected = {};
 
   // ---------------------------------------------------------------- input
@@ -216,6 +221,7 @@
     levelClock += dt;
     player.stun = Math.max(0, player.stun - dt);
     player.hitCool = Math.max(0, player.hitCool - dt);
+    respawnFlash = Math.max(0, respawnFlash - dt);
     if (bonus) return updateBonus(dt);
 
     // The greeting plays out, then a beat, then she picks him up to throw.
@@ -361,11 +367,22 @@
       if (player.x + HALF_W > hz.x && player.x - HALF_W < hz.x + hz.w &&
           player.y > hz.y + 6 && player.y < hz.y + hz.h + 20) inHazard = true;
     }
+    if (checkpoint) {
+      checkpoint.consider(player.x / PX, (LEVEL.ground - player.y) / PX,
+                          player.onGround && player.stun <= 0, dt);
+    }
     if (fell || inHazard) {
-      player.x = LEVEL.spawn.x;
-      player.y = LEVEL.spawn.y;
+      // Back to the last place he stood safely, not the start of the level.
+      var back = checkpoint ? checkpoint.respawn()
+                            : { x: LEVEL.spawn.x / PX,
+                                y: (LEVEL.ground - LEVEL.spawn.y) / PX, grace: 0 };
+      player.x = back.x * PX;
+      player.y = LEVEL.ground - back.y * PX;
       player.vx = player.vy = 0;
       player.action = null;
+      player.stun = 0;
+      player.hitCool = back.grace;      // don't get hit the moment you arrive
+      respawnFlash = 0.45;
     }
 
 
@@ -720,6 +737,16 @@
                 0, 0, Math.PI * 2);
     ctx.fill();
 
+    // A ring where he reappears, so a respawn reads rather than teleporting.
+    if (respawnFlash > 0) {
+      var f = 1 - respawnFlash / 0.45;
+      ctx.strokeStyle = "rgba(255, 246, 214, " + (0.75 * (1 - f)).toFixed(3) + ")";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(player.x, player.y - 24, 10 + 42 * f, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
     var box = player.anim.box();
     ctx.save();
     ctx.translate(player.x, player.y);
@@ -766,6 +793,7 @@
     // screen. Scoring tests all passed while he was flying off the top.
     // The patrol clock, so a test can time a jump against the machine.
     clock: function () { return levelClock; },
+    get checkpoint() { return checkpoint ? checkpoint.at : null; },
     get camera() { return { camX: camX, camY: camY, scale: SCALE,
                             w: canvas.width, h: canvas.height,
                             cell: CELL, anchor: ANCHOR }; },

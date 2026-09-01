@@ -58,6 +58,7 @@
 <script src="../shared/level.js"></script>
 <script src="../levels/levels.js"></script>
 <script src="../shared/patrol.js"></script>
+<script src="../shared/checkpoint.js"></script>
 <script src="../shared/bonus.js"></script>
 <script src="../shared/controls.js"></script>
 
@@ -128,6 +129,9 @@ const SLUG = (want && window.MRCLUCKERS_LEVELS[want])
 const LEVEL = window.Level.normalize(window.MRCLUCKERS_LEVELS[SLUG]);
 const PLATFORMS = LEVEL.platforms;
 const collected = new Set();
+// Where he comes back to. The level is already in authored units here, so the
+// shared rule can read it directly.
+const checkpoint = window.Checkpoint ? window.Checkpoint.create(LEVEL) : null;
 
 const coarse = matchMedia('(pointer: coarse)').matches;
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -555,8 +559,16 @@ function update(dt) {
   for (const h of LEVEL.hazards)
     if (P.x + HALF_W > h.x && P.x - HALF_W < h.x + h.w &&
         P.y < h.y - 0.08 && P.y > h.y - h.h - 0.4) inHazard = true;
+  if (checkpoint) {
+    checkpoint.consider(P.x, P.y, P.onGround && P.stun <= 0, dt);
+  }
   if (P.y < -6 || inHazard) {
-    P.x = LEVEL.spawn.x; P.y = LEVEL.spawn.y; P.vx = P.vy = 0; P.action = null;
+    // Back to the last place he stood safely, not the start of the level.
+    const back = checkpoint ? checkpoint.respawn()
+                            : { x: LEVEL.spawn.x, y: LEVEL.spawn.y, grace: 0 };
+    P.x = back.x; P.y = back.y; P.vx = P.vy = 0; P.action = null;
+    P.stun = 0;
+    P.hitCool = back.grace;         // don't get hit the moment you arrive
   }
 
   for (const k of kibbles) {
@@ -630,6 +642,7 @@ renderer.setAnimationLoop((now) => {
 window.__bird = bird;   // handy for poking at it from the console
 window.__player = P;    // used by the automated input tests
 window.__level = LEVEL; // ditto: the autoplayer needs the route
+window.__checkpoint = () => (checkpoint ? checkpoint.at : null);
 // Used by the automated tests, and handy for looking at act two without
 // replaying the level first.
 window.__bonus = () => bonus;

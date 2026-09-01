@@ -32,6 +32,7 @@ python3 build.py
 | `shared/level.js` | Level format, and the conversion the canvas demo needs. |
 | `shared/bonus.js` | The bonus round's rules and physics, with no rendering. |
 | `shared/patrol.js` | Machines that move along a surface — where they are, and what they do to you. |
+| `shared/checkpoint.js` | Where he comes back to after a fall. |
 | `levels/*.json` | The levels themselves. `levels.js` is the generated bundle. |
 
 ## Two demos
@@ -192,6 +193,45 @@ at all.
 The two levels now sit at **86%** and **92%** of budget at their hardest
 forced jump, with the peak in the middle of each — failing still costs you the
 whole level, so the demanding jump should not be the last one.
+
+## Checkpoints
+
+Falling in water or down a gap used to put him back at the level's spawn, so a
+mistake near the end cost the whole level. That shaped two earlier decisions:
+both levels put their hardest jump in the *middle* rather than building to
+one, and the vacuum had to be harmless, because a lethal obstacle plus a full
+rewind is a lot to ask of a toy chicken.
+
+**There is nothing to author.** He checkpoints wherever he is standing safely,
+so a level gets this by existing — including the two that already shipped. A
+level may still list `checkpoints` explicitly if it wants a guaranteed spot.
+
+A spot counts when there is real ground under him with a clear unit either
+side, and no water within reach. The margin is what stops him reappearing on a
+lip and walking straight back off it.
+
+### What is deliberately *not* excluded
+
+The stretch a vacuum sweeps. Excluding it reads like the careful thing to do,
+and it costs the entire middle of the living room — the patrols there span
+nearly their whole floor section, so the level would checkpoint on one side of
+its hardest jump and never after it. The vacuum cannot kill him, and the
+grace period covers the arrival, so a machine trundling past a checkpoint is
+fine.
+
+Coming back grants 1.2 s of immunity, so you are not hit the moment you
+arrive, and a ring plays at the arrival point so a respawn reads as something
+happening rather than a teleport.
+
+### The test that matters
+
+A checkpoint that kills him again would be worse than the full reset it
+replaced. So: stand him at **every** spot he can stand in both levels, kill
+him, and check he comes back to solid ground and is still there a second
+later. 70 spots, no traps.
+
+Now that a mistake is cheap, the levels could escalate to their end rather
+than peaking in the middle — that re-tune has not been done yet.
 
 ## The robot vacuum
 
