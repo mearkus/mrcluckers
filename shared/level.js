@@ -25,7 +25,8 @@
     goal: null,
     platforms: [],
     pickups: [],
-    hazards: []
+    hazards: [],
+    patrols: []
   };
 
   function normalize(raw) {
@@ -43,6 +44,14 @@
     lv.hazards = (lv.hazards || []).map(function (h) {
       return { x: +h.x, y: +h.y, w: +h.w, h: h.h === undefined ? 0.4 : +h.h,
                kind: h.kind || 'water' };
+    });
+    // A patrol runs along the surface at `y`, from `x` to `x + w`.
+    lv.patrols = (lv.patrols || []).map(function (m) {
+      return { x: +m.x, y: +m.y, w: +m.w,
+               speed: m.speed === undefined ? 1.5 : +m.speed,
+               pause: m.pause === undefined ? 0.7 : +m.pause,
+               phase: m.phase === undefined ? 0 : +m.phase,
+               kind: m.kind || 'vacuum' };
     });
     return lv;
   }
@@ -69,6 +78,12 @@
       hazards: lv.hazards.map(function (h) {
         return { x: h.x * px, y: toY(h.y), w: h.w * px, h: h.h * px,
                  kind: h.kind };
+      }),
+      // Patrols keep their world units: the demo asks shared/patrol.js where
+      // one is and converts the answer, rather than converting the machine.
+      patrols: lv.patrols.map(function (m) {
+        return { x: m.x, y: m.y, w: m.w, speed: m.speed, pause: m.pause,
+                 phase: m.phase, kind: m.kind };
       })
     };
   }
@@ -105,12 +120,120 @@
     return bad;
   }
 
+  /** The jump between two surfaces, taken from their facing edges. */
+  function hop(from, to) {
+    var fromX, toX;
+    if (to.x > from.x + from.w) {          // target is to the right
+      fromX = from.x + from.w; toX = to.x;
+    } else if (to.x + to.w < from.x) {     // target is to the left
+      fromX = from.x; toX = to.x + to.w;
+    } else {                               // they overlap: straight up
+      fromX = toX = Math.max(from.x, to.x);
+    }
+    return Jump.canReach({ x: fromX, y: from.y },
+                         { x: fromX + Math.abs(toX - fromX), y: to.y });
+  }
+
+  function surfaceUnder(tops, pt) {
+    var best = -1, bestY = -Infinity;
+    for (var i = 0; i < tops.length; i++) {
+      var t = tops[i];
+      if (pt.x >= t.x - 0.3 && pt.x <= t.x + t.w + 0.3 &&
+          t.y <= pt.y + 0.3 && t.y > bestY) { best = i; bestY = t.y; }
+    }
+    return best;
+  }
+
+  /**
+   * Walk the level the way a player has to: from the surface under the spawn,
+   * across every jump he can actually make, and see whether the goal is on
+   * the far end.
+   *
+   * `unreachable` only ever asked "can *anything* get to this platform",
+   * which says nothing about whether the level can be finished. Both shipped
+   * levels passed it while one of them could be completed without jumping at
+   * all and the other asked for a coyote-time jump at its first hazard.
+   */
+  function route(level) {
+    if (!Jump) return null;
+    var lv = normalize(level);
+    var tops = surfaces(lv);
+    var start = surfaceUnder(tops, lv.spawn);
+    var goal = lv.goal ? surfaceUnder(tops, lv.goal) : -1;
+
+    // Breadth-first over the jumps he can make at the lip, remembering the
+    // hardest one needed to get anywhere.
+    var seen = {}, queue = [start], hardest = null, coyoteOnly = [];
+    seen[start] = true;
+    while (queue.length) {
+      var i = queue.shift();
+      for (var j = 0; j < tops.length; j++) {
+        if (seen[j] || i < 0) continue;
+        var r = hop(tops[i], tops[j]);
+        if (r.tight) coyoteOnly.push({ from: tops[i], to: tops[j], run: r.run });
+        if (!r.ok) continue;
+        seen[j] = true;
+        if (!hardest || r.run / r.limit > hardest.run / hardest.limit) hardest = r;
+        queue.push(j);
+      }
+    }
+
+    var reached = tops.filter(function (t, i) { return seen[i]; });
+    var stranded = tops.filter(function (t, i) { return !seen[i]; });
+
+    // A pickup counts as collectible if a surface he can stand on gets him
+    // within a jump of it.
+    var lost = lv.pickups.filter(function (pk) {
+      return !reached.some(function (t) {
+        var rise = pk.y - t.y;
+        if (rise > Jump.maxHeight() + 0.55) return false;
+        var span = Jump.reach(Math.max(0, rise));
+        return pk.x >= t.x - span && pk.x <= t.x + t.w + span;
+      });
+    });
+
+    // The hardest jump he is *forced* to make: over every route to the goal,
+    // the one whose worst jump is easiest. That is the number that says how
+    // demanding a level is -- `hardest` only says what the hardest reachable
+    // jump was, which an optional side route can inflate.
+    var required = null;
+    if (goal >= 0 && seen[goal]) {
+      var worst = tops.map(function () { return Infinity; });
+      worst[start] = 0;
+      var todo = [start];
+      while (todo.length) {
+        var a = todo.shift();
+        for (var k = 0; k < tops.length; k++) {
+          if (k === a) continue;
+          var e = hop(tops[a], tops[k]);
+          if (!e.ok) continue;
+          var cost = Math.max(worst[a], e.limit > 0 ? e.run / e.limit : 1);
+          if (cost < worst[k] - 1e-9) { worst[k] = cost; todo.push(k); }
+        }
+      }
+      required = worst[goal] === Infinity ? null : worst[goal];
+    }
+
+    return {
+      name: lv.name,
+      startsOnGround: start >= 0,
+      goalReachable: goal >= 0 && !!seen[goal],
+      hardest: hardest,
+      required: required,
+      coyoteOnly: coyoteOnly,
+      stranded: stranded,
+      lostPickups: lost
+    };
+  }
+
   return {
     GROUND_Y: GROUND_Y,
     DEFAULTS: DEFAULTS,
     normalize: normalize,
     toPixels: toPixels,
     surfaces: surfaces,
-    unreachable: unreachable
+    unreachable: unreachable,
+    hop: hop,
+    route: route
   };
 });

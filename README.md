@@ -31,6 +31,7 @@ python3 build.py
 | `shared/jump.js` | The movement budget — the numbers that decide what a level can ask. |
 | `shared/level.js` | Level format, and the conversion the canvas demo needs. |
 | `shared/bonus.js` | The bonus round's rules and physics, with no rendering. |
+| `shared/patrol.js` | Machines that move along a surface — where they are, and what they do to you. |
 | `levels/*.json` | The levels themselves. `levels.js` is the generated bundle. |
 
 ## Two demos
@@ -146,22 +147,85 @@ demo to pick one.
 
 Measured from the real physics in `shared/jump.js`, in character heights:
 
-| | |
-| --- | --- |
-| Max jump (hold) | **1.54** |
-| Tap jump | 0.64 |
-| Gap at full run | **2.44** |
-| Gap at walk speed | 1.04 |
-| Onto a ledge +1.0 up | 1.98 |
-| Onto a ledge +1.5 up | 1.42 |
+| | | measured in-game |
+| --- | --- | --- |
+| Max jump (hold) | **1.54** | 1.54 |
+| Tap jump | 0.64 | |
+| Gap at full run | **2.44** | 2.46 |
+| Gap using coyote time | 2.72 | 2.97 |
+| Gap at walk speed | 1.04 | |
+| Onto a ledge +1.0 up | 1.98 | |
+| Onto a ledge +1.5 up | 1.42 | |
+
+The right-hand column is a binary search run against the real demo, driving
+real key events, so the model is checked rather than trusted. It is accurate
+to 0.02 on the flat, and deliberately conservative about coyote time.
+
+**Design to 2.44, not 2.72.** Jumping *after* stepping off the ledge is worth
+half a unit, and nothing in the game teaches it. A gap between the two numbers
+is one only an experienced player will cross — `route()` reports those
+separately as coyote-only.
 
 Rules of thumb: **comfortable gap 1.6–1.8**, **comfortable step up ≤1.0**,
 nothing more than 1.5 above the surface that has to reach it, and a landing
-platform at least 1.0 wide — his collision box is only 0.44 across, but he
-arrives carrying momentum.
+platform at least **1.6** wide — his collision box is only 0.44 across, but he
+arrives carrying momentum, and a narrow target is as easy to overshoot as to
+fall short. A 1.3-wide stepping stone on a descending hop was only landable
+from three of eight take-off points.
 
 Both demos derive their constants from `shared/jump.js`, so the editor's arc
 is the arc you actually get.
+
+### Checking a level
+
+`Level.route()` walks the level the way a player has to — from the surface
+under the spawn, across only the jumps he can make at the lip — and reports
+whether the goal is on the far end, the **hardest jump you are forced to
+make** as a fraction of the budget, any coyote-only gaps, stranded platforms
+and uncollectable pickups. The editor shows all of it live.
+
+That replaces `unreachable()`, which only ever asked whether *something* could
+get to each platform. Both shipped levels passed it. One of them could be
+completed by holding right for nine seconds; the other could not be completed
+at all.
+
+The two levels now sit at **86%** and **92%** of budget at their hardest
+forced jump, with the peak in the middle of each — failing still costs you the
+whole level, so the demanding jump should not be the last one.
+
+## The robot vacuum
+
+Ginger is frightened of the robot vacuum, so one belongs in her living room.
+The Garden doesn't get one — a Roomba outdoors would be silly, and it gives
+the two levels different characters.
+
+**It isn't lethal.** He's a plush toy, and a vacuum that catches him bats him
+back down the room rather than ending his run. That's deliberate: falling in
+water still costs the whole level, so anything that killed you would need
+checkpoints before it was fair. A knockback needs nothing.
+
+`shared/patrol.js` gives a patrol's position as a **pure function of time**
+rather than integrated state, so the two demos can't drift apart and a test
+can ask where a machine will be. It sweeps its span, pauses at each end — the
+pause is what makes it readable, a moment to see which way it's about to go —
+and turns around.
+
+### Three things it took to make a shove feel like a shove
+
+- **Friction scrubbed it off.** The knockback lasted about a tenth of a second
+  and moved him a third of a unit, which read as nothing happening. Friction
+  is now suspended while he's stunned, and a hit carries him about 2.3 units.
+- **It bulldozed him.** Without a moment's immunity after a hit, it caught him
+  again the instant the stun ended and pushed him along the floor — into a
+  gap, which *is* fatal. There's a 0.75 s grace period now.
+- **A shove near a ledge is a death.** Patrols keep `clearance` (1.6 units)
+  from the ends of the surface they run on, so being hit can't be the thing
+  that drops him.
+
+### The counterplay
+
+Being above it is safe, so you time the gap or jump it. Both are verified:
+walking into it gets you hit, jumping past it clears it and lands you beyond.
 
 ## Touch controls
 

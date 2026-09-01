@@ -29,7 +29,7 @@ VIEWS = {
 
 
 LEVEL_KEYS = {"name", "theme", "width", "spawn", "goal",
-              "platforms", "pickups", "hazards"}
+              "platforms", "pickups", "hazards", "patrols"}
 
 
 def build_levels(levels_dir):

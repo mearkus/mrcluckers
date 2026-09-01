@@ -57,6 +57,7 @@
 <script src="../shared/jump.js"></script>
 <script src="../shared/level.js"></script>
 <script src="../levels/levels.js"></script>
+<script src="../shared/patrol.js"></script>
 <script src="../shared/bonus.js"></script>
 <script src="../shared/controls.js"></script>
 
@@ -169,6 +170,33 @@ const kibbles = LEVEL.pickups.map((p, i) => {
   return m;
 });
 
+// The robot vacuum. Position comes from shared/patrol.js, so this and the
+// sprite demo put it in exactly the same place at the same moment.
+const vacuums = LEVEL.patrols.map((m) => {
+  const R = window.Patrol.CFG.radius, H = window.Patrol.CFG.height;
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(R, R * 0.96, H, 28),
+    new THREE.MeshStandardMaterial({ color: '#2b3038', roughness: .6 }));
+  body.position.y = H / 2;
+  g.add(body);
+  const lid = new THREE.Mesh(new THREE.CylinderGeometry(R * 0.7, R * 0.7, H * 0.12, 24),
+    new THREE.MeshStandardMaterial({ color: '#3d444e', roughness: .5 }));
+  lid.position.y = H + H * 0.05;
+  g.add(lid);
+  const lamp = new THREE.Mesh(new THREE.SphereGeometry(R * 0.13, 12, 10),
+    new THREE.MeshBasicMaterial({ color: 0x7fd46b }));
+  lamp.position.set(0, H + H * 0.16, 0);
+  g.add(lamp);
+  const bumper = new THREE.Mesh(new THREE.BoxGeometry(R * 0.3, H * 0.55, R * 1.25),
+    new THREE.MeshStandardMaterial({ color: '#4d5560', roughness: .6 }));
+  bumper.position.set(R * 0.7, H * 0.42, 0);
+  g.add(bumper);
+  g.userData = { m, lamp, bumper };
+  g.position.set(m.x, m.y, 0);
+  scene.add(g);
+  return g;
+});
+
 const waterMat = new THREE.MeshStandardMaterial({
   color: '#4a8fbe', roughness: .25, transparent: true, opacity: .75 });
 for (const h of LEVEL.hazards) {
@@ -265,7 +293,7 @@ addEventListener('keyup', e => {
 // --- character controller (same shape as the sprite demo) -----------------
 const P = { x: LEVEL.spawn.x, y: LEVEL.spawn.y, vx: 0, vy: 0, onGround: true,
             coyote: 0, buffer: 0, landTimer: 0, action: null, actionTime: 0,
-            reached: false };
+            reached: false, stun: 0, hitCool: 0 };
 bird.onFinished = (name) => { if (P.action === name) P.action = null; };
 
 function pickState(crouching) {
@@ -413,7 +441,12 @@ function updateBonus(dt) {
     bonus.caught + ' caught';
 }
 
+let levelClock = 0;
+
 function update(dt) {
+  levelClock += dt;
+  P.stun = Math.max(0, P.stun - dt);
+  P.hitCool = Math.max(0, P.hitCool - dt);
   if (bonus) return updateBonus(dt);
 
   // The greeting plays out, then a beat, then she picks him up to throw.
@@ -423,6 +456,8 @@ function update(dt) {
   }
 
   const crouching = keys.down && P.onGround;
+  // A shove from the vacuum takes the controls away for a moment.
+  const steerable = P.stun <= 0;
 
   // Resolve any action already running first, so a cancelling press takes
   // effect on the same frame rather than the next one.
@@ -455,13 +490,15 @@ function update(dt) {
   // Actions are cosmetic: they never stop the character. Movement follows the
   // keys that are *held*, so an action fired mid-run keeps the run.
   let target = 0;
-  if (!crouching) { if (keys.left) target -= 1; if (keys.right) target += 1; }
+  if (!crouching && steerable) { if (keys.left) target -= 1; if (keys.right) target += 1; }
   const speed = keys.down ? WALK : RUN;
   if (target !== 0) {
     P.vx += target * ACCEL * dt;
     if (Math.abs(P.vx) > speed) P.vx = target * speed;
     bird.setFacing(target);
-  } else {
+  } else if (P.stun <= 0) {
+    // While stunned he keeps whatever the vacuum gave him; friction here
+    // scrubbed the shove off almost at once and the hit read as nothing.
     const drop = FRICTION * dt;
     P.vx = Math.abs(P.vx) <= drop ? 0 : P.vx - Math.sign(P.vx) * drop;
   }
@@ -491,10 +528,33 @@ function update(dt) {
     }
   }
   // Hazards and falling out of the world put him back at the start.
+  // The vacuum: drive each machine from the shared clock, then see if it
+  // caught him. Not lethal -- it bats him back down the room -- and being
+  // above it is safe, so the counterplay is to time the gap or jump it.
+  for (const v of vacuums) {
+    const { m, lamp, bumper } = v.userData;
+    const here = window.Patrol.at(m, levelClock);
+    v.position.x = here.x;
+    bumper.position.x = here.dir * window.Patrol.CFG.radius * 0.7;
+    lamp.material.color.setHex(
+      here.turning ? (Math.floor(performance.now() / 180) % 2 ? 0xffd34d : 0x6b5a20)
+                   : 0x7fd46b);
+    if (P.hitCool > 0) continue;
+    if (!window.Patrol.hits(m, levelClock, P.x, P.y, HALF_W)) continue;
+    const k = window.Patrol.knockFrom(here, P.x);
+    P.vx = k.vx; P.vy = k.vy; P.onGround = false; P.stun = k.stun;
+    P.hitCool = window.Patrol.CFG.immune;
+    P.action = 'tumble'; P.actionTime = 0;
+    bird.play('tumble', { restart: true });
+  }
+
+  // He drowns when he is *in* the water, not when he is level with it: a
+  // hazard's edge plus his half-width overlaps the ledge beside it, so the
+  // bank itself used to be lethal and a flush water gap was uncrossable.
   let inHazard = false;
   for (const h of LEVEL.hazards)
     if (P.x + HALF_W > h.x && P.x - HALF_W < h.x + h.w &&
-        P.y < h.y + 0.05 && P.y > h.y - h.h - 0.4) inHazard = true;
+        P.y < h.y - 0.08 && P.y > h.y - h.h - 0.4) inHazard = true;
   if (P.y < -6 || inHazard) {
     P.x = LEVEL.spawn.x; P.y = LEVEL.spawn.y; P.vx = P.vy = 0; P.action = null;
   }
@@ -569,6 +629,7 @@ renderer.setAnimationLoop((now) => {
 });
 window.__bird = bird;   // handy for poking at it from the console
 window.__player = P;    // used by the automated input tests
+window.__level = LEVEL; // ditto: the autoplayer needs the route
 // Used by the automated tests, and handy for looking at act two without
 // replaying the level first.
 window.__bonus = () => bonus;
