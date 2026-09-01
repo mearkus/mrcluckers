@@ -25,7 +25,8 @@
     goal: null,
     platforms: [],
     pickups: [],
-    hazards: []
+    hazards: [],
+    patrols: []
   };
 
   function normalize(raw) {
@@ -43,6 +44,14 @@
     lv.hazards = (lv.hazards || []).map(function (h) {
       return { x: +h.x, y: +h.y, w: +h.w, h: h.h === undefined ? 0.4 : +h.h,
                kind: h.kind || 'water' };
+    });
+    // A patrol runs along the surface at `y`, from `x` to `x + w`.
+    lv.patrols = (lv.patrols || []).map(function (m) {
+      return { x: +m.x, y: +m.y, w: +m.w,
+               speed: m.speed === undefined ? 1.5 : +m.speed,
+               pause: m.pause === undefined ? 0.7 : +m.pause,
+               phase: m.phase === undefined ? 0 : +m.phase,
+               kind: m.kind || 'vacuum' };
     });
     return lv;
   }
@@ -69,6 +78,12 @@
       hazards: lv.hazards.map(function (h) {
         return { x: h.x * px, y: toY(h.y), w: h.w * px, h: h.h * px,
                  kind: h.kind };
+      }),
+      // Patrols keep their world units: the demo asks shared/patrol.js where
+      // one is and converts the answer, rather than converting the machine.
+      patrols: lv.patrols.map(function (m) {
+        return { x: m.x, y: m.y, w: m.w, speed: m.speed, pause: m.pause,
+                 phase: m.phase, kind: m.kind };
       })
     };
   }

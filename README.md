@@ -31,6 +31,7 @@ python3 build.py
 | `shared/jump.js` | The movement budget — the numbers that decide what a level can ask. |
 | `shared/level.js` | Level format, and the conversion the canvas demo needs. |
 | `shared/bonus.js` | The bonus round's rules and physics, with no rendering. |
+| `shared/patrol.js` | Machines that move along a surface — where they are, and what they do to you. |
 | `levels/*.json` | The levels themselves. `levels.js` is the generated bundle. |
 
 ## Two demos
@@ -191,6 +192,40 @@ at all.
 The two levels now sit at **86%** and **92%** of budget at their hardest
 forced jump, with the peak in the middle of each — failing still costs you the
 whole level, so the demanding jump should not be the last one.
+
+## The robot vacuum
+
+Ginger is frightened of the robot vacuum, so one belongs in her living room.
+The Garden doesn't get one — a Roomba outdoors would be silly, and it gives
+the two levels different characters.
+
+**It isn't lethal.** He's a plush toy, and a vacuum that catches him bats him
+back down the room rather than ending his run. That's deliberate: falling in
+water still costs the whole level, so anything that killed you would need
+checkpoints before it was fair. A knockback needs nothing.
+
+`shared/patrol.js` gives a patrol's position as a **pure function of time**
+rather than integrated state, so the two demos can't drift apart and a test
+can ask where a machine will be. It sweeps its span, pauses at each end — the
+pause is what makes it readable, a moment to see which way it's about to go —
+and turns around.
+
+### Three things it took to make a shove feel like a shove
+
+- **Friction scrubbed it off.** The knockback lasted about a tenth of a second
+  and moved him a third of a unit, which read as nothing happening. Friction
+  is now suspended while he's stunned, and a hit carries him about 2.3 units.
+- **It bulldozed him.** Without a moment's immunity after a hit, it caught him
+  again the instant the stun ended and pushed him along the floor — into a
+  gap, which *is* fatal. There's a 0.75 s grace period now.
+- **A shove near a ledge is a death.** Patrols keep `clearance` (1.6 units)
+  from the ends of the surface they run on, so being hit can't be the thing
+  that drops him.
+
+### The counterplay
+
+Being above it is safe, so you time the gap or jump it. Both are verified:
+walking into it gets you hit, jumping past it clears it and lands you beyond.
 
 ## Touch controls
 

@@ -37,7 +37,7 @@
       name: 'New Level', theme: 'indoors', width: 34,
       spawn: { x: 1.5, y: 0 }, goal: { x: 30, y: 0 },
       platforms: [{ x: 0, y: 0, w: 34, h: 1, ground: true }],
-      pickups: [], hazards: []
+      pickups: [], hazards: [], patrols: []
     };
   }
 
@@ -294,6 +294,27 @@
     level.hazards.forEach(function (o, i) {
       rect(o, 'rgba(74,143,190,.5)',
            sel && sel.kind === 'hazards' && sel.index === i ? '#e5b53a' : null);
+    });
+
+    // Patrols: the span they sweep, and the machine at one end of it. They
+    // are not placeable here yet -- this is so a level that has one shows it.
+    level.patrols.forEach(function (m) {
+      var y = sy(m.y);
+      var x0 = sx(m.x), x1 = sx(m.x + m.w);
+      ctx.strokeStyle = 'rgba(230, 180, 90, .55)';
+      ctx.setLineDash([5, 5]);
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(x0, y - 4);
+      ctx.lineTo(x1, y - 4);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      var R = (window.Patrol ? window.Patrol.CFG.radius : 0.42) * cam.zoom;
+      var H = (window.Patrol ? window.Patrol.CFG.height : 0.34) * cam.zoom;
+      ctx.fillStyle = '#3d444e';
+      ctx.beginPath();
+      ctx.ellipse(x0, y - H * 0.5, R, H * 0.6, 0, 0, Math.PI * 2);
+      ctx.fill();
     });
 
     level.platforms.forEach(function (p, i) {

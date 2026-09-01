@@ -121,7 +121,25 @@ window.MRCLUCKERS_LEVELS = {
         "y": 2.2
       }
     ],
-    "hazards": []
+    "hazards": [],
+    "patrols": [
+      {
+        "x": 18.3,
+        "y": 0,
+        "w": 3.1,
+        "speed": 1.6,
+        "pause": 0.7,
+        "phase": 0
+      },
+      {
+        "x": 26.6,
+        "y": 0,
+        "w": 5.0,
+        "speed": 1.25,
+        "pause": 0.9,
+        "phase": 2.1
+      }
+    ]
   },
   "the-garden": {
     "name": "The Garden",

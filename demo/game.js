@@ -81,6 +81,7 @@
   var gingerSheet = null;
   var ginger = null;
 
+  var levelClock = 0;                  // drives the patrols, in seconds
   var picked = pickLevel();
   // Authored in world units with Y up; the canvas works in pixels with Y down.
   var LEVEL = window.Level.toPixels(picked.data, PX);
@@ -148,7 +149,7 @@
   var player = {
     x: LEVEL.spawn.x, y: LEVEL.spawn.y, vx: 0, vy: 0,
     facing: 1, onGround: true, coyote: 0, buffer: 0,
-    landTimer: 0, action: null, actionTime: 0,
+    landTimer: 0, action: null, actionTime: 0, stun: 0, hitCool: 0,
     anim: new Anim("idle")
   };
 
@@ -212,6 +213,9 @@
   }
 
   function update(dt) {
+    levelClock += dt;
+    player.stun = Math.max(0, player.stun - dt);
+    player.hitCool = Math.max(0, player.hitCool - dt);
     if (bonus) return updateBonus(dt);
 
     // The greeting plays out, then a beat, then she picks him up to throw.
@@ -259,7 +263,9 @@
     // Actions are cosmetic: they never stop the character. Movement follows
     // the keys that are *held*, so an action fired mid-run keeps the run.
     var target = 0;
-    if (!crouching) {
+    // A shove from the vacuum takes the controls away for a moment, so the
+    // hit reads as being knocked about rather than the character sticking.
+    if (!crouching && player.stun <= 0) {
       if (wantLeft) target -= 1;
       if (wantRight) target += 1;
     }
@@ -268,11 +274,14 @@
       player.vx += target * ACCEL * dt;
       if (Math.abs(player.vx) > speed) player.vx = target * speed;
       player.facing = target;
-    } else {
+    } else if (player.stun <= 0) {
       var drop = FRICTION * dt;
       player.vx = Math.abs(player.vx) <= drop ? 0
         : player.vx - Math.sign(player.vx) * drop;
     }
+    // While stunned he keeps whatever the vacuum gave him. Friction here
+    // scrubbed the shove off in about a tenth of a second, so being hit
+    // moved him a third of a unit and read as nothing happening.
 
     player.coyote = player.onGround ? COYOTE_TIME : Math.max(0, player.coyote - dt);
     player.buffer = pressed.jump ? JUMP_BUFFER : Math.max(0, player.buffer - dt);
@@ -359,6 +368,28 @@
       player.action = null;
     }
 
+
+    // The vacuum. Not lethal -- it bats him back down the room, and being
+    // above it is safe, so the counterplay is to time the gap or jump it.
+    if (window.Patrol && player.hitCool <= 0) {
+      for (var mi = 0; mi < LEVEL.patrols.length; mi++) {
+        var m = LEVEL.patrols[mi];
+        var feet = (LEVEL.ground - player.y) / PX;
+        var hit = window.Patrol.hits(m, levelClock, player.x / PX, feet,
+                                     J.HALF_WIDTH);
+        if (!hit) continue;
+        var k = window.Patrol.knockFrom(hit, player.x / PX);
+        player.vx = k.vx * PX;
+        player.vy = -k.vy * PX;
+        player.onGround = false;
+        player.stun = k.stun;
+        player.hitCool = window.Patrol.CFG.immune;
+        player.action = "tumble";
+        player.actionTime = 0;
+        player.anim.set("tumble", true);
+        break;
+      }
+    }
 
     player.landTimer = Math.max(0, player.landTimer - dt);
     player.anim.set(pickState(crouching));
@@ -471,6 +502,43 @@
       ctx.beginPath();
       ctx.ellipse(j * stepB - (camX * SCALE * 0.6) % stepB, horizon + 55 * SCALE,
                   100 * SCALE, 60 * SCALE, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // The robot vacuum: a dark disc with a bumper on its leading edge, a light
+  // that blinks while it turns, and a shadow so it sits on the floor.
+  function drawPatrols() {
+    var R = window.Patrol.CFG.radius * PX, H = window.Patrol.CFG.height * PX;
+    for (var i = 0; i < LEVEL.patrols.length; i++) {
+      var m = LEVEL.patrols[i];
+      var here = window.Patrol.at(m, levelClock);
+      var cx = here.x * PX;
+      var floor = LEVEL.ground - m.y * PX;
+
+      ctx.fillStyle = "rgba(20, 26, 20, .28)";
+      ctx.beginPath();
+      ctx.ellipse(cx, floor + 1, R * 1.05, 5, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "#2b3038";
+      ctx.beginPath();
+      ctx.ellipse(cx, floor - H * 0.5, R, H * 0.62, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#3d444e";
+      ctx.beginPath();
+      ctx.ellipse(cx, floor - H * 0.72, R * 0.92, H * 0.44, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#4d5560";
+      ctx.beginPath();
+      ctx.ellipse(cx + here.dir * R * 0.62, floor - H * 0.42,
+                  R * 0.30, H * 0.38, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = here.turning
+        ? (Math.floor(Date.now() / 180) % 2 ? "#ffd34d" : "#6b5a20")
+        : "#7fd46b";
+      ctx.beginPath();
+      ctx.arc(cx, floor - H * 0.95, 3.2, 0, Math.PI * 2);
       ctx.fill();
     }
   }
@@ -599,6 +667,8 @@
       ctx.fillRect(hz2.x, hz2.y, hz2.w, 3);
     }
 
+    if (!bonus && window.Patrol) drawPatrols();
+
     if (!bonus) {
       for (var pi2 = 0; pi2 < LEVEL.pickups.length; pi2++) {
         if (collected[pi2]) continue;
@@ -694,6 +764,8 @@
     get bonus() { return bonus; },
     // The draw transform, so a test can check the character is actually on
     // screen. Scoring tests all passed while he was flying off the top.
+    // The patrol clock, so a test can time a jump against the machine.
+    clock: function () { return levelClock; },
     get camera() { return { camX: camX, camY: camY, scale: SCALE,
                             w: canvas.width, h: canvas.height,
                             cell: CELL, anchor: ANCHOR }; },
