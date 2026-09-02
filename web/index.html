@@ -59,6 +59,7 @@
 <script src="../levels/levels.js"></script>
 <script src="../shared/patrol.js"></script>
 <script src="../shared/checkpoint.js"></script>
+<script src="../shared/distraction.js"></script>
 <script src="../shared/bonus.js"></script>
 <script src="../shared/controls.js"></script>
 
@@ -211,7 +212,7 @@ for (const h of LEVEL.hazards) {
 
 // Ginger waits at the goal, facing back down the level so she is looking at
 // him as he arrives.
-let ginger = null;
+let ginger = null, distraction = null, squirrel = null;
 if (LEVEL.goal) {
   const gltf = await new GLTFLoader().loadAsync('../assets/model/ginger.glb');
   const pivot = new THREE.Group();
@@ -244,6 +245,30 @@ if (LEVEL.goal) {
     current = next;
   }
   ginger = { root, mixer, play };
+
+  // Something more interesting than a toy chicken keeps turning up behind her.
+  distraction = window.Distraction
+    ? window.Distraction.create(LEVEL.goal.x, LEVEL.goal.y, 1) : null;
+  if (distraction) {
+    const fur = new THREE.MeshStandardMaterial({ color: '#8d6440', roughness: .85 });
+    const dark = new THREE.MeshStandardMaterial({ color: '#7a5334', roughness: .9 });
+    squirrel = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.SphereGeometry(0.15, 14, 12), fur);
+    body.scale.set(1, 1.2, 1); body.position.y = 0.17;
+    squirrel.add(body);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.10, 14, 12), fur);
+    head.position.set(0.10, 0.36, 0);
+    squirrel.add(head);
+    const ear = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.09, 8), fur);
+    ear.position.set(0.07, 0.46, 0.03);
+    squirrel.add(ear);
+    const tail = new THREE.Mesh(new THREE.SphereGeometry(0.13, 14, 12), dark);
+    tail.scale.set(0.55, 1.5, 0.8); tail.position.set(-0.20, 0.28, 0);
+    tail.rotation.z = 0.4;
+    squirrel.add(tail);
+    squirrel.visible = false;
+    scene.add(squirrel);
+  }
 
   const shadow = new THREE.Mesh(
     new THREE.CircleGeometry(0.72, 28),
@@ -581,11 +606,27 @@ function update(dt) {
                        bird.play('squeak', { restart: true }); }
     }
   }
+  if (distraction) {
+    distraction.update(dt);
+    if (squirrel) {
+      squirrel.visible = !!distraction.critter;
+      if (distraction.critter) {
+        squirrel.position.set(distraction.critter.x, distraction.critter.y, 0);
+        squirrel.rotation.y = distraction.critter.dir > 0 ? 0 : Math.PI;
+      }
+    }
+    // A squeak fetches her back, if he is close enough to be heard over it.
+    if (pressed.squeak && distraction.squeak(P.x) && ginger) ginger.play('greet', 0.08);
+    // She turns to whatever has her attention.
+    if (ginger) ginger.root.rotation.y = distraction.watching ? Math.PI : 0;
+  }
   if (ginger) {
     ginger.mixer.update(dt);
     if (!P.reached && Math.abs(LEVEL.goal.x - P.x) < 0.6 &&
-        Math.abs(LEVEL.goal.y - P.y) < 0.9) {
+        Math.abs(LEVEL.goal.y - P.y) < 0.9 &&
+        (!distraction || distraction.onYou())) {
       P.reached = true;
+      if (distraction) distraction.finish();
       P.action = 'crow';
       P.actionTime = 0;
       bird.play('crow', { restart: true });
@@ -609,14 +650,24 @@ function update(dt) {
   shadow.scale.setScalar(0.55 + 0.45 * t);
   shadow.material.opacity = 0.34 * t;
 
-  camera.position.x += (P.x - camera.position.x) * Math.min(1, dt * 6);
+  // Lean toward her while a squirrel has her, so the thing you are being
+  // told about is actually in shot. This camera frames tighter than the
+  // sprite demo's, and the squirrel sits just behind her.
+  const lean = (distraction && distraction.watching &&
+                Math.abs(LEVEL.goal.x - P.x) < 4) ? 1.1 : 0;
+  camera.position.x += ((P.x + lean) - camera.position.x) * Math.min(1, dt * 6);
   camera.position.y += (P.y + 0.9 - camera.position.y) * Math.min(1, dt * 4);
 
   pressed = {};
   document.getElementById('state').textContent = bird.current.getClip().name;
+  let note = '';
+  if (P.reached) note = '  \u2014 reunited!';
+  else if (distraction && distraction.watching &&
+           Math.abs(LEVEL.goal.x - P.x) < 6) {
+    note = "  \u2014 she's watching a squirrel. Squeak!";
+  }
   document.getElementById('levelName').textContent =
-    LEVEL.name + '  ' + collected.size + '/' + LEVEL.pickups.length +
-    (P.reached ? '  \u2014 reunited!' : '');
+    LEVEL.name + '  ' + collected.size + '/' + LEVEL.pickups.length + note;
 }
 
 function onResize() {
@@ -643,6 +694,7 @@ window.__bird = bird;   // handy for poking at it from the console
 window.__player = P;    // used by the automated input tests
 window.__level = LEVEL; // ditto: the autoplayer needs the route
 window.__checkpoint = () => (checkpoint ? checkpoint.at : null);
+window.__distraction = () => distraction;
 // Used by the automated tests, and handy for looking at act two without
 // replaying the level first.
 window.__bonus = () => bonus;

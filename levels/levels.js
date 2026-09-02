@@ -2,7 +2,7 @@ window.MRCLUCKERS_LEVELS = {
   "living-room": {
     "name": "Living Room",
     "theme": "indoors",
-    "width": 36,
+    "width": 38,
     "spawn": {
       "x": 1.5,
       "y": 0
@@ -36,7 +36,7 @@ window.MRCLUCKERS_LEVELS = {
       {
         "x": 25.12,
         "y": 0,
-        "w": 10.88,
+        "w": 12.88,
         "h": 1,
         "ground": true
       },

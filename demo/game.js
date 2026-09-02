@@ -150,6 +150,11 @@
 
   // --------------------------------------------------------------- player
   if (GDATA) ginger = { anim: new Anim("sit_idle", GDATA), greeted: false };
+  // Something more interesting than a toy chicken keeps turning up behind her.
+  var distraction = (window.Distraction && LEVEL.goal)
+    ? window.Distraction.create(LEVEL.goal.x / PX,
+                               (LEVEL.ground - LEVEL.goal.y) / PX, 1)
+    : null;
 
   var player = {
     x: LEVEL.spawn.x, y: LEVEL.spawn.y, vx: 0, vy: 0,
@@ -318,10 +323,21 @@
                               player.anim.set("squeak", true); }
       }
     }
+    if (distraction) {
+      distraction.update(dt);
+      // A squeak fetches her back, if he is close enough to be heard over it.
+      if (pressed.squeak || (player.action === "squeak" && player.actionTime < dt * 1.5)) {
+        if (distraction.squeak(player.x / PX) && ginger) {
+          ginger.anim.set("greet", true);
+        }
+      }
+    }
     if (LEVEL.goal && !player.reached &&
         Math.abs(LEVEL.goal.x - player.x) < 34 &&
-        Math.abs(LEVEL.goal.y - player.y) < 60) {
+        Math.abs(LEVEL.goal.y - player.y) < 60 &&
+        (!distraction || distraction.onYou())) {
       player.reached = true;
+      if (distraction) distraction.finish();
       player.action = "crow";
       player.actionTime = 0;
       player.anim.set("crow", true);
@@ -560,6 +576,43 @@
     }
   }
 
+  // A squirrel: body, head, ears, and the tail that makes it a squirrel.
+  // Small and procedural -- it is scenery with one job, not a character.
+  function drawCritter(c) {
+    var x = c.x * PX, y = LEVEL.ground - c.y * PX, f = c.dir;
+    var U = PX * 0.5;                       // it stands about half his height
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(f, 1);
+    ctx.fillStyle = "rgba(20, 26, 20, .25)";
+    ctx.beginPath();
+    ctx.ellipse(0, 1, U * 0.5, U * 0.13, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Tail first, so the body sits in front of it.
+    ctx.fillStyle = "#7a5334";
+    ctx.beginPath();
+    ctx.ellipse(-U * 0.46, -U * 0.62, U * 0.22, U * 0.52, 0.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#8d6440";
+    ctx.beginPath();
+    ctx.ellipse(-U * 0.06, -U * 0.34, U * 0.30, U * 0.36, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(U * 0.20, -U * 0.72, U * 0.21, U * 0.21, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(U * 0.10, -U * 0.88);
+    ctx.lineTo(U * 0.14, -U * 1.06);
+    ctx.lineTo(U * 0.26, -U * 0.90);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = "#2b2117";
+    ctx.beginPath();
+    ctx.arc(U * 0.29, -U * 0.75, U * 0.045, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
   function drawTreats() {
     if (bonus.phase === "done") return;   // nothing left to collect
     for (var i = 0; i < bonus.treats.length; i++) {
@@ -701,6 +754,8 @@
       drawTreats();
     }
 
+    if (distraction && distraction.critter) drawCritter(distraction.critter);
+
     if (LEVEL.goal && ginger && gingerSheet) {
       var g = LEVEL.goal;
       var gb = ginger.anim.box();
@@ -710,9 +765,12 @@
       ctx.beginPath();
       ctx.ellipse(g.x, g.y + 2, 52, 10, 0, 0, Math.PI * 2);
       ctx.fill();
+      // Baked facing right, drawn mirrored to look back down the level -- but
+      // when a squirrel has her, she turns round to watch it instead.
+      var look = (distraction && distraction.watching) ? 1 : -1;
       ctx.save();
       ctx.translate(g.x, g.y);
-      ctx.scale(-1, 1);
+      ctx.scale(look, 1);
       ctx.drawImage(gingerSheet, gb.x, gb.y, gb.w, gb.h,
                     -ga.x, -ga.y, gb.w, gb.h);
       ctx.restore();
@@ -779,8 +837,14 @@
           bonus.caught + " caught";
       } else {
         var got = Object.keys(collected).length;
-        title.textContent = LEVEL.name + "  " + got + "/" + LEVEL.pickups.length +
-          (player.reached ? "  \u2014 reunited!" : "");
+        var note = "";
+        if (player.reached) note = "  \u2014 reunited!";
+        else if (distraction && distraction.watching &&
+                 Math.abs(LEVEL.goal.x - player.x) / PX < 6) {
+          note = "  \u2014 she's watching a squirrel. Squeak!";
+        }
+        title.textContent = LEVEL.name + "  " + got + "/" +
+          LEVEL.pickups.length + note;
       }
     }
   }
@@ -794,6 +858,7 @@
     // The patrol clock, so a test can time a jump against the machine.
     clock: function () { return levelClock; },
     get checkpoint() { return checkpoint ? checkpoint.at : null; },
+    get distraction() { return distraction; },
     get camera() { return { camX: camX, camY: camY, scale: SCALE,
                             w: canvas.width, h: canvas.height,
                             cell: CELL, anchor: ANCHOR }; },

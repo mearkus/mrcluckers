@@ -33,6 +33,7 @@ python3 build.py
 | `shared/bonus.js` | The bonus round's rules and physics, with no rendering. |
 | `shared/patrol.js` | Machines that move along a surface — where they are, and what they do to you. |
 | `shared/checkpoint.js` | Where he comes back to after a fall. |
+| `shared/distraction.js` | The things Ginger would rather be looking at. |
 | `levels/*.json` | The levels themselves. `levels.js` is the generated bundle. |
 
 ## Two demos
@@ -207,6 +208,34 @@ constraint.
 The last jump in each is deliberately fiddly — it wants a late take-off, and
 it lands from about half the moments you could jump from. That is the right
 place for it: there is a checkpoint immediately before both.
+
+## Squirrels
+
+A squirrel is no threat to a plush chicken, so making it hurt *him* would be
+borrowed from a different game. What a squirrel actually does is take the
+dog's attention — so it goes after the one thing the whole level is for.
+
+One turns up behind Ginger every ten seconds or so, sits being interesting for
+three and a half, and leaves. **Arrive while she is watching it and there is
+no reunion.** She has her back to you. You have to **squeak** to get her
+round, from within about three units.
+
+That finally gives `squeak` something to do. It has been in the animation set
+and on the button bar since the very beginning as a pure flourish.
+
+She turns to face whatever has her attention, which is the whole tell — in the
+sprite demo she is drawn unmirrored, in the three.js one her root yaws round.
+
+### Two things the framing needed
+
+The squirrel perches *behind* her, on the far side from his approach, so she
+turns away from the direction he is coming and he never has to walk through
+it. That meant widening the living room from 36 to 38 units, because there was
+nothing but two and a half units of floor behind her.
+
+The three.js camera frames tighter than the sprite one, so it leans a unit
+toward her while she is distracted. Otherwise the game tells you she is
+watching a squirrel and the squirrel is off the side of the screen.
 
 ## Checkpoints
 
