@@ -32,6 +32,8 @@ python3 build.py
 | `shared/level.js` | Level format, and the conversion the canvas demo needs. |
 | `shared/bonus.js` | The bonus round's rules and physics, with no rendering. |
 | `shared/patrol.js` | Machines that move along a surface — where they are, and what they do to you. |
+| `shared/checkpoint.js` | Where he comes back to after a fall. |
+| `shared/distraction.js` | The things Ginger would rather be looking at. |
 | `levels/*.json` | The levels themselves. `levels.js` is the generated bundle. |
 
 ## Two demos
@@ -189,9 +191,90 @@ get to each platform. Both shipped levels passed it. One of them could be
 completed by holding right for nine seconds; the other could not be completed
 at all.
 
-The two levels now sit at **86%** and **92%** of budget at their hardest
-forced jump, with the peak in the middle of each — failing still costs you the
-whole level, so the demanding jump should not be the last one.
+The two levels sit at **87%** and **92%** of budget at their hardest forced
+jump, and both now **build to it**:
+
+| | Living Room | The Garden |
+| --- | --- | --- |
+| | 66% | 74% |
+| | 74% | stepping stones — rhythm, not reach |
+| | **87%** | **92%** |
+| | | the climb to Ginger |
+
+They used to peak in the middle, because failing cost the whole level and the
+demanding jump should not be the last thing you meet. Checkpoints removed that
+constraint.
+
+The last jump in each is deliberately fiddly — it wants a late take-off, and
+it lands from about half the moments you could jump from. That is the right
+place for it: there is a checkpoint immediately before both.
+
+## Squirrels
+
+A squirrel is no threat to a plush chicken, so making it hurt *him* would be
+borrowed from a different game. What a squirrel actually does is take the
+dog's attention — so it goes after the one thing the whole level is for.
+
+One turns up behind Ginger every ten seconds or so, sits being interesting for
+three and a half, and leaves. **Arrive while she is watching it and there is
+no reunion.** She has her back to you. You have to **squeak** to get her
+round, from within about three units.
+
+That finally gives `squeak` something to do. It has been in the animation set
+and on the button bar since the very beginning as a pure flourish.
+
+She turns to face whatever has her attention, which is the whole tell — in the
+sprite demo she is drawn unmirrored, in the three.js one her root yaws round.
+
+### Two things the framing needed
+
+The squirrel perches *behind* her, on the far side from his approach, so she
+turns away from the direction he is coming and he never has to walk through
+it. That meant widening the living room from 36 to 38 units, because there was
+nothing but two and a half units of floor behind her.
+
+The three.js camera frames tighter than the sprite one, so it leans a unit
+toward her while she is distracted. Otherwise the game tells you she is
+watching a squirrel and the squirrel is off the side of the screen.
+
+## Checkpoints
+
+Falling in water or down a gap used to put him back at the level's spawn, so a
+mistake near the end cost the whole level. That shaped two earlier decisions:
+both levels put their hardest jump in the *middle* rather than building to
+one, and the vacuum had to be harmless, because a lethal obstacle plus a full
+rewind is a lot to ask of a toy chicken.
+
+**There is nothing to author.** He checkpoints wherever he is standing safely,
+so a level gets this by existing — including the two that already shipped. A
+level may still list `checkpoints` explicitly if it wants a guaranteed spot.
+
+A spot counts when there is real ground under him with a clear unit either
+side, and no water within reach. The margin is what stops him reappearing on a
+lip and walking straight back off it.
+
+### What is deliberately *not* excluded
+
+The stretch a vacuum sweeps. Excluding it reads like the careful thing to do,
+and it costs the entire middle of the living room — the patrols there span
+nearly their whole floor section, so the level would checkpoint on one side of
+its hardest jump and never after it. The vacuum cannot kill him, and the
+grace period covers the arrival, so a machine trundling past a checkpoint is
+fine.
+
+Coming back grants 1.2 s of immunity, so you are not hit the moment you
+arrive, and a ring plays at the arrival point so a respawn reads as something
+happening rather than a teleport.
+
+### The test that matters
+
+A checkpoint that kills him again would be worse than the full reset it
+replaced. So: stand him at **every** spot he can stand in both levels, kill
+him, and check he comes back to solid ground and is still there a second
+later. 70 spots, no traps.
+
+Both levels were re-tuned once this landed, so they build to their hardest
+jump instead of peaking in the middle. See *What a jump can do*.
 
 ## The robot vacuum
 
