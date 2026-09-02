@@ -293,6 +293,12 @@ window.MRCLUCKERS_LEVELS = {
         "h": 0.4,
         "kind": "water"
       }
+    ],
+    "thieves": [
+      {
+        "x": 38.6,
+        "y": 0
+      }
     ]
   }
 };

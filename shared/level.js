@@ -26,7 +26,8 @@
     platforms: [],
     pickups: [],
     hazards: [],
-    patrols: []
+    patrols: [],
+    thieves: []
   };
 
   function normalize(raw) {
@@ -52,6 +53,10 @@
                pause: m.pause === undefined ? 0.7 : +m.pause,
                phase: m.phase === undefined ? 0 : +m.phase,
                kind: m.kind || 'vacuum' };
+    });
+    // Another dog, standing at (x, y), that will carry him back down the level.
+    lv.thieves = (lv.thieves || []).map(function (t) {
+      return { x: +t.x, y: +t.y };
     });
     return lv;
   }
