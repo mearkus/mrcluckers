@@ -7,6 +7,9 @@
 (function () {
   "use strict";
 
+  // No level in the URL means the title screen is up; nothing to play yet.
+  if (window.MrCluckersShell && !window.MrCluckersShell.slugInURL()) return;
+
   var DATA = window.MRCLUCKERS.side;
   var CELL = DATA.meta.cell.w;
   var ANCHOR = DATA.meta.anchor;
@@ -220,6 +223,18 @@
         ginger.anim.set("wag", true);
       }
       ginger.anim.update(dt);
+    }
+
+    // The bonus round ending is the end of the level.
+    if (bonus.phase === "done" && !bonus.recorded) {
+      bonus.recorded = true;
+      if (window.MrCluckersShell) {
+        window.MrCluckersShell.finished(picked.slug, {
+          kibble: Object.keys(collected).length,
+          pickups: LEVEL.pickups.length,
+          bonus: bonus.score
+        });
+      }
     }
 
     for (var pi = pops.length - 1; pi >= 0; pi--) {
@@ -582,15 +597,16 @@
       ctx.ellipse(cx, floor + 1, R * 1.05, 5, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      ctx.fillStyle = "#2b3038";
+      var mower = m.kind === "mower";
+      ctx.fillStyle = mower ? "#2f4a2b" : "#2b3038";
       ctx.beginPath();
       ctx.ellipse(cx, floor - H * 0.5, R, H * 0.62, 0, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = "#3d444e";
+      ctx.fillStyle = mower ? "#456b3d" : "#3d444e";
       ctx.beginPath();
       ctx.ellipse(cx, floor - H * 0.72, R * 0.92, H * 0.44, 0, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = "#4d5560";
+      ctx.fillStyle = mower ? "#57814c" : "#4d5560";
       ctx.beginPath();
       ctx.ellipse(cx + here.dir * R * 0.62, floor - H * 0.42,
                   R * 0.30, H * 0.38, 0, 0, Math.PI * 2);
