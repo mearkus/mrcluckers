@@ -182,6 +182,42 @@ def sit_idle(n=16, fps=12):
     return _cyclic("sit_idle", n, f, fps)
 
 
+def trot(n=12, fps=14):
+    """A working trot.
+
+    Dogs trot on diagonal pairs -- front-left swings with hind-right -- so
+    one sine drives both, with the sign flipped for the other pair. The knee
+    and hock only fold on the recovery half of the stride, which is what
+    stops it looking like a rocking horse, and the body bobs *twice* a cycle
+    because a foot lands twice.
+    """
+    def f(t):
+        a = 2 * math.pi * t
+        swing = math.sin(a)             # fore/aft, pair A leading
+        fold = math.cos(a)              # knees fold mid-recovery
+        return make_pose(
+            bob=0.022 * abs(math.sin(a)) - 0.011,
+            pitch=1.6 * math.sin(a * 2),
+            roll=2.4 * math.sin(a),
+            head_pitch=-3.0,
+            head_yaw=2.5 * math.sin(a),
+            ear_lift=5.0,
+            tail_lift=24.0,
+            tail_swing=16.0 * math.sin(a),
+            sh_l=26.0 * swing,
+            sh_r=-26.0 * swing,
+            elbow_l=-24.0 * max(0.0, fold),
+            elbow_r=-24.0 * max(0.0, -fold),
+            hip_l=-22.0 * swing,
+            hip_r=22.0 * swing,
+            stifle_l=28.0 * max(0.0, -fold),
+            stifle_r=28.0 * max(0.0, fold),
+            hock_l=-20.0 * max(0.0, -fold),
+            hock_r=-20.0 * max(0.0, fold),
+        )
+    return _cyclic("trot", n, f, fps)
+
+
 def greet(fps=14):
     """The reunion: a bounce onto the front feet, head up, tail going hard."""
     poses = [
@@ -204,7 +240,7 @@ def greet(fps=14):
 
 def all_clips(flop=1.0):
     """Every clip, run through the secondary-motion solver."""
-    clips = [stand(), wag(), sit(), sit_idle(), greet()]
+    clips = [stand(), wag(), trot(), sit(), sit_idle(), greet()]
     out = {}
     for c in clips:
         if flop > 0.0:

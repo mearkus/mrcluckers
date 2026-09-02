@@ -151,6 +151,13 @@
   // --------------------------------------------------------------- player
   if (GDATA) ginger = { anim: new Anim("sit_idle", GDATA), greeted: false };
   // Something more interesting than a toy chicken keeps turning up behind her.
+  // The other dog at the park. Same rig as Ginger, tinted so nobody confuses
+  // the two, and it uses her new `trot` clip to actually cover ground.
+  var thieves = (window.Thief && WORLD.thieves) ? WORLD.thieves.map(function (t) {
+    return { anim: new Anim("stand", GDATA), state: window.Thief.create(WORLD, t) };
+  }) : [];
+  var thiefSheet = null;
+
   var distraction = (window.Distraction && LEVEL.goal)
     ? window.Distraction.create(LEVEL.goal.x / PX,
                                (LEVEL.ground - LEVEL.goal.y) / PX, 1)
@@ -323,6 +330,27 @@
                               player.anim.set("squeak", true); }
       }
     }
+    for (var ti = 0; ti < thieves.length; ti++) {
+      var th = thieves[ti];
+      th.state.update(dt, { x: player.x / PX,
+                            y: (LEVEL.ground - player.y) / PX,
+                            onGround: player.onGround,
+                            safe: player.hitCool > 0 });
+      th.anim.set(th.state.clip());
+      th.anim.update(dt);
+      if (th.state.carrying) {
+        // He is in its mouth: no steering, and he plays along.
+        var hold = th.state.carryPoint();
+        player.x = hold.x * PX;
+        player.y = LEVEL.ground - hold.y * PX;
+        player.vx = player.vy = 0;
+        player.onGround = false;
+        player.stun = Math.max(player.stun, 0.1);
+        player.hitCool = Math.max(player.hitCool, 0.6);
+        if (player.anim.name !== "tumble") player.anim.set("tumble", true);
+      }
+    }
+
     if (distraction) {
       distraction.update(dt);
       // A squeak fetches her back, if he is close enough to be heard over it.
@@ -578,6 +606,21 @@
 
   // A squirrel: body, head, ears, and the tail that makes it a squirrel.
   // Small and procedural -- it is scenery with one job, not a character.
+  function drawThief(th) {
+    if (!thiefSheet || !GDATA) return;
+    var st = th.state, b = th.anim.box(), ga = GDATA.meta.anchor;
+    var x = st.x * PX, y = LEVEL.ground - st.y * PX;
+    ctx.fillStyle = "rgba(20, 30, 20, .24)";
+    ctx.beginPath();
+    ctx.ellipse(x, y + 2, 48, 9, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(st.dir > 0 ? 1 : -1, 1);      // baked facing right
+    ctx.drawImage(thiefSheet, b.x, b.y, b.w, b.h, -ga.x, -ga.y, b.w, b.h);
+    ctx.restore();
+  }
+
   function drawCritter(c) {
     var x = c.x * PX, y = LEVEL.ground - c.y * PX, f = c.dir;
     var U = PX * 0.5;                       // it stands about half his height
@@ -754,6 +797,8 @@
       drawTreats();
     }
 
+    for (var thi = 0; thi < thieves.length; thi++) drawThief(thieves[thi]);
+
     if (distraction && distraction.critter) drawCritter(distraction.critter);
 
     if (LEVEL.goal && ginger && gingerSheet) {
@@ -859,6 +904,7 @@
     clock: function () { return levelClock; },
     get checkpoint() { return checkpoint ? checkpoint.at : null; },
     get distraction() { return distraction; },
+    get thieves() { return thieves.map(function (t) { return t.state; }); },
     get camera() { return { camX: camX, camY: camY, scale: SCALE,
                             w: canvas.width, h: canvas.height,
                             cell: CELL, anchor: ANCHOR }; },
@@ -881,8 +927,23 @@
     requestAnimationFrame(frame);
   }
 
+  function makeThiefSheet(src) {
+    // A second dog from one sprite sheet: draw hers, then wash a colour over
+    // the pixels that are actually her, so the silhouette survives.
+    var off = document.createElement("canvas");
+    off.width = src.width; off.height = src.height;
+    var c = off.getContext("2d");
+    c.drawImage(src, 0, 0);
+    c.globalCompositeOperation = "source-atop";
+    c.fillStyle = "rgba(40, 44, 54, .55)";
+    c.fillRect(0, 0, off.width, off.height);
+    c.globalCompositeOperation = "source-over";
+    return off;
+  }
+
   if (GDATA) {
     gingerSheet = new Image();
+    gingerSheet.onload = function () { thiefSheet = makeThiefSheet(gingerSheet); };
     gingerSheet.src = window.GINGER_IMAGE ||
       "../assets/sprites/" + GDATA.image;
   }

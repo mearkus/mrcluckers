@@ -34,6 +34,7 @@ python3 build.py
 | `shared/patrol.js` | Machines that move along a surface — where they are, and what they do to you. |
 | `shared/checkpoint.js` | Where he comes back to after a fall. |
 | `shared/distraction.js` | The things Ginger would rather be looking at. |
+| `shared/thief.js` | The other dog at the park, and what it does with the toy. |
 | `levels/*.json` | The levels themselves. `levels.js` is the generated bundle. |
 
 ## Two demos
@@ -208,6 +209,46 @@ constraint.
 The last jump in each is deliberately fiddly — it wants a late take-off, and
 it lands from about half the moments you could jump from. That is the right
 place for it: there is a checkpoint immediately before both.
+
+## The other dog
+
+Three obstacles, three different verbs. The vacuum **shoves** you, a squirrel
+takes **Ginger's attention** — this one takes **you**. It trots over, picks
+the toy up, carries it back down the level and drops it. No damage, no
+distraction: you lose ground.
+
+Like the vacuum it is never lethal, and it must not *become* lethal, so the
+carry is clamped to the surface the dog is standing on. That is the only
+reason `shared/thief.js` knows about the level at all: it must never set him
+down in a pond. Walk into the one in The Garden and it takes him about 1.5
+units back — not the full 3.4 it wants, because its own footing runs out
+first.
+
+Counterplay is the vacuum's shape again: be somewhere it isn't. It trots at
+2.4 against his run of 3.4, so it can be outrun, and it cannot reach him
+above its head.
+
+It also respects the grace a checkpoint grants on arrival. Being picked up the
+instant you reappear is the same unfairness that grace exists to prevent —
+found by the respawn-trap test, which started reporting him in the dog's mouth
+rather than on the floor.
+
+### She learned to walk for it
+
+The dog rig had `stand`, `wag`, `sit`, `sit_idle` and `greet` — every one of
+them a standing-still animation. A dog that trots across the level with no
+gait just slides.
+
+So `trot` is new in `tools/mc/ginger_anim.py`: diagonal pairs, since front-left
+swings with hind-right, which is one sine with the sign flipped for the other
+pair. The knee and hock fold only on the recovery half of the stride — that is
+what stops it looking like a rocking horse — and the body bobs *twice* a cycle
+because a foot lands twice. Ginger has it too, for whenever she needs to move.
+
+The other dog is her model, tinted: a cool grey multiplied over the fabric map,
+which darkens the coat without flattening its texture. In the three.js demo the
+first attempt silently did nothing, because those meshes carry material
+*arrays* and `material.clone()` on an array has no `.color` to set.
 
 ## Squirrels
 

@@ -29,7 +29,7 @@ VIEWS = {
 
 
 LEVEL_KEYS = {"name", "theme", "width", "spawn", "goal",
-              "platforms", "pickups", "hazards", "patrols"}
+              "platforms", "pickups", "hazards", "patrols", "thieves"}
 
 
 def build_levels(levels_dir):
@@ -142,7 +142,7 @@ def build_ginger_sprites(out_dir, maps=None, flop=1.0, px_per_unit=72.73):
     cell_w, cell_h = 192, 144
     camera = sprites.make_camera(cell_w, view_height=cell_h / px_per_unit,
                                  target_y=0.74, pitch=v.deg(4.0))
-    order = ["sit_idle", "greet", "wag", "stand"]
+    order = ["sit_idle", "greet", "wag", "stand", "trot"]
     rows, total = [], 0
     for name in order:
         clip = clips[name]

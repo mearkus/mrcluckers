@@ -60,6 +60,7 @@
 <script src="../shared/patrol.js"></script>
 <script src="../shared/checkpoint.js"></script>
 <script src="../shared/distraction.js"></script>
+<script src="../shared/thief.js"></script>
 <script src="../shared/bonus.js"></script>
 <script src="../shared/controls.js"></script>
 
@@ -277,6 +278,49 @@ if (LEVEL.goal) {
   shadow.rotation.x = -Math.PI / 2;
   shadow.position.set(LEVEL.goal.x, LEVEL.goal.y + 0.012, 0);
   scene.add(shadow);
+}
+
+// The other dog at the park: the same model, darkened so nobody mistakes it
+// for Ginger, driven by the `trot` clip she just gained.
+const thieves = [];
+for (const spec of (LEVEL.thieves || [])) {
+  if (!window.Thief) break;
+  const gltf = await new GLTFLoader().loadAsync('../assets/model/ginger.glb');
+  let tinted = 0;
+  gltf.scene.traverse((o) => {
+    if (!o.isMesh || !o.material) return;
+    const mats = Array.isArray(o.material) ? o.material : [o.material];
+    const swapped = mats.map((m) => {
+      const c = m.clone();
+      // The colour multiplies the fabric map, so a cool grey darkens the coat
+      // without flattening its texture.
+      c.color.setHex(0x59606f);
+      tinted++;
+      return c;
+    });
+    o.material = Array.isArray(o.material) ? swapped : swapped[0];
+  });
+  window.__thiefTinted = tinted;
+  const pivot = new THREE.Group();
+  pivot.rotation.y = -Math.PI / 2;
+  pivot.add(gltf.scene);
+  const root = new THREE.Group();
+  root.add(pivot);
+  root.position.set(spec.x, spec.y, 0);
+  scene.add(root);
+
+  const mixer = new THREE.AnimationMixer(gltf.scene);
+  const actions = {};
+  for (const clip of gltf.animations) actions[clip.name] = mixer.clipAction(clip);
+  let current = (actions.stand || Object.values(actions)[0]).play();
+  const play = (name, fade = 0.18) => {
+    const next = actions[name];
+    if (!next || next === current) return;
+    next.reset().play();
+    current.crossFadeTo(next, fade, false);
+    current = next;
+  };
+  thieves.push({ root, pivot, mixer, play, state: window.Thief.create(LEVEL, spec) });
 }
 
 // A blob shadow costs nothing and suits the toy better than a shadow map.
@@ -606,6 +650,23 @@ function update(dt) {
                        bird.play('squeak', { restart: true }); }
     }
   }
+  for (const t of thieves) {
+    t.state.update(dt, { x: P.x, y: P.y, onGround: P.onGround,
+                         safe: P.hitCool > 0 });
+    t.root.position.x = t.state.x;
+    t.pivot.rotation.y = t.state.dir > 0 ? -Math.PI / 2 : Math.PI / 2;
+    t.play(t.state.clip());
+    t.mixer.update(dt);
+    if (t.state.carrying) {
+      // He is in its mouth: no steering, and he plays along.
+      const hold = t.state.carryPoint();
+      P.x = hold.x; P.y = hold.y; P.vx = 0; P.vy = 0; P.onGround = false;
+      P.stun = Math.max(P.stun, 0.1);
+      P.hitCool = Math.max(P.hitCool, 0.6);
+      if (bird.current.getClip().name !== 'tumble') bird.play('tumble');
+    }
+  }
+
   if (distraction) {
     distraction.update(dt);
     if (squirrel) {
@@ -695,6 +756,7 @@ window.__player = P;    // used by the automated input tests
 window.__level = LEVEL; // ditto: the autoplayer needs the route
 window.__checkpoint = () => (checkpoint ? checkpoint.at : null);
 window.__distraction = () => distraction;
+window.__thieves = () => thieves.map((t) => t.state);
 // Used by the automated tests, and handy for looking at act two without
 // replaying the level first.
 window.__bonus = () => bonus;
