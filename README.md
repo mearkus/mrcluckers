@@ -137,6 +137,23 @@ throw — so a browser that refuses to remember anything still plays, it just
 forgets. Levels unlock in order; a level's best kibble and best fetch score
 are kept.
 
+### Moving between levels
+
+Switching levels is a page load, so the join is covered from both sides: the
+screen fades up before navigating and the next page starts already covered
+and fades down. The level's name sits on the cover, which is what turns a cut
+into an announcement.
+
+The navigation waits for the fade but not indefinitely. `transitionend` never
+arrives if the element is already at the target opacity, or if the tab is in
+the background — so a timer runs alongside it and whichever fires first
+navigates. Waiting only on the event is how a menu ends up permanently stuck
+behind its own curtain.
+
+The cover is `pointer-events: none` whenever it is down, so it can never
+swallow a tap once it has faded, and `prefers-reduced-motion` collapses the
+crossfade without losing the cover.
+
 ### One CSS trap worth knowing
 
 The end-of-level panel is `position: fixed; inset: 0` and starts `hidden`. The
