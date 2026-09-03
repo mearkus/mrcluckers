@@ -35,6 +35,8 @@ python3 build.py
 | `shared/checkpoint.js` | Where he comes back to after a fall. |
 | `shared/distraction.js` | The things Ginger would rather be looking at. |
 | `shared/thief.js` | The other dog at the park, and what it does with the toy. |
+| `shared/progress.js` | Which levels are finished, and what that opens up. |
+| `demo/shell.js` | Title screen, level select, and the end-of-level panel. |
 | `levels/*.json` | The levels themselves. `levels.js` is the generated bundle. |
 
 ## Two demos
@@ -112,6 +114,53 @@ keeps the run, and jumping works throughout.
 
 If you wire `tumble` up yourself, give it a time limit. Don't make it a
 one-shot clip instead — that caps it at exactly one turn forever.
+
+## The game around the levels
+
+`demo/` is the game now, not a demo of one. Opening it gives you a title
+screen; levels open in order as you finish them; finishing one offers the
+next.
+
+**Picking a level navigates.** `?level=slug` is how the game has always chosen
+one, so the flow uses the mechanism that already existed rather than teaching
+the game to tear itself down and rebuild mid-session. It also means every
+level is still a shareable URL, and the tests that drive a specific level did
+not have to change how they start.
+
+The screens are DOM rather than canvas: they want text, buttons and a list,
+all of which the browser already does, and it means a finger and a mouse both
+work without a second input path.
+
+`shared/progress.js` holds what is finished, in `localStorage`. Every read and
+write is guarded — private mode, a full quota and storage switched off all
+throw — so a browser that refuses to remember anything still plays, it just
+forgets. Levels unlock in order; a level's best kibble and best fetch score
+are kept.
+
+### One CSS trap worth knowing
+
+The end-of-level panel is `position: fixed; inset: 0` and starts `hidden`. The
+`hidden` attribute sets `display: none` from the browser's own stylesheet,
+which a plain `#done { display: flex }` rule beats on specificity — so the
+panel stayed live and invisible over the whole viewport, dimming the game and
+swallowing every click. It needs `#done[hidden] { display: none !important }`.
+A test that clicked a level card found it; nothing errored.
+
+## The Park
+
+The third level, and the first built *for* the mechanics rather than around
+them — the vacuum and the thief dog were placed into geometry that already
+existed.
+
+It runs 70% of the jump budget, then the stepping stones, then 84%, then
+**92%**, then the climb to Ginger. Two robot mowers (the outdoor sibling of
+the Roomba — same `patrol`, greener) and two thieving dogs, each on a floor
+section with room to be outrun.
+
+An early draft let you drop from a high platform *across* the final water,
+which quietly made the climax a 0% jump. `route()` reported the level's
+hardest forced jump as 88% instead of 92%, which is exactly the sort of thing
+that number is for.
 
 ## Designing levels
 

@@ -37,9 +37,53 @@
      buttons float over the corners the way a mobile game's do. */
   body.touch .row { display: none; }
   body.touch { padding: 8px; }
+
+  /* Title, level select and the end-of-level panel. Plain DOM, so the
+     buttons work with a finger and a mouse without a second input path. */
+  body.shell-on .stage-wrap, body.shell-on .row { display: none; }
+  #shell, #done {
+    position: fixed; inset: 0; z-index: 60; overflow: auto;
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px; box-sizing: border-box;
+    background: radial-gradient(120% 90% at 50% 0%, #2a3340 0%, #14171c 70%);
+  }
+  #done { background: rgba(10, 12, 15, .82); }
+  /* `hidden` sets display:none from the UA sheet, which the rule above beats
+     on specificity -- so without this the end-of-level panel stays live,
+     invisible, over the whole viewport, dimming the game and swallowing
+     every click. */
+  #shell[hidden], #done[hidden] { display: none !important; }
+  .shell-inner, .done-inner {
+    width: 100%; max-width: 520px; text-align: center;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  #shell h1 { margin: 0; font-size: clamp(30px, 8vw, 54px); letter-spacing: .01em;
+              color: #f4f6f8; }
+  #done h2 { margin: 0; font-size: clamp(20px, 5vw, 30px); color: #f4f6f8; }
+  .tag { margin: 0; color: #9fb0c0; }
+  button.big, button.quiet, .lvl {
+    font: inherit; border-radius: 10px; cursor: pointer;
+    border: 1px solid #444a55; background: #262b33; color: #e8edf2;
+    padding: 12px 16px; text-align: left;
+  }
+  button.big {
+    text-align: center; font-weight: 700; font-size: 17px;
+    background: #cf2027; border-color: #cf2027; color: #fff;
+  }
+  button.quiet { text-align: center; background: transparent; color: #9fb0c0; }
+  .lvl-list { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+  .lvl { display: grid; grid-template-columns: 1fr auto; align-items: center;
+         gap: 2px 10px; }
+  .lvl b { grid-column: 1; font-size: 16px; }
+  .lvl small { grid-column: 1; color: #9fb0c0; }
+  .lvl .tick { grid-column: 2; grid-row: 1 / span 2; color: #5da041;
+               font-size: 20px; }
+  .lvl.locked { opacity: .45; cursor: default; }
 </style>
 </head>
 <body>
+<div id="shell" hidden></div>
+<div id="done" hidden></div>
 <div class="stage-wrap"><canvas id="stage"></canvas></div>
 <div class="row">
   <span><kbd>&larr;</kbd><kbd>&rarr;</kbd> move</span>
@@ -55,6 +99,7 @@
 <script src="../shared/jump.js"></script>
 <script src="../shared/level.js"></script>
 <script src="../levels/levels.js"></script>
+<script src="../shared/progress.js"></script>
 <script src="../shared/patrol.js"></script>
 <script src="../shared/checkpoint.js"></script>
 <script src="../shared/distraction.js"></script>
@@ -63,6 +108,7 @@
 <script src="../shared/controls.js"></script>
 <script src="../assets/sprites/mrcluckers_side.js"></script>
 <script src="../assets/sprites/ginger_side.js"></script>
+<script src="shell.js"></script>
 <script src="game.js"></script>
 </body>
 </html>

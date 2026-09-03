@@ -181,12 +181,15 @@ const kibbles = LEVEL.pickups.map((p, i) => {
 const vacuums = LEVEL.patrols.map((m) => {
   const R = window.Patrol.CFG.radius, H = window.Patrol.CFG.height;
   const g = new THREE.Group();
+  const mower = m.kind === 'mower';    // the outdoor sibling of the Roomba
   const body = new THREE.Mesh(new THREE.CylinderGeometry(R, R * 0.96, H, 28),
-    new THREE.MeshStandardMaterial({ color: '#2b3038', roughness: .6 }));
+    new THREE.MeshStandardMaterial({ color: mower ? '#2f4a2b' : '#2b3038',
+                                     roughness: .7 }));
   body.position.y = H / 2;
   g.add(body);
   const lid = new THREE.Mesh(new THREE.CylinderGeometry(R * 0.7, R * 0.7, H * 0.12, 24),
-    new THREE.MeshStandardMaterial({ color: '#3d444e', roughness: .5 }));
+    new THREE.MeshStandardMaterial({ color: mower ? '#456b3d' : '#3d444e',
+                                     roughness: .55 }));
   lid.position.y = H + H * 0.05;
   g.add(lid);
   const lamp = new THREE.Mesh(new THREE.SphereGeometry(R * 0.13, 12, 10),
@@ -194,7 +197,8 @@ const vacuums = LEVEL.patrols.map((m) => {
   lamp.position.set(0, H + H * 0.16, 0);
   g.add(lamp);
   const bumper = new THREE.Mesh(new THREE.BoxGeometry(R * 0.3, H * 0.55, R * 1.25),
-    new THREE.MeshStandardMaterial({ color: '#4d5560', roughness: .6 }));
+    new THREE.MeshStandardMaterial({ color: mower ? '#57814c' : '#4d5560',
+                                     roughness: .6 }));
   bumper.position.set(R * 0.7, H * 0.42, 0);
   g.add(bumper);
   g.userData = { m, lamp, bumper };
