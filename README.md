@@ -37,6 +37,7 @@ python3 build.py
 | `shared/thief.js` | The other dog at the park, and what it does with the toy. |
 | `shared/progress.js` | Which levels are finished, and what that opens up. |
 | `shared/sound.js` | Every sound in the game, synthesised on the spot. |
+| `shared/theme.js` | What each level looks like: palette and parallax layers. |
 | `demo/shell.js` | Title screen, level select, and the end-of-level panel. |
 | `levels/*.json` | The levels themselves. `levels.js` is the generated bundle. |
 
@@ -115,6 +116,40 @@ keeps the run, and jumping works throughout.
 
 If you wire `tumble` up yourself, give it a time limit. Don't make it a
 one-shot clip instead — that caps it at exactly one turn forever.
+
+## How a level looks
+
+Every level used to draw the same sky and the same two green hills — indoors
+included, so the living room had rolling countryside behind the sofa.
+
+A theme is a palette plus a stack of parallax layers, and the renderer knows
+four kinds of layer rather than knowing about any particular place:
+
+| | |
+| --- | --- |
+| `blobs` | repeating ellipses — hills, bushes, a treeline |
+| `posts` | repeating uprights — fence rails, wainscot, trunks |
+| `band` | a stripe at a fixed height — skirting, a path, a hedge top |
+| `panes` | rectangles with a warm centre — windows |
+
+Layers are described in world pixels and drawn in screen space, so `speed` is
+how much of the camera's motion a layer takes: 0 is painted on the far wall, 1
+moves with the floor. The three levels get a room, a garden and a park, and
+platforms and water take their colours from the theme too.
+
+Two things worth knowing if you add a theme:
+
+- **`step` is halved when drawn.** Overlapping ellipses are how hills read as
+  continuous, so discrete objects need spacing well clear of their own radius
+  — trees at `step: 300` merged into a solid green ceiling.
+- **Draw order is layer order.** Canopies before trunks puts bark on top of
+  leaves. In the end the park uses a treeline rather than individual trees: at
+  this scale a lone canopy on a thin trunk reads as a green cloud, and the
+  trunk is usually off the side of the frame anyway.
+
+Landing raises dust in the theme's colour, and going in the water throws up a
+splash. Both are the same few lines of particle: a puff of bits with gravity
+and a fading life.
 
 ## Sound
 

@@ -94,6 +94,20 @@
   var WORLD = window.Level.normalize(picked.data);
   var checkpoint = window.Checkpoint ? window.Checkpoint.create(WORLD) : null;
   var respawnFlash = 0;
+  var bits = [];              // dust and splashes; purely cosmetic
+
+  /** A puff of `n` bits at a point, in world pixels. */
+  function puff(x, y, n, color, up, spread) {
+    for (var i = 0; i < n; i++) {
+      var a = Math.PI * (0.15 + 0.7 * Math.random());
+      var sp = (0.4 + Math.random()) * (spread || 60);
+      bits.push({ x: x + (Math.random() - 0.5) * 14, y: y,
+                  vx: Math.cos(a) * sp * (Math.random() < 0.5 ? -1 : 1),
+                  vy: -Math.abs(Math.sin(a)) * sp * (up || 1),
+                  life: 0, max: 0.34 + Math.random() * 0.3,
+                  r: 2 + Math.random() * 3, color: color });
+    }
+  }
   var collected = {};
 
   // ---------------------------------------------------------------- input
@@ -296,6 +310,13 @@
     player.stun = Math.max(0, player.stun - dt);
     player.hitCool = Math.max(0, player.hitCool - dt);
     respawnFlash = Math.max(0, respawnFlash - dt);
+    for (var bi = bits.length - 1; bi >= 0; bi--) {
+      var q = bits[bi];
+      q.life += dt;
+      q.vy += 420 * dt;                 // they fall back down
+      q.x += q.vx * dt; q.y += q.vy * dt;
+      if (q.life >= q.max) bits.splice(bi, 1);
+    }
     if (bonus) return updateBonus(dt);
 
     // The greeting plays out, then a beat, then she picks him up to throw.
@@ -458,7 +479,12 @@
           player.y = p.y;
           player.vy = 0;
           player.onGround = true;
-          if (wasAir) { player.landTimer = 0.28; window.Sound && window.Sound.play("land"); }
+          if (wasAir) {
+            player.landTimer = 0.28;
+            window.Sound && window.Sound.play("land");
+            puff(player.x, player.y, 6,
+                 (THEME && THEME.dust) || "rgba(150,130,100,.7)", 0.5, 55);
+          }
           break;
         }
       }
@@ -486,6 +512,7 @@
     }
     if (fell || inHazard) {
       window.Sound && window.Sound.play(inHazard ? "splash" : "land");
+      if (inHazard) puff(player.x, player.y, 12, "rgba(186, 224, 245, .9)", 1.5, 95);
       // Back to the last place he stood safely, not the start of the level.
       var back = checkpoint ? checkpoint.respawn()
                             : { x: LEVEL.spawn.x / PX,
@@ -611,31 +638,57 @@
     camY = Math.round(camY * SCALE) / SCALE;
   }
 
+  var THEME = (window.Theme ? window.Theme.get(WORLD.theme) : null);
+
+  /* Four kinds of parallax layer, described in shared/theme.js. Everything is
+   * drawn in screen space so a layer can take whatever fraction of the
+   * camera's motion it likes -- 0 is painted on the far wall, 1 moves with
+   * the floor. */
+  function drawLayer(L, w, h) {
+    var horizon = (LEVEL.ground - camY) * SCALE;
+    var step = (L.step || 200) * SCALE / 2;
+    var shift = (camX * SCALE * (L.speed || 0.4)) % step;
+    var y = horizon + (L.y || 0) * SCALE;
+    ctx.save();
+    if (L.alpha !== undefined) ctx.globalAlpha = L.alpha;
+    ctx.fillStyle = L.color;
+
+    if (L.kind === "band") {
+      ctx.fillRect(0, y, w, Math.max(1, (L.h || 8) * SCALE));
+    } else if (L.kind === "blobs") {
+      for (var i = -1; i < Math.ceil(w / step) + 2; i++) {
+        ctx.beginPath();
+        ctx.ellipse(i * step - shift, y, (L.rx || 120) * SCALE,
+                    (L.ry || 70) * SCALE, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (L.kind === "posts") {
+      for (var j = -1; j < Math.ceil(w / step) + 2; j++) {
+        ctx.fillRect(j * step - shift, y, (L.w || 10) * SCALE,
+                     (L.h || 60) * SCALE);
+      }
+    } else if (L.kind === "panes") {
+      for (var k = -1; k < Math.ceil(w / step) + 2; k++) {
+        var px = k * step - shift;
+        ctx.fillStyle = L.frame || "#b39a79";
+        ctx.fillRect(px - 6 * SCALE, y - 6 * SCALE,
+                     (L.w || 140) * SCALE + 12 * SCALE,
+                     (L.h || 180) * SCALE + 12 * SCALE);
+        ctx.fillStyle = L.color;
+        ctx.fillRect(px, y, (L.w || 140) * SCALE, (L.h || 180) * SCALE);
+      }
+    }
+    ctx.restore();
+  }
+
   function drawBackdrop(w, h) {
+    var t = THEME || { sky: ["#8ec5e8", "#dfeff7"], layers: [] };
     var sky = ctx.createLinearGradient(0, 0, 0, h);
-    sky.addColorStop(0, "#8ec5e8");
-    sky.addColorStop(1, "#dfeff7");
+    sky.addColorStop(0, t.sky[0]);
+    sky.addColorStop(1, t.sky[1]);
     ctx.fillStyle = sky;
     ctx.fillRect(0, 0, w, h);
-
-    // Hills are drawn in screen space so they can parallax against the camera.
-    var horizon = (LEVEL.ground - camY) * SCALE;
-    ctx.fillStyle = "#a9cf9a";
-    var stepA = 320 * SCALE / 2;
-    for (var i = -1; i < Math.ceil(w / stepA) + 2; i++) {
-      ctx.beginPath();
-      ctx.ellipse(i * stepA - (camX * SCALE * 0.35) % stepA, horizon + 30 * SCALE,
-                  130 * SCALE, 75 * SCALE, 0, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.fillStyle = "#8fbd80";
-    var stepB = 220 * SCALE / 2;
-    for (var j = -1; j < Math.ceil(w / stepB) + 2; j++) {
-      ctx.beginPath();
-      ctx.ellipse(j * stepB - (camX * SCALE * 0.6) % stepB, horizon + 55 * SCALE,
-                  100 * SCALE, 60 * SCALE, 0, 0, Math.PI * 2);
-      ctx.fill();
-    }
+    for (var i = 0; i < t.layers.length; i++) drawLayer(t.layers[i], w, h);
   }
 
   // The robot vacuum: a dark disc with a bumper on its leading edge, a light
@@ -801,19 +854,27 @@
 
     for (var i = 0; i < LEVEL.platforms.length; i++) {
       var p = LEVEL.platforms[i];
-      ctx.fillStyle = "#6b4a33";
+      var G = (THEME || {}).ground ||
+              { dirt: "#6b4a33", edge: "#7d5940", cap: "#5c9e46", lip: "#7cc55e" };
+      ctx.fillStyle = G.dirt;
       ctx.fillRect(p.x, p.y, p.w, p.h);
-      ctx.fillStyle = "#5c9e46";
+      // A lit edge down each side stops a platform reading as a flat slab.
+      ctx.fillStyle = G.edge;
+      ctx.fillRect(p.x, p.y, 3, p.h);
+      ctx.fillRect(p.x + p.w - 3, p.y, 3, p.h);
+      ctx.fillStyle = G.cap;
       ctx.fillRect(p.x, p.y, p.w, 5);
-      ctx.fillStyle = "#7cc55e";
+      ctx.fillStyle = G.lip;
       ctx.fillRect(p.x, p.y, p.w, 2);
     }
 
     for (var hi2 = 0; hi2 < LEVEL.hazards.length; hi2++) {
       var hz2 = LEVEL.hazards[hi2];
-      ctx.fillStyle = "rgba(70, 140, 190, .55)";
+      var HZ = (THEME || {}).hazard ||
+               { body: "rgba(70, 140, 190, .55)", top: "rgba(150, 205, 235, .75)" };
+      ctx.fillStyle = HZ.body;
       ctx.fillRect(hz2.x, hz2.y, hz2.w, hz2.h);
-      ctx.fillStyle = "rgba(150, 205, 235, .75)";
+      ctx.fillStyle = HZ.top;
       ctx.fillRect(hz2.x, hz2.y, hz2.w, 3);
     }
 
@@ -889,6 +950,16 @@
       ctx.arc(player.x, player.y - 24, 10 + 42 * f, 0, Math.PI * 2);
       ctx.stroke();
     }
+
+    for (var bq = 0; bq < bits.length; bq++) {
+      var q2 = bits[bq];
+      ctx.globalAlpha = Math.max(0, 1 - q2.life / q2.max);
+      ctx.fillStyle = q2.color;
+      ctx.beginPath();
+      ctx.arc(q2.x, q2.y, q2.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
 
     var box = player.anim.box();
     ctx.save();
