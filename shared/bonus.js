@@ -1,11 +1,20 @@
-/* The bonus round: Ginger throws Mr. Cluckers, you steer him through the air.
+/* The fetch round: she throws him up, you run her under him.
  *
- * This is rules and physics only -- no drawing. Both demos run the same
- * instance and render it their own way, which is what keeps the 2D and 3D
- * versions playing identically rather than merely looking similar.
+ * This is the third attempt, and the first two failed the same way. They put
+ * you in the air *as the toy*, steering with left/right -- except left/right
+ * changed his acceleration, not his position, so pressing right did not move
+ * him right, it bent his path. On a flight of about a second that is not
+ * something you can read, let alone aim, and no amount of retuning the
+ * numbers fixed it. A landing marker helped you see the consequence, which
+ * only papered over the control.
  *
- * Coordinates are the level's own world units (Y up), so a caller in the
- * canvas demo converts exactly as it does for everything else.
+ * So the control is inverted. You move *Ginger*, on the ground, directly:
+ * press right and she goes right. One goal -- be under him when he comes
+ * down -- and one thing to watch. It is the oldest catching game there is,
+ * and it is legible in the second you have.
+ *
+ * Rules and physics only, no drawing, and no randomness: throw N is always
+ * throw N, so both demos show the same round and a test can play it.
  */
 (function (root, factory) {
   var api = factory();
@@ -14,86 +23,49 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  var DT = 1 / 120;                // fixed step for the planning arcs
+  var DT = 1 / 120;
 
-  /* The throw does NOT use the platformer's gravity, and that is deliberate.
-   *
-   * At 24 units/s^2 a throw worth steering peaks about 3.7 units up and is
-   * over in 0.96s. Nothing that tall fits a phone screen -- the toy left the
-   * frame entirely in portrait -- and 0.96s is not long enough to read where
-   * he is going and do something about it. A tossed plush hangs; leaning into
-   * that buys a low, slow arc you can actually see and steer.
-   *
-   * The numbers below are chosen together so the whole throw fits the
-   * smallest view either demo can produce. Change one and check arcHeight()
-   * against the framing, or the toy goes off-screen again.
-   */
   var CFG = {
-    throws: 3,
-    gravity: 7.0,          // gentle: he hangs rather than drops
-    windUp: 0.9,           // seconds Ginger spends winding up
-    launchUp: 4.35,        // -> ~1.25s of hang, peaking 2.3 units above her feet
-    launchOut: 1.5,        // and forward: he lands ~1.9 units off if you idle
-    steer: 6.0,            // air control, units/s^2
-    steerMax: 3.2,         // and the sideways speed it tops out at
-    catchRadius: 0.95,     // how close to her counts as a catch -- generous on
-                           // purpose, and drawn on the ground so you can aim
-    catchScore: 3,
-    treats: 5,
-    treatRadius: 0.42,
-    reach: 0.86,           // treats sit near the full-steer path, so holding a
-                           // direction sweeps them up -- aiming, not modulating
-    spin: 3.4,             // radians/s the toy turns over while thrown
-    settle: 1.2            // pause after landing before the next throw
+    throws: 5,
+    gravity: 7.0,       // gentle: he hangs, which is what makes it readable
+    launchUp: 6.3,      // -> about 1.8s in the air, peaking 2.8 units up
+    mouth: 0.95,        // where he leaves from, and where he can be caught
+    windUp: 0.85,       // her wind-up, and your look at where he is going
+    dogSpeed: 4.6,      // how fast she runs -- she covers 8 units in a flight
+    dogEase: 22.0,      // how sharply she gets up to it
+    catchRadius: 0.78,  // generous: this is a reunion, not a reflex test
+    settle: 0.9,        // beat after each throw
+    range: 6.2,         // how far either side of her spot she may run
+    spin: 3.4,
+    // Where throw N is aimed, as a distance from where she starts. They
+    // alternate sides and get further out, so the round teaches itself.
+    aims: [1.6, -2.4, 3.4, -4.3, 5.0, -5.4, 4.6, -3.6]
   };
 
-  /** Peak of the throw above the dog's feet, in world units.
-   *
-   * Both demos frame the round from this rather than from a number typed into
-   * their own file, so the camera cannot drift out of step with the physics.
-   */
+  /** Peak of the throw above her feet -- both demos frame from this. */
   function arcHeight(cfg) {
     cfg = cfg || CFG;
-    return 0.95 + cfg.launchUp * cfg.launchUp / (2 * cfg.gravity);
+    return cfg.mouth + cfg.launchUp * cfg.launchUp / (2 * cfg.gravity);
   }
 
-  /**
-   * How far the round can range either side of the dog, in world units,
-   * counting both extremes of steering and every treat it might lay.
-   *
-   * A camera built from this cannot crop the round, whatever the screen. The
-   * first version framed to a number typed into each demo, and the toy flew
-   * off the top of a phone in portrait while every scoring test still passed.
-   */
-  function extent(dir, cfg) {
+  /** How far the round can range either side of where she starts. */
+  function extent(cfg) {
     cfg = cfg || CFG;
-    var x0 = 0.35 * dir, y0 = 0.95;
-    var lo = Math.min(0, x0), hi = Math.max(0, x0);
-    function span(pts) {
-      for (var i = 0; i < pts.length; i++) {
-        if (pts[i].x < lo) lo = pts[i].x;
-        if (pts[i].x > hi) hi = pts[i].x;
-      }
-    }
-    span(arc(x0, y0, dir, 1, cfg));
-    span(arc(x0, y0, dir, -1, cfg));
-    span(arc(x0, y0, dir, 0, cfg));
-    for (var i = 0; i < cfg.throws; i++) span(layTreats(x0, y0, dir, i, cfg));
-    return { min: lo, max: hi };
+    var far = Math.max.apply(null, cfg.aims.map(Math.abs));
+    var edge = Math.max(far, cfg.range) + 1.0;
+    return { min: -edge, max: edge };
   }
 
-  /**
-   * Where the toy comes down if you stop steering right now.
-   *
-   * This is what makes the round readable: both demos draw it on the ground
-   * as a moving marker, so steering has a visible consequence at the moment
-   * you steer rather than a second later when he lands. Without it you are
-   * integrating acceleration in your head, which is the same reason the round
-   * felt like guesswork.
-   */
-  function predictLanding(s) {
-    var cfg = s.cfg;
-    var vy = s.toy.vy, y = s.toy.y, x = s.toy.x, floor = s.dog.y + 0.95;
+  /** Seconds the toy is in the air. */
+  function hangTime(cfg) {
+    cfg = cfg || CFG;
+    return 2 * cfg.launchUp / cfg.gravity;
+  }
+
+  /** Where the toy will come down, in world units. Drawn as the target. */
+  function landing(s) {
+    var cfg = s.cfg, vy = s.toy.vy, y = s.toy.y, x = s.toy.x;
+    var floor = s.dog.y + cfg.mouth;
     for (var i = 0; i < 4096; i++) {
       vy -= cfg.gravity * DT;
       x += s.toy.vx * DT;
@@ -103,94 +75,6 @@
     return x;
   }
 
-  /**
-   * Integrate one throw with a constant steering input. `steer` is -1, 0 or 1
-   * in *world* terms. Returns the sampled path; every arc shares the same
-   * vertical motion, so only x differs between them.
-   */
-  function arc(x0, y0, dir, steer, cfg) {
-    cfg = cfg || CFG;
-    var pts = [];
-    var vx = cfg.launchOut * dir, vy = cfg.launchUp, x = x0, y = y0;
-    for (var i = 0; i < 4096; i++) {
-      if (steer) {
-        vx += steer * cfg.steer * DT;
-        if (vx > cfg.steerMax) vx = cfg.steerMax;
-        if (vx < -cfg.steerMax) vx = -cfg.steerMax;
-      }
-      vy -= cfg.gravity * DT;
-      x += vx * DT;
-      y += vy * DT;
-      pts.push({ x: x, y: y, t: (i + 1) * DT });
-      if (vy < 0 && y <= y0) break;
-    }
-    return pts;
-  }
-
-  /** Where the toy goes if you never touch the controls. */
-  function nominalArc(x0, y0, dir, cfg) {
-    return arc(x0, y0, dir, 0, cfg);
-  }
-
-  /** Shortest distance from a point to a sampled path. */
-  function distToPath(path, x, y) {
-    var best = Infinity;
-    for (var i = 0; i < path.length; i++) {
-      var dx = path[i].x - x, dy = path[i].y - y;
-      var d = dx * dx + dy * dy;
-      if (d < best) best = d;
-    }
-    return Math.sqrt(best);
-  }
-
-  /**
-   * Treats are placed by asking the physics where the toy *could* be, rather
-   * than by guessing offsets: each one sits a fixed fraction of the way from
-   * the do-nothing arc to the hardest steer in one direction. So they are
-   * always just reachable, and they stay that way if the constants change.
-   *
-   * Each is then checked against the whole do-nothing path rather than
-   * against the sample it came from -- near the apex the arc is horizontal,
-   * so a sideways offset there buys no distance at all and the treat would
-   * be swept up by a player who never touched the controls.
-   *
-   * The side alternates by throw. Away from Ginger, treats and a catch pull
-   * against each other and you have to choose how many to take before
-   * turning back; toward her, the greedy line is also the safe one.
-   */
-  function layTreats(x0, y0, dir, index, cfg) {
-    cfg = cfg || CFG;
-    var side = (index % 2 === 0) ? dir : -dir;   // first throw leads away
-    var mid = nominalArc(x0, y0, dir, cfg);
-    var out = arc(x0, y0, dir, side, cfg);
-    var n = Math.min(mid.length, out.length);
-    var clear = cfg.treatRadius * 1.3;
-    // Stop short of the landing so there is still air left to turn around in.
-    var last = Math.min(n - 1, Math.round(0.86 * (n - 1)));
-
-    function place(k) {
-      return { x: mid[k].x + cfg.reach * (out[k].x - mid[k].x), y: mid[k].y };
-    }
-    // Where the envelope first buys more than a treat's width of daylight.
-    var k0 = 0;
-    while (k0 <= last) {
-      var q = place(k0);
-      if (distToPath(mid, q.x, q.y) >= clear) break;
-      k0++;
-    }
-    if (k0 > last) return [];       // no steerable room on this throw at all
-
-    var treats = [];
-    var span = last - k0;
-    for (var i = 0; i < cfg.treats; i++) {
-      var k = k0 + Math.round(span * (i / Math.max(1, cfg.treats - 1)));
-      var p = place(k);
-      if (distToPath(mid, p.x, p.y) < clear) continue;
-      treats.push({ x: p.x, y: p.y, taken: false });
-    }
-    return treats;
-  }
-
   function create(opts) {
     opts = opts || {};
     var cfg = {};
@@ -198,93 +82,89 @@
 
     var s = {
       cfg: cfg,
-      phase: 'idle',      // idle | wind | flight | settle | done
+      phase: 'idle',        // idle | wind | flight | settle | done
       t: 0,
       throwsLeft: cfg.throws,
       throwIndex: 0,
+      caught: 0,
+      streak: 0,
+      best: 0,
       score: 0,
-      treatsTaken: 0,
-      caught: 0,          // times she caught him cleanly
-      treats: [],
-      toy: { x: 0, y: 0, vx: 0, vy: 0, spin: 0 },
-      dog: { x: 0, y: 0, dir: -1 },
-      events: []          // drained by the caller: 'squeak', 'catch', 'land'
+      home: 0,              // where she started, and the middle of her run
+      dog: { x: 0, y: 0, vx: 0, dir: -1 },
+      toy: { x: 0, y: 0, vx: 0, vy: 0, spin: 0, held: true },
+      events: []            // 'throw', 'catch', 'miss'
     };
 
-    s.start = function (dogX, dogY, dir) {
-      s.dog.x = dogX;
-      s.dog.y = dogY;
-      s.dog.dir = dir === undefined ? -1 : dir;
-      s.phase = 'wind';
-      s.t = 0;
-      s.throwsLeft = cfg.throws;
-      s.throwIndex = 0;
-      s.score = 0;
-      s.treatsTaken = 0;
-      s.caught = 0;
-      s.treats = [];
-      // He is in her mouth from the moment the round starts, not standing in
-      // the middle of her waiting to be thrown.
-      s.toy.x = dogX + 0.35 * s.dog.dir;
-      s.toy.y = dogY + 0.95;
+    s.start = function (dogX, dogY) {
+      s.home = dogX;
+      s.dog.x = dogX; s.dog.y = dogY; s.dog.vx = 0; s.dog.dir = -1;
+      s.phase = 'wind'; s.t = 0;
+      s.throwsLeft = cfg.throws; s.throwIndex = 0;
+      s.caught = 0; s.streak = 0; s.best = 0; s.score = 0;
+      s.toy.held = true;
+      s.toy.x = dogX; s.toy.y = dogY + cfg.mouth;
       s.toy.vx = s.toy.vy = s.toy.spin = 0;
       return s;
     };
 
     function launch() {
-      s.toy.x = s.dog.x + 0.35 * s.dog.dir;
-      s.toy.y = s.dog.y + 0.95;
-      s.toy.vx = cfg.launchOut * s.dog.dir;
+      var aim = cfg.aims[s.throwIndex % cfg.aims.length];
+      s.toy.x = s.dog.x;
+      s.toy.y = s.dog.y + cfg.mouth;
       s.toy.vy = cfg.launchUp;
+      // Aimed at a spot, not thrown at a speed: the toy lands where the
+      // throw says, so the round can promise you a reachable target.
+      s.toy.vx = aim / hangTime(cfg);
       s.toy.spin = 0;
-      s.treats = layTreats(s.toy.x, s.toy.y, s.dog.dir, s.throwIndex, cfg);
+      s.toy.held = false;
       s.phase = 'flight';
       s.t = 0;
+      s.events.push('throw');
     }
 
     s.update = function (dt, input) {
       input = input || {};
       s.t += dt;
 
+      // She is steerable the whole time, including the wind-up, so you can
+      // set off the moment you see where it is going.
+      var want = ((input.right ? 1 : 0) - (input.left ? 1 : 0)) * cfg.dogSpeed;
+      var k = Math.min(1, cfg.dogEase * dt);
+      s.dog.vx += (want - s.dog.vx) * k;
+      s.dog.x += s.dog.vx * dt;
+      var lo = s.home - cfg.range, hi = s.home + cfg.range;
+      if (s.dog.x < lo) { s.dog.x = lo; s.dog.vx = 0; }
+      if (s.dog.x > hi) { s.dog.x = hi; s.dog.vx = 0; }
+      if (Math.abs(s.dog.vx) > 0.15) s.dog.dir = s.dog.vx > 0 ? 1 : -1;
+
       if (s.phase === 'wind') {
+        s.toy.x = s.dog.x;                    // still in her mouth
+        s.toy.y = s.dog.y + cfg.mouth;
         if (s.t >= cfg.windUp) launch();
         return s;
       }
 
       if (s.phase === 'flight') {
-        var steer = (input.right ? 1 : 0) - (input.left ? 1 : 0);
-        if (steer) {
-          s.toy.vx += steer * cfg.steer * dt;
-          if (s.toy.vx > cfg.steerMax) s.toy.vx = cfg.steerMax;
-          if (s.toy.vx < -cfg.steerMax) s.toy.vx = -cfg.steerMax;
-        }
         s.toy.vy -= cfg.gravity * dt;
         s.toy.x += s.toy.vx * dt;
         s.toy.y += s.toy.vy * dt;
         s.toy.spin += dt * cfg.spin;
 
-        for (var i = 0; i < s.treats.length; i++) {
-          var tr = s.treats[i];
-          if (tr.taken) continue;
-          var dx = tr.x - s.toy.x, dy = tr.y - s.toy.y;
-          if (dx * dx + dy * dy < cfg.treatRadius * cfg.treatRadius) {
-            tr.taken = true;
-            s.score++;
-            s.treatsTaken++;
-            s.events.push('squeak');
-          }
-        }
-
-        // Landing is measured at her mouth height, which is where he left.
-        if (s.toy.vy < 0 && s.toy.y <= s.dog.y + 0.95) {
-          s.toy.y = s.dog.y + 0.95;
-          if (Math.abs(s.toy.x - s.dog.x) < cfg.catchRadius) {
+        if (s.toy.vy < 0 && s.toy.y <= s.dog.y + cfg.mouth) {
+          s.toy.y = s.dog.y + cfg.mouth;
+          if (Math.abs(s.toy.x - s.dog.x) <= cfg.catchRadius) {
             s.caught++;
-            s.score += cfg.catchScore;
+            s.streak++;
+            s.best = Math.max(s.best, s.streak);
+            s.score += 1 + (s.streak > 1 ? 1 : 0);   // a run is worth more
+            s.toy.held = true;
+            s.toy.x = s.dog.x;
             s.events.push('catch');
           } else {
-            s.toy.y = s.dog.y;
-            s.events.push('land');
+            s.streak = 0;
+            s.toy.y = s.dog.y;                       // it bounces at her feet
+            s.events.push('miss');
           }
           s.throwsLeft--;
           s.throwIndex++;
@@ -294,28 +174,25 @@
         return s;
       }
 
-      if (s.phase === 'settle' && s.t >= cfg.settle) {
-        s.phase = 'wind';
-        s.t = 0;
-        s.toy.x = s.dog.x + 0.35 * s.dog.dir;   // she picks him back up
-        s.toy.y = s.dog.y + 0.95;
-        s.toy.vx = s.toy.vy = 0;
+      if (s.phase === 'settle') {
+        if (s.toy.held) { s.toy.x = s.dog.x; s.toy.y = s.dog.y + cfg.mouth; }
+        if (s.t >= cfg.settle) {
+          s.toy.held = true;                  // she picks it back up
+          s.toy.x = s.dog.x; s.toy.y = s.dog.y + cfg.mouth;
+          s.phase = 'wind';
+          s.t = 0;
+        }
       }
       return s;
     };
 
-    s.drain = function () {
-      var e = s.events;
-      s.events = [];
-      return e;
-    };
+    s.drain = function () { var e = s.events; s.events = []; return e; };
 
     return s;
   }
 
   return {
-    create: create, nominalArc: nominalArc, arc: arc, layTreats: layTreats,
-    arcHeight: arcHeight, extent: extent, predictLanding: predictLanding,
-    CFG: CFG
+    CFG: CFG, create: create, arcHeight: arcHeight, extent: extent,
+    hangTime: hangTime, landing: landing
   };
 });

@@ -53,6 +53,26 @@
      invisible, over the whole viewport, dimming the game and swallowing
      every click. */
   #shell[hidden], #done[hidden] { display: none !important; }
+
+  /* Moving between levels is a page load, so the join is covered from both
+     sides: fade up before navigating, and start the next page already
+     covered and fade it down. The level's name sits on the cover, which is
+     what turns a hard cut into an announcement. */
+  #fade {
+    position: fixed; inset: 0; z-index: 80; pointer-events: none;
+    display: flex; align-items: center; justify-content: center;
+    background: #0f1216; opacity: 0; transition: opacity .42s ease;
+    font: 700 clamp(20px, 5vw, 34px)/1.2 system-ui, sans-serif; color: #f4f6f8;
+  }
+  #fade.up { opacity: 1; pointer-events: auto; }
+  #fade span { opacity: 0; transition: opacity .3s ease .06s; }
+  #fade.up span { opacity: 1; }
+  /* Reduced motion still wants the cover, just without the slow crossfade. */
+  @media (prefers-reduced-motion: reduce) {
+    #fade, #fade span { transition-duration: .01s; }
+  }
+  #done .done-inner { animation: rise .28s ease both; }
+  @keyframes rise { from { opacity: 0; transform: translateY(10px); } }
   .shell-inner, .done-inner {
     width: 100%; max-width: 520px; text-align: center;
     display: flex; flex-direction: column; gap: 12px;
@@ -82,6 +102,7 @@
 </style>
 </head>
 <body>
+<div id="fade" class="up"><span></span></div>
 <div id="shell" hidden></div>
 <div id="done" hidden></div>
 <div class="stage-wrap"><canvas id="stage"></canvas></div>

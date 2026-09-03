@@ -60,7 +60,7 @@
   var bonusBox = null;
   function measureBonus() {
     var pad = Math.hypot(CELL, CELL) / 2;       // worst case while tumbling
-    var e = window.Bonus.extent(bonus.dog.dir);
+    var e = window.Bonus.extent();
     var g = LEVEL.goal;
     bonusBox = {
       left: g.x + e.min * PX - pad,
@@ -194,33 +194,33 @@
     var evs = bonus.drain();
     for (var i = 0; i < evs.length; i++) {
       var e = evs[i];
-      if (e === "squeak") {
-        pops.push({ x: player.x, y: player.y, t: 0, text: "+1" });
-      } else if (e === "catch") {
-        pops.push({ x: player.x, y: player.y, t: 0,
-                    text: "+" + bonus.cfg.catchScore });
+      if (e === "catch") {
+        pops.push({ x: bx2px(bonus.dog.x), y: by2py(bonus.dog.y), t: 0,
+                    text: bonus.streak > 1 ? "+2" : "+1" });
         if (ginger) ginger.anim.set("greet", true);
-      } else if (e === "land") {
+      } else if (e === "miss") {
         player.anim.set("land", true);
       }
     }
 
-    // He *is* the toy now, so drive the sprite straight off the physics.
+    // He is the toy, and she is the one you are steering.
     player.x = bx2px(bonus.toy.x);
     player.y = by2py(bonus.toy.y);
-    if (bonus.phase === "flight") {
-      player.facing = bonus.toy.vx < 0 ? -1 : 1;
-      if (player.anim.name !== "tumble") player.anim.set("tumble", true);
-    } else if (player.anim.name === "tumble") {
-      player.anim.set("idle", true);
-    }
+    player.facing = bonus.toy.vx < 0 ? -1 : 1;
+    var flying = bonus.phase === "flight";
+    if (flying && player.anim.name !== "tumble") player.anim.set("tumble", true);
+    if (!flying && player.anim.name === "tumble") player.anim.set("idle", true);
     player.anim.update(dt);
 
     if (ginger) {
-      if (bonus.phase === "wind" && ginger.anim.name !== "greet") {
-        ginger.anim.set("greet", true);
-      } else if (ginger.anim.name === "greet" && ginger.anim.done) {
-        ginger.anim.set("wag", true);
+      // Running when she is running, pleased with herself when she catches.
+      var running = Math.abs(bonus.dog.vx) > 0.4;
+      if (ginger.anim.name === "greet" && !ginger.anim.done) {
+        /* let the catch play out */
+      } else if (running) {
+        ginger.anim.set("trot");
+      } else {
+        ginger.anim.set(bonus.phase === "wind" ? "stand" : "wag");
       }
       ginger.anim.update(dt);
     }
@@ -672,64 +672,31 @@
     ctx.restore();
   }
 
-  function drawTreats() {
-    if (bonus.phase === "done") return;   // nothing left to collect
-    for (var i = 0; i < bonus.treats.length; i++) {
-      var tr = bonus.treats[i];
-      if (tr.taken) continue;
-      var tx = bx2px(tr.x), ty = by2py(tr.y);
-      var bob = Math.sin(Date.now() / 240 + i) * 2.5;
-      ctx.fillStyle = "rgba(255, 235, 160, .35)";
-      ctx.beginPath();
-      ctx.arc(tx, ty + bob, 13, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = "#c8892f";
-      ctx.beginPath();
-      ctx.ellipse(tx, ty + bob, 8, 6, 0.5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = "#e8ab52";
-      ctx.beginPath();
-      ctx.ellipse(tx - 2, ty - 2 + bob, 3, 2, 0.5, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-
-  // Where he will come down if you stop steering now, and the patch of ground
-  // that counts as a catch. Between them the round stops being guesswork: you
-  // can see the marker slide as you hold a direction, and you can see the
-  // target it has to end up inside.
-  function drawCatchZone() {
-    var g = LEVEL.goal, r = bonus.cfg.catchRadius * PX;
-    var live = bonus.phase === "flight";
-    var land = live ? bx2px(window.Bonus.predictLanding(bonus)) : null;
-    var homing = live && Math.abs(land - g.x) < r;
+  // The one thing you are aiming at: where he will come down. She has to be
+  // standing on it. There is nothing else on screen to track.
+  function drawTarget() {
+    if (bonus.phase !== "flight") return;
+    var lx = bx2px(window.Bonus.landing(bonus));
+    var gy = by2py(bonus.dog.y);
+    var under = Math.abs(window.Bonus.landing(bonus) - bonus.dog.x) <=
+                bonus.cfg.catchRadius;
+    var col = under ? "rgba(150, 240, 140, .95)" : "rgba(255, 250, 210, .8)";
 
     ctx.save();
-    ctx.lineWidth = 2;
-    ctx.setLineDash([7, 6]);
-    ctx.strokeStyle = homing ? "rgba(150, 240, 140, .95)" : "rgba(255, 250, 210, .6)";
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 3;
+    ctx.setLineDash([8, 6]);
     ctx.beginPath();
-    ctx.ellipse(g.x, g.y + 3, r, r * 0.30, 0, 0, Math.PI * 2);
+    ctx.ellipse(lx, gy + 3, bonus.cfg.catchRadius * PX, 11, 0, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.restore();
-
-    if (!live) return;
-    // The marker itself: a caret on the ground under the predicted landing.
-    ctx.save();
-    ctx.fillStyle = homing ? "rgba(150, 240, 140, .95)" : "rgba(255, 255, 255, .8)";
-    ctx.beginPath();
-    ctx.moveTo(land, g.y + 1);
-    ctx.lineTo(land - 9, g.y - 13);
-    ctx.lineTo(land + 9, g.y - 13);
-    ctx.closePath();
-    ctx.fill();
-    // A dotted line up to him, so the marker reads as *his* landing spot.
-    ctx.strokeStyle = "rgba(255, 255, 255, .28)";
-    ctx.setLineDash([3, 7]);
+    ctx.setLineDash([]);
+    // A line down from him, so the ring reads as *his* landing spot.
+    ctx.strokeStyle = "rgba(255,255,255,.22)";
     ctx.lineWidth = 2;
+    ctx.setLineDash([3, 7]);
     ctx.beginPath();
-    ctx.moveTo(land, g.y - 14);
-    ctx.lineTo(player.x, player.y - 10);
+    ctx.moveTo(lx, gy - 6);
+    ctx.lineTo(player.x, player.y - 12);
     ctx.stroke();
     ctx.restore();
   }
@@ -745,12 +712,10 @@
     ctx.fillStyle = "rgba(20, 26, 32, " + (0.55 * a).toFixed(2) + ")";
     ctx.fillRect(0, h * 0.13, w, h * 0.155);
     ctx.fillStyle = "rgba(255, 250, 225, " + a.toFixed(2) + ")";
-    ctx.fillText("She's going to throw him \u2014 steer with \u25C0 \u25B6",
-                 w / 2, h * 0.19);
+    ctx.fillText("Fetch! \u25C0 \u25B6 run Ginger", w / 2, h * 0.19);
     ctx.font = Math.round(h / 30) + "px system-ui, sans-serif";
     ctx.fillStyle = "rgba(210, 230, 245, " + a.toFixed(2) + ")";
-    ctx.fillText("sweep up the treats, or land on the ring to be caught",
-                 w / 2, h * 0.245);
+    ctx.fillText("catch him in the ring before he lands", w / 2, h * 0.245);
     ctx.restore();
   }
 
@@ -809,8 +774,7 @@
         ctx.fill();
       }
     } else {
-      drawCatchZone();
-      drawTreats();
+      drawTarget();
     }
 
     for (var thi = 0; thi < thieves.length; thi++) drawThief(thieves[thi]);
@@ -818,7 +782,10 @@
     if (distraction && distraction.critter) drawCritter(distraction.critter);
 
     if (LEVEL.goal && ginger && gingerSheet) {
-      var g = LEVEL.goal;
+      // In the fetch round she is the one moving, so she is drawn wherever
+      // you have run her to rather than parked at the goal.
+      var g = bonus ? { x: bx2px(bonus.dog.x), y: by2py(bonus.dog.y) }
+                    : LEVEL.goal;
       var gb = ginger.anim.box();
       var ga = GDATA.meta.anchor;
       // Her shadow, then the dog herself, mirrored so she faces him coming.
@@ -828,7 +795,8 @@
       ctx.fill();
       // Baked facing right, drawn mirrored to look back down the level -- but
       // when a squirrel has her, she turns round to watch it instead.
-      var look = (distraction && distraction.watching) ? 1 : -1;
+      var look = bonus ? (bonus.dog.dir > 0 ? 1 : -1)
+                       : ((distraction && distraction.watching) ? 1 : -1);
       ctx.save();
       ctx.translate(g.x, g.y);
       ctx.scale(look, 1);
@@ -893,9 +861,8 @@
           ? "fetch! \u2014 final"
           : "fetch! throw " + Math.min(bonus.throwIndex + 1, bonus.cfg.throws) +
             "/" + bonus.cfg.throws;
-        title.textContent = head + "  score " + bonus.score +
-          "  \u2014 " + bonus.treatsTaken + " treats, " +
-          bonus.caught + " caught";
+        title.textContent = head + "  " + bonus.caught + "/" + bonus.cfg.throws +
+          " caught" + (bonus.streak > 1 ? "  \u2014 " + bonus.streak + " in a row!" : "");
       } else {
         var got = Object.keys(collected).length;
         var note = "";
@@ -928,6 +895,7 @@
     // replaying the level first.
     skipToBonus: function () {
       player.reached = true;
+      if (distraction) distraction.finish();   // she has her toy back
       player.x = LEVEL.goal.x;
       player.y = LEVEL.goal.y;
       return startBonus();

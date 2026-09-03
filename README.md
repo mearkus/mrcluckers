@@ -137,6 +137,23 @@ throw — so a browser that refuses to remember anything still plays, it just
 forgets. Levels unlock in order; a level's best kibble and best fetch score
 are kept.
 
+### Moving between levels
+
+Switching levels is a page load, so the join is covered from both sides: the
+screen fades up before navigating and the next page starts already covered
+and fades down. The level's name sits on the cover, which is what turns a cut
+into an announcement.
+
+The navigation waits for the fade but not indefinitely. `transitionend` never
+arrives if the element is already at the target opacity, or if the tab is in
+the background — so a timer runs alongside it and whichever fires first
+navigates. Waiting only on the event is how a menu ends up permanently stuck
+behind its own curtain.
+
+The cover is `pointer-events: none` whenever it is down, so it can never
+swallow a tap once it has faded, and `prefers-reduced-motion` collapses the
+crossfade without losing the cover.
+
 ### One CSS trap worth knowing
 
 The end-of-level panel is `position: fixed; inset: 0` and starts `hidden`. The
@@ -467,83 +484,51 @@ she is leggier than a pure Staffordshire, front legs about half her shoulder
 height, deep-chested with a clear waist tuck, and her tail is long and
 whip-like rather than stubby.
 
-## The bonus round
+## The fetch round
 
-Reaching her is not the end of the level. After the greeting she picks the toy
-up and throws him, three times, and you steer him through the air to collect
-treats — or bring him back down into the ring at her feet for a catch.
+Reaching her is not the end of the level. She throws the toy up, and **you run
+Ginger under him** to catch it. Five throws, alternating sides and getting
+further out, so the round teaches itself.
 
-`shared/bonus.js` holds the whole thing: phases (`idle → wind → flight →
-settle → done`), the throw physics, scoring, treat placement, and the two
-measurements the demos frame the round from. It draws nothing. Both demos
-create one instance and render it their own way, which is what keeps them
-playing the same game rather than merely looking alike.
+### This is the third attempt, and the first two failed the same way
 
-### The throw does not use the platformer's gravity
+They put you in the air *as the toy*, steering with left/right. Except
+left/right changed his **acceleration**, not his position — pressing right did
+not move him right, it bent his path. On a flight of about a second that is
+not something you can read, let alone aim.
 
-At 24 units/s² a throw worth steering peaks 3.7 units up and is over in
-0.96 s. Nothing that tall fits a phone screen, and 0.96 s is not long enough
-to read where the toy is going and do something about it. A tossed plush
-hangs, so the round leans into that: gravity 7.0, a 1.24 s hang, peaking 2.3
-units above her feet.
+There was also more than one thing to do. Treats to sweep up *or* a ring to
+land in, mutually exclusive on some throws, while watching the toy, the
+treats, a landing marker and the ring — in 1.24 seconds. Retuning the numbers
+twice did not help, because the numbers were not the problem.
 
-That is a deliberate departure from `shared/jump.js` rather than an oversight,
-and it is the difference between a bonus round and a quick-time event.
+So the control is inverted. You move **Ginger**, on the ground, directly:
+press right and she goes right. One goal — be under him when he comes down —
+and one thing on screen to watch, the ring where he will land. It is the
+oldest catching game there is, and it is legible in the second you have.
 
-### Two things that make it readable
+The landing marker survives from the old version, and it finally means
+something: it used to show the consequence of a control you could not feel,
+and now it is simply the spot you run to.
 
-A **landing marker** slides along the ground showing where the toy comes down
-if you stop steering now, and the **catch zone** is drawn around her feet.
-Both turn green when the one is inside the other. Without them you are
-integrating acceleration in your head, which is exactly what made the first
-version feel like guesswork.
+### Numbers
 
-In the three.js demo both stand *up* off the ground. A flat decal is the
-obvious way to draw a landing zone and it is invisible there — that camera is
-side-on and orthographic, so anything lying flat is edge-on.
+| | |
+| --- | --- |
+| Throws | 5 |
+| Hang time | 1.80 s |
+| Peak | 3.79 units above her feet |
+| Her speed | 4.6 units/s — she covers 8 units in a flight |
+| Furthest throw | 5.4 units out |
+| Catch radius | 0.78 units, deliberately generous |
 
-### Treats are placed by the physics, not by hand
+Nothing is random: throw N is always throw N, so both demos show the same
+round and a test can play it. Doing nothing catches **0 of 5**; running to the
+ring catches **5 of 5** — in the sprite demo, the three.js demo, and the rules
+stepped alone under Node, all three identical.
 
-Each treat sits a fixed fraction of the way from the do-nothing arc to the
-hardest steer in one direction, and is then checked against the *whole*
-do-nothing path rather than the sample it came from. That second check
-matters: near the apex the arc is horizontal, so a sideways offset there buys
-no distance at all, and a treat placed by offset alone gets swept up by a
-player who never touches the controls.
-
-They sit near the full-steer path, so **holding a direction sweeps them up**.
-Aiming, not modulating — an earlier version put them mid-envelope, where
-collecting them needed input you cannot time on purpose.
-
-### The choice
-
-Which side the treats lead to alternates by throw:
-
-| Line | Away throw | Toward throw |
-| --- | --- | --- |
-| Do nothing | 0 | 0 |
-| Hold toward the treats | 5 | 5 |
-| Turn back for the catch | 3 | 3 |
-| **Best available** | **5** | **8** — both |
-
-On the away throw treats and a catch are exclusive; on the toward throw the
-greedy line is also the safe one. Idling through all three throws scores zero,
-which is what makes the steering the game.
-
-The catching window is about **410 ms** wide — coast for the first sixth of
-the flight, then hold back.
-
-### Framing is derived, never typed
-
-`arcHeight()` and `extent()` report how tall and how wide the round can get,
-and both demos build their camera from those rather than from a constant in
-their own file. The first version framed to a hand-written number and the toy
-flew off the top of the screen in portrait — while every scoring test passed,
-because they all measured the score and none of them checked that the thing
-you steer was on screen. There is a test for that now.
-
-Note that `arcHeight()` is where the toy's *origin* peaks; he is drawn a whole
-cell above it and spinning, so the demos add the sprite's own height on top.
+A run of catches is worth more than the same number scattered, which is the
+only scoring subtlety and does not need explaining to be felt.
 
 ## Textures
 

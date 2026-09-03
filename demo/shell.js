@@ -20,7 +20,32 @@
     return m && LEVELS[m[1]] ? m[1] : null;
   }
 
-  function go(slug) { location.search = "?level=" + slug; }
+  var fade = null;
+  function cover() {
+    if (!fade) fade = document.getElementById("fade");
+    return fade;
+  }
+
+  /**
+   * Leave the page behind a cover, naming where we are going. The navigation
+   * waits for the fade, but not forever -- `transitionend` never arrives if
+   * the element is already opaque or the tab is in the background, so the
+   * timer is the one that actually guarantees we go.
+   */
+  function leaveTo(href, label) {
+    var f = cover();
+    if (!f) { location.href = href; return; }
+    f.querySelector("span").textContent = label || "";
+    f.classList.add("up");
+    var went = false;
+    var jump = function () { if (!went) { went = true; location.href = href; } };
+    f.addEventListener("transitionend", jump, { once: true });
+    setTimeout(jump, 520);
+  }
+
+  function go(slug) {
+    leaveTo("?level=" + slug, (LEVELS[slug] || {}).name || "");
+  }
 
   function el(tag, cls, text) {
     var e = document.createElement(tag);
@@ -114,11 +139,24 @@
         box.appendChild(el("p", "tag", "That's the last one. She has her toy back."));
       }
       var back = el("button", "quiet", "Level select");
-      back.addEventListener("click", function () { location.search = ""; });
+      back.addEventListener("click", function () { leaveTo("?", "Mr. Cluckers"); });
       box.appendChild(back);
       host.appendChild(box);
     }
   };
+
+  // Every page starts covered, so arriving is a fade rather than a cut. The
+  // level's name is already on the cover from the page we left.
+  (function uncover() {
+    var f = cover();
+    if (!f) return;
+    var here = slugInURL();
+    f.querySelector("span").textContent =
+      here ? ((LEVELS[here] || {}).name || "") : "";
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () { f.classList.remove("up"); });
+    });
+  })();
 
   if (!slugInURL()) showTitle();
 })();
