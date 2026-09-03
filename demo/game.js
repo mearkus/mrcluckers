@@ -85,6 +85,7 @@
   var ginger = null;
 
   var levelClock = 0;                  // drives the patrols, in seconds
+  var paused = false;
   var picked = pickLevel();
   // Authored in world units with Y up; the canvas works in pixels with Y down.
   var LEVEL = window.Level.toPixels(picked.data, PX);
@@ -106,6 +107,7 @@
     KeyX: "peck", KeyC: "crow", KeyZ: "squeak", KeyV: "tumble"
   };
   window.addEventListener("keydown", function (e) {
+    if (e.code === "Escape" || e.code === "KeyP") { togglePause(); e.preventDefault(); return; }
     var k = KEYMAP[e.code];
     if (!k) return;
     if (!keys[k]) pressed[k] = true;
@@ -194,11 +196,16 @@
     var evs = bonus.drain();
     for (var i = 0; i < evs.length; i++) {
       var e = evs[i];
-      if (e === "catch") {
+      if (e === "throw") {
+        window.Sound && window.Sound.play("throwUp");
+      } else if (e === "catch") {
+        window.Sound && window.Sound.play("catch");
+        window.Sound && window.Sound.play("bark");
         pops.push({ x: bx2px(bonus.dog.x), y: by2py(bonus.dog.y), t: 0,
                     text: bonus.streak > 1 ? "+2" : "+1" });
         if (ginger) ginger.anim.set("greet", true);
       } else if (e === "miss") {
+        window.Sound && window.Sound.play("miss");
         player.anim.set("land", true);
       }
     }
@@ -228,6 +235,7 @@
     // The bonus round ending is the end of the level.
     if (bonus.phase === "done" && !bonus.recorded) {
       bonus.recorded = true;
+      window.Sound && window.Sound.play("win");
       if (window.MrCluckersShell) {
         window.MrCluckersShell.finished(picked.slug, {
           kibble: Object.keys(collected).length,
@@ -242,6 +250,45 @@
       if (pops[pi].t > 0.9) pops.splice(pi, 1);
     }
     pressed = {};
+  }
+
+  // --- pause ---------------------------------------------------------
+  // There was no way out of a level but finishing it, which on a phone meant
+  // no way out at all: the play view has no address bar to edit.
+  function togglePause(force) {
+    var want = force === undefined ? !paused : !!force;
+    if (want === paused) return;
+    paused = want;
+    // Let go of everything, or a key held at the moment you paused stays held.
+    keys = {}; pressed = {};
+    var panel = document.getElementById("paused");
+    if (!panel) return;
+    panel.hidden = !paused;
+    if (!paused) { panel.innerHTML = ""; return; }
+    if (window.Sound) window.Sound.play("ui");
+
+    panel.innerHTML = "";
+    var box = document.createElement("div");
+    box.className = "done-inner";
+    var h = document.createElement("h2");
+    h.textContent = "Paused";
+    box.appendChild(h);
+    var mk = function (cls, text, fn) {
+      var b = document.createElement("button");
+      b.className = cls; b.textContent = text;
+      b.addEventListener("click", function () {
+        if (window.Sound) window.Sound.play("ui");
+        fn();
+      });
+      box.appendChild(b);
+    };
+    mk("big", "Resume", function () { togglePause(false); });
+    mk("quiet", "Restart level", function () { location.reload(); });
+    mk("quiet", "Level select", function () {
+      if (window.MrCluckersShell) window.MrCluckersShell.leaveTo("?", "Mr. Cluckers");
+      else location.search = "";
+    });
+    panel.appendChild(box);
   }
 
   function update(dt) {
@@ -291,6 +338,8 @@
       if (player.action) {
         player.actionTime = 0;
         player.anim.set(player.action, true);
+        if (player.action === "squeak") window.Sound && window.Sound.play("squeak");
+        if (player.action === "crow") window.Sound && window.Sound.play("bark");
       }
     }
     // Actions are cosmetic: they never stop the character. Movement follows
@@ -321,6 +370,7 @@
     if (player.buffer > 0 && player.coyote > 0) {
       player.vy = -JUMP_VELOCITY;
       player.onGround = false;
+      window.Sound && window.Sound.play("jump");
       player.coyote = 0;
       player.buffer = 0;
       player.anim.set("jump", true);
@@ -341,6 +391,7 @@
       if (Math.abs(pk.x - player.x) < 26 &&
           Math.abs(pk.y - (player.y - 34)) < 40) {
         collected[pi] = true;
+        window.Sound && window.Sound.play("kibble");
         if (!player.action) { player.action = "squeak"; player.actionTime = 0;
                               player.anim.set("squeak", true); }
       }
@@ -353,6 +404,8 @@
                             safe: player.hitCool > 0 });
       th.anim.set(th.state.clip());
       th.anim.update(dt);
+      if (th.state.carrying && !th.grabbed) { th.grabbed = true; window.Sound && window.Sound.play("grab"); }
+      if (!th.state.carrying) th.grabbed = false;
       if (th.state.carrying) {
         // He is in its mouth: no steering, and he plays along.
         var hold = th.state.carryPoint();
@@ -380,6 +433,7 @@
         Math.abs(LEVEL.goal.y - player.y) < 60 &&
         (!distraction || distraction.onYou())) {
       player.reached = true;
+      window.Sound && window.Sound.play("bark");
       if (distraction) distraction.finish();
       player.action = "crow";
       player.actionTime = 0;
@@ -404,7 +458,7 @@
           player.y = p.y;
           player.vy = 0;
           player.onGround = true;
-          if (wasAir) player.landTimer = 0.28;
+          if (wasAir) { player.landTimer = 0.28; window.Sound && window.Sound.play("land"); }
           break;
         }
       }
@@ -431,6 +485,7 @@
                           player.onGround && player.stun <= 0, dt);
     }
     if (fell || inHazard) {
+      window.Sound && window.Sound.play(inHazard ? "splash" : "land");
       // Back to the last place he stood safely, not the start of the level.
       var back = checkpoint ? checkpoint.respawn()
                             : { x: LEVEL.spawn.x / PX,
@@ -460,6 +515,7 @@
         player.onGround = false;
         player.stun = k.stun;
         player.hitCool = window.Patrol.CFG.immune;
+        window.Sound && window.Sound.play("bump");
         player.action = "tumble";
         player.actionTime = 0;
         player.anim.set("tumble", true);
@@ -895,6 +951,7 @@
     // replaying the level first.
     skipToBonus: function () {
       player.reached = true;
+      window.Sound && window.Sound.play("bark");
       if (distraction) distraction.finish();   // she has her toy back
       player.x = LEVEL.goal.x;
       player.y = LEVEL.goal.y;
@@ -906,7 +963,7 @@
   function frame(now) {
     var dt = Math.min(0.05, (now - last) / 1000 || 0);
     last = now;
-    update(dt);
+    if (!paused) update(dt);      // still drawn, so the frozen frame shows
     draw();
     requestAnimationFrame(frame);
   }
@@ -934,6 +991,11 @@
 
   sheet.onload = function () {
     resize();
+    var pb = document.getElementById("pauseBtn");
+    if (pb) {
+      pb.hidden = false;
+      pb.addEventListener("click", function () { togglePause(); });
+    }
     if (global_TouchControls()) {
       global_TouchControls().mount({
         actions: [

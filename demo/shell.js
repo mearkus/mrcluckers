@@ -77,7 +77,11 @@
                  : "finish " + ((LEVELS[ORDER[i - 1]] || {}).name || "the level before")
                    + " to open"));
       if (stats) card.appendChild(el("span", "tick", "✓"));
-      card.addEventListener("click", function () { if (unlocked) go(slug); });
+      card.addEventListener("click", function () {
+        if (!unlocked) return;
+        if (window.Sound) window.Sound.play("ui");
+        go(slug);
+      });
       list.appendChild(card);
     });
     host.appendChild(list);
@@ -100,7 +104,10 @@
       for (var i = 0; i < ORDER.length; i++) if (open[ORDER[i]]) furthest = ORDER[i];
     }
     var play = el("button", "big", (P && P.isDone(ORDER[0])) ? "Continue" : "Play");
-    play.addEventListener("click", function () { go(furthest); });
+    play.addEventListener("click", function () {
+      if (window.Sound) window.Sound.play("ui");
+      go(furthest);
+    });
     wrap.appendChild(play);
 
     buildSelect(wrap);
@@ -117,6 +124,7 @@
 
   window.MrCluckersShell = {
     slugInURL: slugInURL,
+    leaveTo: leaveTo,
     showTitle: showTitle,
     go: go,
     /** Shown by the game once a level is finished. */
@@ -156,6 +164,27 @@
     requestAnimationFrame(function () {
       requestAnimationFrame(function () { f.classList.remove("up"); });
     });
+  })();
+
+  // The sound toggle lives on every screen; the pause button only appears
+  // once a level is running, and game.js owns it.
+  (function soundButton() {
+    var S = window.Sound, btn = document.getElementById("muteBtn");
+    if (!btn) return;
+    var paint = function () {
+      var on = !S || S.enabled();
+      btn.textContent = on ? "\uD83D\uDD0A" : "\uD83D\uDD07";
+      btn.setAttribute("aria-label", on ? "Sound on" : "Sound off");
+    };
+    paint();
+    btn.addEventListener("click", function () {
+      if (S) { S.toggle(); if (S.enabled()) S.play("ui"); }
+      paint();
+    });
+    // Browsers refuse to make noise until the page has been interacted with.
+    var wake = function () { if (S) S.unlock(); };
+    window.addEventListener("keydown", wake, { once: true });
+    window.addEventListener("pointerdown", wake, { once: true });
   })();
 
   if (!slugInURL()) showTitle();

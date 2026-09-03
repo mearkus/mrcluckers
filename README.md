@@ -36,6 +36,7 @@ python3 build.py
 | `shared/distraction.js` | The things Ginger would rather be looking at. |
 | `shared/thief.js` | The other dog at the park, and what it does with the toy. |
 | `shared/progress.js` | Which levels are finished, and what that opens up. |
+| `shared/sound.js` | Every sound in the game, synthesised on the spot. |
 | `demo/shell.js` | Title screen, level select, and the end-of-level panel. |
 | `levels/*.json` | The levels themselves. `levels.js` is the generated bundle. |
 
@@ -114,6 +115,38 @@ keeps the run, and jumping works throughout.
 
 If you wire `tumble` up yourself, give it a time limit. Don't make it a
 one-shot clip instead — that caps it at exactly one turn forever.
+
+## Sound
+
+There are no audio files, for the same reason there are no image files: the
+rest of this repo generates what it needs, and a squeak is a pitch bend and an
+envelope. Thirteen voices, built from oscillators and one second of white
+noise, in about 200 lines.
+
+Each is a sketch rather than a preset. The squeak is the toy's voice so it
+gets two notes and a wobble; a bark is a short band-passed hiss over a
+sawtooth growl; a splash is noise with the filter falling through the floor.
+
+Two things browsers make you handle:
+
+- **Nothing may make noise before the page is interacted with.** The context
+  is built lazily on the first key or touch.
+- **A tab switch suspends the context, and it does not come back on its own.**
+  Every play checks and resumes.
+
+Muting is remembered, and `play()` returns whether it actually made a sound,
+which is how the test proves the voices synthesise rather than silently
+no-op: it counts the audio nodes each one creates.
+
+## Pause
+
+There was no way out of a level but finishing it — and on a phone that meant
+no way out at all, since the play view has no address bar to edit. **Esc** or
+**P**, or the button in the corner: resume, restart, or back to the level
+select.
+
+Pausing lets go of every held key. Otherwise a direction you were holding when
+you paused is still held when you come back, and he sets off on his own.
 
 ## The game around the levels
 

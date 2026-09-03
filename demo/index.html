@@ -71,6 +71,26 @@
   @media (prefers-reduced-motion: reduce) {
     #fade, #fade span { transition-duration: .01s; }
   }
+  /* Always-there controls: pause and sound. Small, out of the way, and
+     reachable with a thumb -- there is no menu bar to hang them off. */
+  #topbar { position: fixed; top: 0; right: 0; z-index: 70;
+            display: flex; gap: 6px; padding: 10px; }
+  #topbar button {
+    font: 14px/1 system-ui, sans-serif; width: 38px; height: 38px;
+    border-radius: 999px; cursor: pointer; color: #e8edf2;
+    border: 1px solid rgba(244,246,248,.28); background: rgba(24,28,34,.55);
+    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  }
+  #topbar button[hidden] { display: none; }
+  body.shell-on #pauseBtn { display: none; }
+
+  #paused {
+    position: fixed; inset: 0; z-index: 75;
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px; box-sizing: border-box; background: rgba(10, 12, 15, .82);
+  }
+  #paused[hidden] { display: none !important; }
+  #paused .done-inner { animation: rise .2s ease both; }
   #done .done-inner { animation: rise .28s ease both; }
   @keyframes rise { from { opacity: 0; transform: translateY(10px); } }
   .shell-inner, .done-inner {
@@ -102,6 +122,11 @@
 </style>
 </head>
 <body>
+<div id="topbar">
+  <button id="pauseBtn" type="button" aria-label="Pause" hidden>&#10073;&#10073;</button>
+  <button id="muteBtn" type="button" aria-label="Sound">&#128266;</button>
+</div>
+<div id="paused" hidden></div>
 <div id="fade" class="up"><span></span></div>
 <div id="shell" hidden></div>
 <div id="done" hidden></div>
@@ -121,6 +146,7 @@
 <script src="../shared/level.js"></script>
 <script src="../levels/levels.js"></script>
 <script src="../shared/progress.js"></script>
+<script src="../shared/sound.js"></script>
 <script src="../shared/patrol.js"></script>
 <script src="../shared/checkpoint.js"></script>
 <script src="../shared/distraction.js"></script>
