@@ -63,12 +63,22 @@
   function isDone(slug) { return !!load().done[slug]; }
   function statsFor(slug) { return load().done[slug] || null; }
 
-  /** Levels open in order; the first is always playable. */
+  /**
+   * Levels open in order; the first is always playable.
+   *
+   * A level you have already finished stays open, and so does anything
+   * before one you have finished -- otherwise inserting a level into the
+   * middle of the game re-locks levels somebody had already beaten.
+   */
   function unlocked(order) {
     var data = load(), out = {}, open = true;
+    var furthest = -1;
     for (var i = 0; i < order.length; i++) {
-      out[order[i]] = open;
-      open = !!data.done[order[i]];      // the next one waits on this one
+      if (data.done[order[i]]) furthest = i;
+    }
+    for (var j = 0; j < order.length; j++) {
+      out[order[j]] = open || j <= furthest + 1;
+      open = !!data.done[order[j]];
     }
     return out;
   }

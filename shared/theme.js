@@ -50,6 +50,43 @@
       hazard: { body: 'rgba(70, 140, 190, .55)', top: 'rgba(150, 205, 235, .75)' },
       dust: 'rgba(150, 130, 100, 0.7)'
     },
+    kitchen: {
+      sky: ['#dfe8ea', '#c8d5d8'],          // cool tiled wall
+      layers: [
+        // Tiles: a grid made of one band per row and uprights for the grout.
+        { kind: 'band', color: '#cddadd', y: -230, h: 200, speed: 0.2 },
+        { kind: 'posts', color: '#bccacd', step: 130, w: 5, h: 200,
+          y: -230, speed: 0.2 },
+        { kind: 'band', color: '#b3c2c6', y: -132, h: 5, speed: 0.2 },
+        // Cupboard doors under a worktop.
+        { kind: 'panes', color: '#8fa2a8', frame: '#7b8d93', step: 260,
+          w: 96, h: 78, y: -96, speed: 0.5 },
+        { kind: 'band', color: '#9aa9ad', y: -108, h: 12, speed: 0.5 },
+        { kind: 'band', color: '#6f7d82', y: 0, h: 9, speed: 1 }
+      ],
+      // Darker than the wall on purpose: a pale floor against pale tiles
+      // reads as one surface, and you cannot see what you may stand on.
+      ground: { dirt: '#454f54', edge: '#576165', cap: '#75858b', lip: '#9fb0b5' },
+      hazard: { body: 'rgba(150, 190, 215, .5)', top: 'rgba(210, 232, 245, .85)' },
+      dust: 'rgba(200, 210, 214, 0.75)'
+    },
+    lane: {
+      sky: ['#f0a06a', '#f6d9b0'],          // late afternoon, going home
+      layers: [
+        { kind: 'blobs', color: '#c98a67', step: 380, rx: 170, ry: 78,
+          y: -34, speed: 0.16 },
+        { kind: 'blobs', color: '#8c6350', step: 250, rx: 120, ry: 70,
+          y: -10, speed: 0.26 },
+        { kind: 'posts', color: '#6d4f3c', step: 84, w: 8, h: 54,
+          y: -54, speed: 0.52 },
+        { kind: 'band', color: '#5d4333', y: -42, h: 6, speed: 0.52 },
+        { kind: 'blobs', color: '#5f7048', step: 200, rx: 100, ry: 54,
+          y: 44, speed: 0.64 }
+      ],
+      ground: { dirt: '#5a4230', edge: '#6d5140', cap: '#6f8a4a', lip: '#8fac60' },
+      hazard: { body: 'rgba(80, 120, 160, .55)', top: 'rgba(200, 190, 175, .7)' },
+      dust: 'rgba(180, 150, 118, 0.75)'
+    },
     park: {
       sky: ['#7fb9e4', '#e6f2f8'],
       layers: [

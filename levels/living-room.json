@@ -1,5 +1,6 @@
 {
   "name": "Living Room",
+  "order": 1,
   "theme": "indoors",
   "width": 38,
   "spawn": {
