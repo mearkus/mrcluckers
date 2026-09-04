@@ -137,7 +137,7 @@ window.MRCLUCKERS_LEVELS = {
   },
   "the-garden": {
     "name": "The Garden",
-    "theme": "outdoors",
+    "theme": "garden",
     "width": 44,
     "spawn": {
       "x": 1.5,
@@ -303,7 +303,7 @@ window.MRCLUCKERS_LEVELS = {
   },
   "the-park": {
     "name": "The Park",
-    "theme": "outdoors",
+    "theme": "park",
     "width": 54,
     "spawn": {
       "x": 1.5,
