@@ -27,6 +27,7 @@ python3 build.py
 | `assets/sprites/ginger_side.png` + `.json` | Ginger's sheet, baked at the same pixels-per-unit so the two are to scale. |
 | `assets/textures/*.png` | Tiling fabric maps: base colour and normals for fur, corduroy and felt. |
 | `assets/reference/turnaround.png` | Eight-angle turnaround for reference. |
+| `assets/art/keyart.png` | Both characters in one render, on transparency. The title screen's hero image. |
 | `shared/controls.js` | On-screen controls for touch devices, used by both demos. |
 | `shared/jump.js` | The movement budget — the numbers that decide what a level can ask. |
 | `shared/level.js` | Level format, and the conversion the canvas demo needs. |

@@ -68,15 +68,19 @@
       var lv = LEVELS[slug] || {};
       var unlocked = !open || open[slug];
       var stats = P ? P.statsFor(slug) : null;
-      var card = el("button", "lvl" + (unlocked ? "" : " locked"));
+      var card = el("button", "lvl" + (unlocked ? "" : " locked")
+                             + (stats ? " beat" : ""));
       card.disabled = !unlocked;
-      card.appendChild(el("b", null, lv.name || slug));
-      card.appendChild(el("small", null,
+      card.appendChild(el("span", "num", unlocked ? String(i + 1) : "\uD83D\uDD12"));
+      var body = el("span", "body");
+      body.appendChild(el("b", null, lv.name || slug));
+      body.appendChild(el("small", null,
         unlocked ? (stats ? stars(stats, (lv.pickups || []).length)
                           : "not finished yet")
                  : "finish " + ((LEVELS[ORDER[i - 1]] || {}).name || "the level before")
                    + " to open"));
-      if (stats) card.appendChild(el("span", "tick", "✓"));
+      card.appendChild(body);
+      if (stats) card.appendChild(el("span", "tick", "\u2713"));
       card.addEventListener("click", function () {
         if (!unlocked) return;
         if (window.Sound) window.Sound.play("ui");
@@ -87,14 +91,46 @@
     host.appendChild(list);
   }
 
+  /* The wordmark is split so "Mr." can sit small above the big name, which
+   * is what stops a two-word title from reading as one long line of text. */
+  function wordmark() {
+    var h = el("h1");
+    // The two halves are separate elements, so a screen reader would run
+    // them together as one word without this.
+    h.setAttribute("aria-label", "Mr. Cluckers");
+    h.appendChild(el("span", "wm-small", "Mr."));
+    h.appendChild(el("span", "wm-big", "Cluckers"));
+    return h;
+  }
+
   function showTitle() {
     document.body.classList.add("shell-on");
     var host = document.getElementById("shell");
     host.hidden = false;
     host.innerHTML = "";
 
+    // Two panels: the pair on one side, the menu on the other. On a narrow
+    // screen the grid collapses and the art becomes a band across the top,
+    // so the buttons are always the thing your thumb lands on first.
+    var art = el("div", "title-art");
+    var img = document.createElement("img");
+    img.src = "../assets/art/keyart.png";
+    img.alt = "Ginger the dog standing beside Mr. Cluckers, her plush rooster";
+    // Intrinsic size, so the layout reserves the right box before the render
+    // arrives and the menu does not jump down the page when it does.
+    img.width = 1600;
+    img.height = 1000;
+    img.decoding = "async";
+    // The render arrives with its own transparency; fading it in on load
+    // avoids the half-drawn flash on a slow connection.
+    img.addEventListener("load", function () { art.classList.add("in"); });
+    if (img.complete) art.classList.add("in");
+    art.appendChild(el("div", "glow"));
+    art.appendChild(img);
+    art.appendChild(el("div", "shadow"));
+
     var wrap = el("div", "shell-inner");
-    wrap.appendChild(el("h1", null, "Mr. Cluckers"));
+    wrap.appendChild(wordmark());
     wrap.appendChild(el("p", "tag",
       "Ginger's favourite toy has a long way to go. Get him home."));
 
@@ -103,7 +139,11 @@
     if (open) {
       for (var i = 0; i < ORDER.length; i++) if (open[ORDER[i]]) furthest = ORDER[i];
     }
-    var play = el("button", "big", (P && P.isDone(ORDER[0])) ? "Continue" : "Play");
+    var started = !!(P && P.isDone(ORDER[0]));
+    var play = el("button", "big", started ? "Continue" : "Play");
+    if (started) {
+      play.appendChild(el("small", null, (LEVELS[furthest] || {}).name || ""));
+    }
     play.addEventListener("click", function () {
       if (window.Sound) window.Sound.play("ui");
       go(furthest);
@@ -119,7 +159,11 @@
       });
       wrap.appendChild(wipe);
     }
-    host.appendChild(wrap);
+
+    var page = el("div", "title-page");
+    page.appendChild(art);
+    page.appendChild(wrap);
+    host.appendChild(page);
   }
 
   window.MrCluckersShell = {

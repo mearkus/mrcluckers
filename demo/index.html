@@ -45,7 +45,14 @@
     position: fixed; inset: 0; z-index: 60; overflow: auto;
     display: flex; align-items: center; justify-content: center;
     padding: 24px; box-sizing: border-box;
-    background: radial-gradient(120% 90% at 50% 0%, #2a3340 0%, #14171c 70%);
+  }
+  /* Warm light pooled low and left, where the two of them stand, against a
+     cool night sky. A grey rooster and a tan dog both disappear into a grey
+     background; against warm-on-cool they read instantly. */
+  #shell {
+    background:
+      radial-gradient(70% 55% at 26% 74%, rgba(255,188,112,.20), transparent 62%),
+      radial-gradient(130% 105% at 50% -12%, #27334c 0%, #141a26 52%, #0c1015 100%);
   }
   #done { background: rgba(10, 12, 15, .82); }
   /* `hidden` sets display:none from the UA sheet, which the rule above beats
@@ -93,32 +100,130 @@
   #paused .done-inner { animation: rise .2s ease both; }
   #done .done-inner { animation: rise .28s ease both; }
   @keyframes rise { from { opacity: 0; transform: translateY(10px); } }
-  .shell-inner, .done-inner {
-    width: 100%; max-width: 520px; text-align: center;
-    display: flex; flex-direction: column; gap: 12px;
+  /* ------------------------------------------------------ title screen */
+  /* Two panels: the pair on the left, looking across at the menu on the
+     right. Below 860px the grid collapses to one column and the art becomes
+     a band across the top, so the buttons stay where a thumb expects them. */
+  .title-page {
+    width: 100%; max-width: 1160px; margin: auto;
+    display: grid; gap: clamp(8px, 3vw, 44px); align-items: center;
+    grid-template-columns: minmax(0, 1.2fr) minmax(300px, 25rem);
   }
-  #shell h1 { margin: 0; font-size: clamp(30px, 8vw, 54px); letter-spacing: .01em;
-              color: #f4f6f8; }
+  /* `align-items: center` is load-bearing: a stretched flex item would make
+     the box taller than the art it contains, and the contact shadow -- which
+     is placed against the bottom of the box -- would then sit in empty space
+     below their feet. */
+  .title-art { position: relative; display: flex;
+               justify-content: center; align-items: center; }
+  .title-art img {
+    position: relative; z-index: 1; width: 100%; height: auto;
+    max-height: min(74vh, 700px); object-fit: contain;
+    filter: drop-shadow(0 18px 26px rgba(0,0,0,.45));
+    opacity: 0; transform: translateY(14px) scale(.985);
+    transition: opacity .5s ease, transform .5s ease;
+  }
+  .title-art.in img { opacity: 1; transform: none; }
+  /* A pool of light behind them and a contact shadow under them. Without
+     the shadow the cut-out render floats; with it they stand somewhere. */
+  .title-art .glow {
+    position: absolute; inset: 6% 4% 2%; z-index: 0; pointer-events: none;
+    background: radial-gradient(52% 46% at 50% 62%,
+                rgba(255,206,146,.30), rgba(255,206,146,.06) 58%, transparent 72%);
+  }
+  .title-art .shadow {
+    position: absolute; z-index: 2; pointer-events: none;
+    left: 12%; right: 12%; bottom: 2%; height: 5%;
+    border-radius: 50%; background: rgba(6,9,14,.5); filter: blur(11px);
+  }
+
+  .shell-inner, .done-inner {
+    width: 100%; max-width: 520px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .done-inner { text-align: center; max-width: 420px; margin: auto; }
   #done h2 { margin: 0; font-size: clamp(20px, 5vw, 30px); color: #f4f6f8; }
   .tag { margin: 0; color: #9fb0c0; }
+
+  #shell h1 {
+    margin: 0 0 2px; display: flex; flex-direction: column;
+    font-size: clamp(38px, 7.5vw, 66px); line-height: .96;
+    color: #f6f8fa;
+  }
+  #shell h1 .wm-small {
+    font-size: .27em; font-weight: 700; letter-spacing: .22em;
+    text-transform: uppercase; color: #e8746f; margin-bottom: .5em;
+    /* Tracking adds a trailing gap the size of one space, which pulls the
+       glyphs left of centre when the column is centred. Take it back. */
+    margin-right: -.22em;
+  }
+  #shell h1 .wm-big {
+    font-weight: 800; letter-spacing: -.02em;
+    text-shadow: 0 2px 0 rgba(0,0,0,.28), 0 14px 30px rgba(0,0,0,.4);
+  }
+  #shell .tag { max-width: 30rem; text-wrap: balance; }
+
   button.big, button.quiet, .lvl {
-    font: inherit; border-radius: 10px; cursor: pointer;
-    border: 1px solid #444a55; background: #262b33; color: #e8edf2;
+    font: inherit; border-radius: 12px; cursor: pointer;
+    border: 1px solid rgba(255,255,255,.14);
+    background: rgba(255,255,255,.055); color: #e8edf2;
     padding: 12px 16px; text-align: left;
+    transition: background .15s ease, border-color .15s ease,
+                transform .12s ease, box-shadow .15s ease;
   }
   button.big {
-    text-align: center; font-weight: 700; font-size: 17px;
-    background: #cf2027; border-color: #cf2027; color: #fff;
+    margin-top: 8px; text-align: center; font-weight: 700; font-size: 18px;
+    color: #fff; border-color: transparent; padding: 14px 18px;
+    background: linear-gradient(180deg, #e0333a, #bf1c23);
+    box-shadow: 0 8px 20px rgba(191,28,35,.34);
+    display: flex; flex-direction: column; gap: 1px; align-items: center;
   }
-  button.quiet { text-align: center; background: transparent; color: #9fb0c0; }
-  .lvl-list { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
-  .lvl { display: grid; grid-template-columns: 1fr auto; align-items: center;
-         gap: 2px 10px; }
-  .lvl b { grid-column: 1; font-size: 16px; }
-  .lvl small { grid-column: 1; color: #9fb0c0; }
-  .lvl .tick { grid-column: 2; grid-row: 1 / span 2; color: #5da041;
-               font-size: 20px; }
-  .lvl.locked { opacity: .45; cursor: default; }
+  /* "Continue" carries the level you would drop back into, so the button
+     answers "continue what?" without a second line of prose above it. */
+  button.big small { font-weight: 500; font-size: 12px; opacity: .82; }
+  button.big:hover { background: linear-gradient(180deg, #ec3f46, #cd2129); }
+  button.quiet {
+    text-align: center; background: transparent; border-color: transparent;
+    color: #8b9cad; padding: 8px;
+  }
+  button.quiet:hover { color: #cdd6df; background: rgba(255,255,255,.05); }
+  .lvl:hover:not(.locked) {
+    background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.24);
+  }
+  button.big:active, .lvl:active:not(.locked) { transform: translateY(1px); }
+  button:focus-visible, .lvl:focus-visible {
+    outline: 2px solid #ffc987; outline-offset: 2px;
+  }
+
+  .lvl-list { display: flex; flex-direction: column; gap: 7px; margin-top: 12px; }
+  .lvl {
+    display: grid; grid-template-columns: auto 1fr auto;
+    align-items: center; gap: 0 12px; padding: 9px 13px;
+  }
+  .lvl .num {
+    grid-row: 1; width: 26px; height: 26px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; color: #cfd8e2;
+    background: rgba(255,255,255,.08);
+  }
+  .lvl.beat .num { background: rgba(93,160,65,.24); color: #a6dd8e; }
+  .lvl .body { display: flex; flex-direction: column; min-width: 0; }
+  .lvl b { font-size: 15px; }
+  .lvl small { color: #92a3b4; }
+  .lvl .tick { color: #6fbb4f; font-size: 18px; }
+  .lvl.locked { opacity: .42; cursor: default; }
+  .lvl.locked .num { background: transparent; font-size: 15px; }
+
+  @media (max-width: 860px) {
+    .title-page { grid-template-columns: 1fr; justify-items: center; }
+    .title-art img { max-height: 32vh; }
+    .title-art .glow { inset: 0 10%; }
+    .shell-inner { text-align: center; align-items: stretch; }
+    #shell h1 { align-items: center; }
+    #shell .tag { margin-inline: auto; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .title-art img { transition: none; opacity: 1; transform: none; }
+  }
 </style>
 </head>
 <body>
