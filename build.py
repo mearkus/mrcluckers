@@ -11,6 +11,7 @@ No third-party dependencies -- geometry, rendering and export are all here.
 import argparse
 import glob
 import json
+import math
 import os
 import sys
 import time
@@ -240,6 +241,77 @@ def build_turnaround(parts, base, out_dir, size=256, steps=8, supersample=3,
     return path
 
 
+def _fit_camera(mesh, yaw, pitch, width, height, margin=0.10):
+    """A camera that frames `mesh` exactly, whatever pose it is in.
+
+    Framing key art by hand is a guessing game -- nudge an offset, re-render,
+    find an ear clipped off the top. Instead: rotate every vertex into view
+    space, take the bounding box, and solve for the target and height that
+    put that box in the middle with `margin` to spare. Nothing can be cropped
+    because the crop is what we are solving for.
+    """
+    rot = v.mat_mul(v.rot_x(-pitch), v.rot_y(-yaw))
+    pts = [v.transform_point(rot, p) for p in mesh.verts]
+    xs = [p[0] for p in pts]
+    ys = [p[1] for p in pts]
+    cx, cy = (min(xs) + max(xs)) * 0.5, (min(ys) + max(ys)) * 0.5
+    span_y = (max(ys) - min(ys)) * (1.0 + margin)
+    span_x = (max(xs) - min(xs)) * (1.0 + margin)
+    h = max(span_y, span_x * height / float(width))
+
+    # Undo the rotation to express the view-space centre as a world target.
+    inv = v.mat_mul(v.rot_y(yaw), v.rot_x(pitch))
+    return raster.Camera(yaw=yaw, pitch=pitch, height=h,
+                         target=v.transform_point(inv, (cx, cy, 0.0)))
+
+
+def build_keyart(parts, base, out_dir, maps=None, width=1600, height=1000,
+                 supersample=2):
+    """Both characters in one render, for the title screen.
+
+    Their meshes are merged rather than composited so they occlude each other
+    properly -- his tail feathers pass in front of her foreleg. The two
+    material tables both define `eye_dark`, in near-identical black; merging
+    picks one and the difference is invisible.
+
+    Ginger faces +z, which the camera yaw carries toward screen-right, so he
+    is placed along that same screen-right axis to stand beside her head, and
+    then pushed toward the camera along the view axis -- a move that is purely
+    depth on screen. That is what makes them read as a pair rather than two
+    separate renders: he overlaps her, so the eye puts him in front of her
+    rather than somewhere else entirely.
+    """
+    os.makedirs(out_dir, exist_ok=True)
+
+    yaw, pitch = v.deg(-26.0), v.deg(6.0)
+    right = (math.cos(yaw), 0.0, -math.sin(yaw))
+    toward = (math.sin(yaw), 0.0, math.cos(yaw))
+
+    gparts = ginger.build_parts()
+    gclips = ginger_anim.all_clips(flop=1.0)
+    gmesh = po.bake(gparts, gclips["wag"].poses()[3], None, skel=ginger)
+
+    cmesh = po.bake(parts, anim.all_clips(flop=1.0)["idle"].poses()[2], base)
+    place = v.add(v.mul(right, 0.60), v.mul(toward, 0.85))
+    cmesh.transform(v.mat_mul(v.translation(place), v.rot_y(v.deg(-18.0))))
+
+    both = ms.Mesh()
+    both.merge(gmesh)
+    both.merge(cmesh)
+
+    mats = dict(ginger.MATERIALS)
+    mats.update(rig.MATERIALS)
+
+    cam = _fit_camera(both, yaw, pitch, width, height, margin=0.12)
+    buf = raster.render(both, mats, width, height, cam,
+                        supersample=supersample, outline=0.30, textures=maps)
+    path = os.path.join(out_dir, "keyart.png")
+    png.write_rgba(path, width, height, buf)
+    print("  %-38s %4dx%-4d %d tris" % ("art/keyart.png", width, height,
+                                        len(both.faces)))
+    return path
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -258,11 +330,13 @@ def main():
                     help="flat colours, no fabric maps")
     ap.add_argument("--levels", default="levels", help="level source directory")
     ap.add_argument("--only",
-                    choices=["model", "sprites", "turnaround", "levels", "ginger"],
+                    choices=["model", "sprites", "turnaround", "levels", "ginger",
+                             "keyart"],
                     action="append", help="build only these (repeatable)")
     args = ap.parse_args()
 
-    only = set(args.only or ["model", "sprites", "turnaround", "levels", "ginger"])
+    only = set(args.only or ["model", "sprites", "turnaround", "levels",
+                             "ginger", "keyart"])
     print("Mr. Cluckers build")
     t0 = time.time()
 
@@ -295,6 +369,8 @@ def main():
     if "turnaround" in only:
         build_turnaround(parts, base, os.path.join(args.out, "reference"),
                          textures=maps)
+    if "keyart" in only:
+        build_keyart(parts, base, os.path.join(args.out, "art"), maps)
     if "ginger" in only:
         build_ginger(os.path.join(args.out, "model"),
                      os.path.join(args.out, "reference"), encoded, maps)
