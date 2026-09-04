@@ -1,5 +1,6 @@
 {
   "name": "The Garden",
+  "order": 3,
   "theme": "garden",
   "width": 44,
   "spawn": {

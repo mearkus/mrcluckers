@@ -134,8 +134,8 @@ four kinds of layer rather than knowing about any particular place:
 
 Layers are described in world pixels and drawn in screen space, so `speed` is
 how much of the camera's motion a layer takes: 0 is painted on the far wall, 1
-moves with the floor. The three levels get a room, a garden and a park, and
-platforms and water take their colours from the theme too.
+moves with the floor. The five levels get a room, a kitchen, a garden, a park and a lane at dusk,
+and platforms and water take their colours from the theme too.
 
 Two things worth knowing if you add a theme:
 
@@ -146,6 +146,9 @@ Two things worth knowing if you add a theme:
   leaves. In the end the park uses a treeline rather than individual trees: at
   this scale a lone canopy on a thin trunk reads as a green cloud, and the
   trunk is usually off the side of the frame anyway.
+- **Contrast beats palette.** The kitchen's first draft had a pale floor
+  against pale tiles, which read as one surface — you could not see what you
+  were allowed to stand on. The ground is deliberately darker than its wall.
 
 Landing raises dust in the theme's colour, and going in the water throws up a
 splash. Both are the same few lines of particle: a puff of bits with gravity
@@ -326,8 +329,16 @@ get to each platform. Both shipped levels passed it. One of them could be
 completed by holding right for nine seconds; the other could not be completed
 at all.
 
-The two levels sit at **87%** and **92%** of budget at their hardest forced
-jump, and both now **build to it**:
+### Play order is authored
+
+Levels carry an `order` field. Alphabetical filenames put the garden before
+the kitchen and the lane before the park, which is not a game.
+
+Inserting a level in the middle must not re-lock what someone has already
+beaten, so a level stays open if it is finished, or if anything after it is.
+
+The five sit at 87%, 86%, 92%, 92% and 92% of the jump budget at their hardest
+forced jump. The first two:
 
 | | Living Room | The Garden |
 | --- | --- | --- |

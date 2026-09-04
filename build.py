@@ -29,7 +29,7 @@ VIEWS = {
 
 
 LEVEL_KEYS = {"name", "theme", "width", "spawn", "goal",
-              "platforms", "pickups", "hazards", "patrols", "thieves"}
+              "platforms", "pickups", "hazards", "patrols", "thieves", "order"}
 
 
 def build_levels(levels_dir):
@@ -38,7 +38,17 @@ def build_levels(levels_dir):
     Browsers block fetch() over file://, so the demos load this bundle the
     same way they load the sprite metadata.
     """
+    # Play order is authored with an `order` field, not inherited from the
+    # filenames -- alphabetical put the garden before the kitchen and the
+    # lane before the park.
     paths = sorted(glob.glob(os.path.join(levels_dir, "*.json")))
+    def _rank(path):
+        try:
+            with open(path) as fh:
+                return (json.load(fh).get("order", 999), path)
+        except Exception:
+            return (999, path)
+    paths.sort(key=_rank)
     if not paths:
         print("  %-38s none found" % "levels/")
         return []
