@@ -162,7 +162,7 @@
   }
   #shell .tag { max-width: 30rem; text-wrap: balance; }
 
-  button.big, button.quiet, .lvl {
+  button.big, button.quiet, button.second, button.back, .card {
     font: inherit; border-radius: 12px; cursor: pointer;
     border: 1px solid rgba(255,255,255,.14);
     background: rgba(255,255,255,.055); color: #e8edf2;
@@ -186,35 +186,145 @@
     color: #8b9cad; padding: 8px;
   }
   button.quiet:hover { color: #cdd6df; background: rgba(255,255,255,.05); }
-  .lvl:hover:not(.locked) {
-    background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.24);
-  }
-  button.big:active, .lvl:active:not(.locked) { transform: translateY(1px); }
-  button:focus-visible, .lvl:focus-visible {
+  button.big:active, button.second:active { transform: translateY(1px); }
+  button:focus-visible {
     outline: 2px solid #ffc987; outline-offset: 2px;
   }
 
-  .lvl-list { display: flex; flex-direction: column; gap: 7px; margin-top: 12px; }
-  .lvl {
-    display: grid; grid-template-columns: auto 1fr auto;
-    align-items: center; gap: 0 12px; padding: 9px 13px;
+  /* The title screen's second action. Not a list -- everything that grows
+     with the number of levels is on the level-select screen now. */
+  button.second {
+    display: flex; align-items: center; justify-content: center; gap: 9px;
+    font-weight: 600; font-size: 15px; text-align: center; padding: 12px 16px;
   }
-  .lvl .num {
-    grid-row: 1; width: 26px; height: 26px; border-radius: 8px;
+  button.second::before {
+    content: ""; width: 16px; height: 16px; flex: 0 0 auto; opacity: .8;
+    background: currentColor;
+    -webkit-mask: var(--grid-icon) center / contain no-repeat;
+    mask: var(--grid-icon) center / contain no-repeat;
+  }
+  button.second small { font-weight: 400; color: #92a3b4; }
+  button.second:hover {
+    background: rgba(255,255,255,.10); border-color: rgba(255,255,255,.24);
+  }
+  :root {
+    --grid-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='3' y='3' width='8' height='8' rx='2'/%3E%3Crect x='13' y='3' width='8' height='8' rx='2'/%3E%3Crect x='3' y='13' width='8' height='8' rx='2'/%3E%3Crect x='13' y='13' width='8' height='8' rx='2'/%3E%3C/svg%3E");
+  }
+
+  /* --------------------------------------------------- level select */
+  /* Its own screen, because this is the part that grows. A header that
+     stays put over a list that scrolls -- which the title screen cannot do
+     without pushing Play off the bottom. */
+  /* #shell centres a single panel; the picker is a full-bleed column
+     instead, so it has to undo that alignment or the grid collapses to
+     one content-width track. */
+  #shell.picker {
+    display: flex; flex-direction: column; padding: 0; overflow: hidden;
+    align-items: stretch; justify-content: flex-start;
+  }
+  .picker-bar {
+    flex: 0 0 auto; display: grid; align-items: center; gap: 12px;
+    grid-template-columns: 1fr auto 1fr; padding: 14px clamp(16px, 4vw, 48px);
+    border-bottom: 1px solid rgba(255,255,255,.08);
+    /* #topbar's sound button is fixed over this corner; leave it room. */
+    padding-right: max(clamp(16px, 4vw, 48px), 58px);
+  }
+  .picker-bar h2 { margin: 0; font-size: clamp(16px, 3vw, 19px); color: #f2f6fa; }
+  .picker-bar .count { justify-self: end; color: #92a3b4; }
+  button.back {
+    justify-self: start; display: inline-flex; align-items: center; gap: 8px;
+    font: inherit; cursor: pointer; color: #9fb0c0; padding: 9px 16px 9px 12px;
+    border: 1px solid rgba(255,255,255,.14); border-radius: 999px;
+    background: rgba(255,255,255,.045);
+    transition: background .15s ease, color .15s ease;
+  }
+  button.back::before {
+    content: ""; width: 15px; height: 15px; flex: 0 0 auto;
+    background: currentColor;
+    -webkit-mask: var(--back-icon) center / contain no-repeat;
+    mask: var(--back-icon) center / contain no-repeat;
+  }
+  :root {
+    --back-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14.5 5 8 12l6.5 7'/%3E%3C/svg%3E");
+  }
+  button.back:hover { background: rgba(255,255,255,.10); color: #f2f6fa; }
+
+  .picker-list {
+    flex: 1 1 auto; min-height: 0; overflow-y: auto;
+    padding: clamp(18px, 3vw, 32px) clamp(16px, 4vw, 48px) 40px;
+  }
+  /* The same 1160px measure the title screen uses, so the two screens sit on
+     one grid -- and so cards on a wide monitor stay card-sized. */
+  .picker-list > * { max-width: 1160px; margin-inline: auto; }
+  .group { margin: 0 auto clamp(24px, 3vw, 38px); }
+  .group-head { display: flex; align-items: center; gap: 14px; margin-bottom: 13px; }
+  .group h3 {
+    margin: 0; font-size: 12px; font-weight: 700; letter-spacing: .18em;
+    text-transform: uppercase; color: #8b9cad;
+  }
+  .group .rule { flex: 1; height: 1px; background: rgba(255,255,255,.10); }
+
+  /* auto-fill, so level six wraps to a new row instead of squeezing the
+     five already there. One column on a phone, three on a desktop. */
+  .grid {
+    display: grid; gap: 14px;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+  }
+  .card {
+    display: flex; flex-direction: column; overflow: hidden; padding: 0;
+    font: inherit; text-align: left; cursor: pointer; color: #e8edf2;
+    border: 1px solid rgba(255,255,255,.14); border-radius: 14px;
+    background: rgba(255,255,255,.045);
+    transition: transform .14s ease, border-color .15s ease, box-shadow .15s ease;
+  }
+  .card:hover:not(.locked) {
+    transform: translateY(-3px); border-color: rgba(255,255,255,.30);
+    box-shadow: 0 12px 26px rgba(0,0,0,.42);
+  }
+  .card:active:not(.locked) { transform: translateY(0); }
+  .card:focus-visible { outline: 2px solid #ffc987; outline-offset: 3px; }
+  .card.locked { opacity: .5; cursor: default; }
+
+  /* A swatch of the level's own sky and ground, painted from its theme.
+     Five identical text rows is a list; five different skies is a set of
+     places -- and that is what keeps working at fifteen levels. */
+  .card-art { position: relative; height: clamp(96px, 12vw, 148px); }
+  .card-art .cap { position: absolute; left: 0; right: 0; bottom: 0; height: 19%; }
+  .card-art .lip { position: absolute; left: 0; right: 0; bottom: 19%; height: 3.5%; }
+  .card-art .num {
+    position: absolute; top: 10px; left: 12px; min-width: 26px; height: 26px;
+    padding: 0 8px; box-sizing: border-box; border-radius: 8px;
     display: flex; align-items: center; justify-content: center;
-    font-size: 13px; font-weight: 700; color: #cfd8e2;
-    background: rgba(255,255,255,.08);
+    font-size: 13px; font-weight: 700; color: #12161c;
+    background: rgba(255,255,255,.82);
   }
-  .lvl.beat .num { background: rgba(93,160,65,.24); color: #a6dd8e; }
-  .lvl .body { display: flex; flex-direction: column; min-width: 0; }
-  .lvl b { font-size: 15px; }
-  .lvl small { color: #92a3b4; }
-  .lvl .tick { color: #6fbb4f; font-size: 18px; }
-  .lvl.locked { opacity: .42; cursor: default; }
-  .lvl.locked .num { background: transparent; font-size: 15px; }
+  .card-art .shut {
+    position: absolute; inset: 0; display: flex; font-size: 24px;
+    align-items: center; justify-content: center; background: rgba(10,13,18,.62);
+  }
+  .card-body {
+    display: grid; grid-template-columns: 1fr auto; align-items: center;
+    gap: 2px 10px; padding: 12px 14px 14px;
+  }
+  .card-body b { grid-column: 1; font-size: 16px; }
+  .card-body small { grid-column: 1; color: #92a3b4; }
+  .card-body .tick {
+    grid-column: 2; grid-row: 1 / span 2; width: 28px; height: 28px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 999px; color: #6fbb4f; font-size: 17px;
+    background: rgba(93,160,65,.22);
+  }
 
   @media (max-width: 860px) {
     .title-page { grid-template-columns: 1fr; justify-items: center; }
+    /* A phone control at 9px padding lands around 40px, under the touch
+       floor -- so on a touch layout the buttons get a real minimum. */
+    button.big, button.second, button.quiet, .card { min-height: 44px; }
+    .picker-bar { grid-template-columns: auto 1fr auto; }
+    .picker-bar .count { display: none; }
+    button.back { width: 44px; height: 44px; padding: 0;
+                  justify-content: center; border-radius: 999px; }
+    button.back span { display: none; }
     .title-art img { max-height: 32vh; }
     .title-art .glow { inset: 0 10%; }
     .shell-inner { text-align: center; align-items: stretch; }

@@ -1,9 +1,13 @@
-/* What each level looks like.
+/* What each level looks like, and where it is.
  *
  * Every level drew the same sky and the same two green hills, indoors
  * included -- the living room had rolling countryside behind the sofa. A
  * theme is a palette plus a stack of parallax layers, and the demo knows how
  * to draw four kinds of layer rather than knowing about any particular place.
+ *
+ * `where` is the section a level files under on the level-select screen.
+ * It lives here rather than in a list the shell keeps, so adding a level is
+ * still a one-file job: name a theme and it lands in the right section.
  *
  * Layers are described in world pixels and drawn in screen space, so `speed`
  * is how much of the camera's motion they take: 0 is painted on the far wall,
@@ -22,6 +26,7 @@
   // panes  -- repeating rectangles with a warm centre: windows, pictures
   var THEMES = {
     indoors: {
+      where: 'Indoors',
       sky: ['#e8d9c3', '#d9c6ab'],          // a warm wall, not a sky
       layers: [
         { kind: 'panes', color: '#cfe3ef', frame: '#b39a79', step: 620,
@@ -36,6 +41,7 @@
       dust: 'rgba(196, 176, 148, 0.75)'
     },
     garden: {
+      where: 'Outdoors',
       sky: ['#8ec5e8', '#dfeff7'],
       layers: [
         { kind: 'blobs', color: '#b7d7a8', step: 340, rx: 150, ry: 80,
@@ -51,6 +57,7 @@
       dust: 'rgba(150, 130, 100, 0.7)'
     },
     kitchen: {
+      where: 'Indoors',
       sky: ['#dfe8ea', '#c8d5d8'],          // cool tiled wall
       layers: [
         // Tiles: a grid made of one band per row and uprights for the grout.
@@ -71,6 +78,7 @@
       dust: 'rgba(200, 210, 214, 0.75)'
     },
     lane: {
+      where: 'Outdoors',
       sky: ['#f0a06a', '#f6d9b0'],          // late afternoon, going home
       layers: [
         { kind: 'blobs', color: '#c98a67', step: 380, rx: 170, ry: 78,
@@ -88,6 +96,7 @@
       dust: 'rgba(180, 150, 118, 0.75)'
     },
     park: {
+      where: 'Outdoors',
       sky: ['#7fb9e4', '#e6f2f8'],
       layers: [
         { kind: 'blobs', color: '#ffffff', step: 430, rx: 90, ry: 34,
@@ -119,5 +128,12 @@
     return THEMES[key] || THEMES.garden;
   }
 
-  return { get: get, names: function () { return Object.keys(THEMES); } };
+  /** The section heading for a theme, for grouping on the level select. */
+  function where(name) { return get(name).where || 'Elsewhere'; }
+
+  return {
+    get: get,
+    where: where,
+    names: function () { return Object.keys(THEMES); }
+  };
 });

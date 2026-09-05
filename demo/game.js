@@ -299,8 +299,11 @@
     mk("big", "Resume", function () { togglePause(false); });
     mk("quiet", "Restart level", function () { location.reload(); });
     mk("quiet", "Level select", function () {
-      if (window.MrCluckersShell) window.MrCluckersShell.leaveTo("?", "Mr. Cluckers");
-      else location.search = "";
+      // Level select is its own screen now, so this lands there rather than
+      // on the title with a list under it.
+      if (window.MrCluckersShell)
+        window.MrCluckersShell.leaveTo("?#levels", "Mr. Cluckers");
+      else location.href = "?#levels";
     });
     panel.appendChild(box);
   }
