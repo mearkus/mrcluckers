@@ -1,5 +1,10 @@
 /* Title screen, level select, and the panel you get when a level is done.
  *
+ * The title screen holds three actions and never grows. Everything that
+ * scales with the number of levels lives on the level-select screen, which
+ * is a separate view rather than a list bolted under Play -- a title screen
+ * that scrolls buries the one button most people want.
+ *
  * These are DOM, not canvas: they want text, buttons and a scrollable list,
  * all of which the browser already does, and it means the on-screen controls
  * and a mouse both work without a second input path.
@@ -18,6 +23,27 @@
   function slugInURL() {
     var m = location.search.match(/[?&]level=([\w-]+)/);
     return m && LEVELS[m[1]] ? m[1] : null;
+  }
+
+  /* Title and level select are two views of one page, told apart by the
+   * hash. Going between them is not a page load -- the key art is already
+   * decoded and re-fetching it to show a menu would be silly -- but it does
+   * go through history, so the browser's Back button works and the phone's
+   * back gesture lands where a thumb expects. */
+  function route() {
+    if (location.hash === "#levels") showLevels(); else showTitle();
+  }
+
+  function goto(hash) {
+    if (window.Sound) window.Sound.play("ui");
+    if (location.hash === hash) { route(); return; }
+    // pushState so Back returns to the title; hashchange does the render.
+    if (history.pushState) {
+      history.pushState(null, "", hash || location.pathname + location.search);
+      route();
+    } else {
+      location.hash = hash;
+    }
   }
 
   var fade = null;
@@ -61,32 +87,110 @@
     return bits.join("  ·  ");
   }
 
-  function buildSelect(host) {
+  /**
+   * One level's card: the number, the name, how it went, and a swatch of
+   * the level's own sky and ground.
+   *
+   * The swatch is the point. Five identical rows of text is a list you read;
+   * five different skies is a set of places you recognise -- and at fifteen
+   * levels the difference is what stops the screen becoming a wall.
+   */
+  function levelCard(slug, i, unlocked, prevName) {
+    var lv = LEVELS[slug] || {};
+    var stats = P ? P.statsFor(slug) : null;
+    var beat = !!stats;
+
+    var card = el("button", "card" + (unlocked ? "" : " locked")
+                            + (beat ? " beat" : ""));
+    card.disabled = !unlocked;
+
+    var art = el("div", "card-art");
+    if (window.Theme) {
+      var t = window.Theme.get(lv.theme);
+      art.style.background =
+        "linear-gradient(180deg, " + t.sky[0] + ", " + t.sky[1] + ")";
+      var cap = el("div", "cap");
+      cap.style.background = t.ground.cap;
+      var lip = el("div", "lip");
+      lip.style.background = t.ground.lip;
+      art.appendChild(lip);
+      art.appendChild(cap);
+    }
+    art.appendChild(el("span", "num", String(i + 1)));
+    if (!unlocked) art.appendChild(el("span", "shut", "\uD83D\uDD12"));
+    card.appendChild(art);
+
+    var body = el("div", "card-body");
+    body.appendChild(el("b", null, lv.name || slug));
+    body.appendChild(el("small", null,
+      beat ? stars(stats, (lv.pickups || []).length)
+           : (unlocked ? "not finished yet" : "finish " + prevName + " to open")));
+    if (beat) body.appendChild(el("span", "tick", "\u2713"));
+    card.appendChild(body);
+
+    card.addEventListener("click", function () {
+      if (!unlocked) return;
+      if (window.Sound) window.Sound.play("ui");
+      go(slug);
+    });
+    return card;
+  }
+
+  /** The level-select screen: a header that stays put over a list that grows. */
+  function showLevels() {
+    document.body.classList.add("shell-on");
+    var host = document.getElementById("shell");
+    host.hidden = false;
+    host.innerHTML = "";
+    host.className = "picker";
+
     var open = P ? P.unlocked(ORDER) : null;
-    var list = el("div", "lvl-list");
+    var done = 0;
+    ORDER.forEach(function (slug) { if (P && P.isDone(slug)) done++; });
+
+    var bar = el("div", "picker-bar");
+    // The word is in a span so a phone layout can drop it and keep the
+    // arrow, without losing the accessible name.
+    var back = el("button", "back");
+    back.appendChild(el("span", null, "Title"));
+    back.setAttribute("aria-label", "Back to title");
+    back.addEventListener("click", function () {
+      if (history.pushState && location.hash) history.back(); else goto("");
+    });
+    bar.appendChild(back);
+    bar.appendChild(el("h2", null, "Levels"));
+    bar.appendChild(el("span", "count", done + " of " + ORDER.length + " finished"));
+    host.appendChild(bar);
+
+    // Sections come from each level's own theme, so a new level files itself
+    // and a new setting adds a section. Order follows play order: a section
+    // appears where its first level does.
+    var list = el("div", "picker-list");
+    var order = [];
+    var byWhere = {};
     ORDER.forEach(function (slug, i) {
-      var lv = LEVELS[slug] || {};
-      var unlocked = !open || open[slug];
-      var stats = P ? P.statsFor(slug) : null;
-      var card = el("button", "lvl" + (unlocked ? "" : " locked")
-                             + (stats ? " beat" : ""));
-      card.disabled = !unlocked;
-      card.appendChild(el("span", "num", unlocked ? String(i + 1) : "\uD83D\uDD12"));
-      var body = el("span", "body");
-      body.appendChild(el("b", null, lv.name || slug));
-      body.appendChild(el("small", null,
-        unlocked ? (stats ? stars(stats, (lv.pickups || []).length)
-                          : "not finished yet")
-                 : "finish " + ((LEVELS[ORDER[i - 1]] || {}).name || "the level before")
-                   + " to open"));
-      card.appendChild(body);
-      if (stats) card.appendChild(el("span", "tick", "\u2713"));
-      card.addEventListener("click", function () {
-        if (!unlocked) return;
-        if (window.Sound) window.Sound.play("ui");
-        go(slug);
+      var w = window.Theme ? window.Theme.where((LEVELS[slug] || {}).theme)
+                           : "Levels";
+      if (!byWhere[w]) { byWhere[w] = []; order.push(w); }
+      byWhere[w].push({ slug: slug, i: i });
+    });
+
+    order.forEach(function (label) {
+      var sec = el("section", "group");
+      var head = el("div", "group-head");
+      head.appendChild(el("h3", null, label));
+      head.appendChild(el("span", "rule"));
+      sec.appendChild(head);
+
+      var grid = el("div", "grid");
+      byWhere[label].forEach(function (item) {
+        var prev = LEVELS[ORDER[item.i - 1]] || {};
+        grid.appendChild(levelCard(item.slug, item.i,
+                                   !open || open[item.slug],
+                                   prev.name || "the level before"));
       });
-      list.appendChild(card);
+      sec.appendChild(grid);
+      list.appendChild(sec);
     });
     host.appendChild(list);
   }
@@ -108,6 +212,7 @@
     var host = document.getElementById("shell");
     host.hidden = false;
     host.innerHTML = "";
+    host.className = "";
 
     // Two panels: the pair on one side, the menu on the other. On a narrow
     // screen the grid collapses and the art becomes a band across the top,
@@ -150,12 +255,20 @@
     });
     wrap.appendChild(play);
 
-    buildSelect(wrap);
+    // The second action, not a second list. The count keeps the title
+    // screen able to say where you are without enumerating anything.
+    var pick = el("button", "second");
+    pick.appendChild(el("span", null, "Levels"));
+    var beaten = 0;
+    ORDER.forEach(function (slug) { if (P && P.isDone(slug)) beaten++; });
+    pick.appendChild(el("small", null, beaten + "/" + ORDER.length));
+    pick.addEventListener("click", function () { goto("#levels"); });
+    wrap.appendChild(pick);
 
     if (P && P.load().done && Object.keys(P.load().done).length) {
       var wipe = el("button", "quiet", "Start over");
       wipe.addEventListener("click", function () {
-        if (confirm("Forget which levels you have finished?")) { P.reset(); showTitle(); }
+        if (confirm("Forget which levels you have finished?")) { P.reset(); route(); }
       });
       wrap.appendChild(wipe);
     }
@@ -170,6 +283,8 @@
     slugInURL: slugInURL,
     leaveTo: leaveTo,
     showTitle: showTitle,
+    showLevels: showLevels,
+    route: route,
     go: go,
     /** Shown by the game once a level is finished. */
     finished: function (slug, stats) {
@@ -191,7 +306,9 @@
         box.appendChild(el("p", "tag", "That's the last one. She has her toy back."));
       }
       var back = el("button", "quiet", "Level select");
-      back.addEventListener("click", function () { leaveTo("?", "Mr. Cluckers"); });
+      back.addEventListener("click", function () {
+        leaveTo("?#levels", "Mr. Cluckers");
+      });
       box.appendChild(back);
       host.appendChild(box);
     }
@@ -231,5 +348,11 @@
     window.addEventListener("pointerdown", wake, { once: true });
   })();
 
-  if (!slugInURL()) showTitle();
+  // Back and forward between title and level select are hash changes, and
+  // arriving with #levels in the URL should land there too.
+  if (!slugInURL()) {
+    window.addEventListener("hashchange", route);
+    window.addEventListener("popstate", route);
+    route();
+  }
 })();

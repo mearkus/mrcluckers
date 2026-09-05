@@ -38,8 +38,8 @@ python3 build.py
 | `shared/thief.js` | The other dog at the park, and what it does with the toy. |
 | `shared/progress.js` | Which levels are finished, and what that opens up. |
 | `shared/sound.js` | Every sound in the game, synthesised on the spot. |
-| `shared/theme.js` | What each level looks like: palette and parallax layers. |
-| `demo/shell.js` | Title screen, level select, and the end-of-level panel. |
+| `shared/theme.js` | What each level looks like: palette, parallax layers, and which section it files under. |
+| `demo/shell.js` | Title screen, the level-select screen, and the end-of-level panel. |
 | `levels/*.json` | The levels themselves. `levels.js` is the generated bundle. |
 
 ## Two demos
