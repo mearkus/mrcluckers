@@ -2,6 +2,7 @@
   "name": "The Park",
   "order": 4,
   "theme": "park",
+  "distraction": "bird",
   "width": 58,
   "spawn": {
     "x": 1.5,

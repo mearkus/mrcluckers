@@ -2,6 +2,7 @@
   "name": "The Garden",
   "order": 3,
   "theme": "garden",
+  "distraction": "squirrel",
   "width": 48,
   "spawn": {
     "x": 1.5,

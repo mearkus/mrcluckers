@@ -179,7 +179,8 @@
 
   var distraction = (window.Distraction && LEVEL.goal)
     ? window.Distraction.create(LEVEL.goal.x / PX,
-                               (LEVEL.ground - LEVEL.goal.y) / PX, 1)
+                               (LEVEL.ground - LEVEL.goal.y) / PX, 1,
+                               LEVEL.distraction)
     : null;
 
   var player = {
@@ -449,6 +450,16 @@
       if (pressed.squeak || (player.action === "squeak" && player.actionTime < dt * 1.5)) {
         if (distraction.squeak(player.x / PX) && ginger) {
           ginger.anim.set("greet", true);
+        }
+      }
+      // And a crow puts a bird up, which ends the visit outright. The other
+      // half of the deal: two flourishes, two things they are actually for.
+      if (pressed.crow || (player.action === "crow" && player.actionTime < dt * 1.5)) {
+        if (distraction.scare(player.x / PX)) {
+          window.Sound && window.Sound.play("bump");
+          puff(distraction.dogX * PX + PX * 0.8,
+               LEVEL.ground - (distraction.dogY + 1.4) * PX,
+               7, "rgba(228, 236, 244, .85)", 0.7, 60);
         }
       }
     }
@@ -981,7 +992,52 @@
     ctx.restore();
   }
 
+  /* A bird: rounder than the squirrel, no tail to speak of, and wings that
+   * are out when it is in the air and folded when it is perched -- which is
+   * the only reliable way to read "this one will leave on its own". */
+  function drawBird(c) {
+    var x = c.x * PX, y = LEVEL.ground - c.y * PX, f = c.dir;
+    var U = PX * 0.34;                      // smaller than the squirrel
+    var flap = c.flying ? Math.sin(levelClock * 22) * 0.55 : 0;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(f, 1);
+    // No contact shadow: a bird perches above the floor, so an ellipse under
+    // its feet lands in mid-air rather than on anything.
+    ctx.fillStyle = "#4a6274";
+    ctx.beginPath();                        // the far wing, behind the body
+    ctx.ellipse(-U * 0.12, -U * 0.62, U * 0.34, U * 0.15, -0.5 + flap, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#5b788d";
+    ctx.beginPath();
+    ctx.ellipse(-U * 0.34, -U * 0.5, U * 0.2, U * 0.1, 0.7, 0, Math.PI * 2);
+    ctx.fill();                             // tail
+    ctx.beginPath();
+    ctx.ellipse(0, -U * 0.55, U * 0.36, U * 0.3, 0, 0, Math.PI * 2);
+    ctx.fill();                             // body
+    ctx.beginPath();
+    ctx.ellipse(U * 0.3, -U * 0.9, U * 0.2, U * 0.19, 0, 0, Math.PI * 2);
+    ctx.fill();                             // head
+    ctx.fillStyle = "#6d8ba1";
+    ctx.beginPath();                        // the near wing
+    ctx.ellipse(-U * 0.02, -U * 0.56, U * 0.32, U * 0.13, -0.35 - flap, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#e0a33c";
+    ctx.beginPath();
+    ctx.moveTo(U * 0.46, -U * 0.92);
+    ctx.lineTo(U * 0.66, -U * 0.86);
+    ctx.lineTo(U * 0.46, -U * 0.8);
+    ctx.closePath();
+    ctx.fill();                             // beak
+    ctx.fillStyle = "#20262c";
+    ctx.beginPath();
+    ctx.arc(U * 0.36, -U * 0.95, U * 0.05, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
   function drawCritter(c) {
+    if (c.kind === "bird") return drawBird(c);
     var x = c.x * PX, y = LEVEL.ground - c.y * PX, f = c.dir;
     var U = PX * 0.5;                       // it stands about half his height
     ctx.save();
@@ -1233,7 +1289,9 @@
         if (player.reached) note = "  \u2014 reunited!";
         else if (distraction && distraction.watching &&
                  Math.abs(LEVEL.goal.x - player.x) / PX < 6) {
-          note = "  \u2014 she's watching a squirrel. Squeak!";
+          note = distraction.kind === "bird"
+            ? "  \u2014 she's watching a bird. Squeak, or crow to put it up!"
+            : "  \u2014 she's watching a squirrel. Squeak!";
         }
         title.textContent = LEVEL.name + "  " + got + "/" +
           LEVEL.pickups.length + note;
