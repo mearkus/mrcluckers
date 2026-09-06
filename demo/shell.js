@@ -34,15 +34,38 @@
     if (location.hash === "#levels") showLevels(); else showTitle();
   }
 
+  /* Did we reach level select from the title *in this document*? Only then
+   * is there an entry of ours behind us worth popping. Arriving straight on
+   * "?#levels" from a level is a page load, and the entry behind that is the
+   * level -- so going "back" from there drops you into the game rather than
+   * onto the title screen. */
+  var pushedLevels = false;
+
   function goto(hash) {
     if (window.Sound) window.Sound.play("ui");
-    if (location.hash === hash) { route(); return; }
-    // pushState so Back returns to the title; hashchange does the render.
+    var url = location.pathname + (hash || "");
     if (history.pushState) {
-      history.pushState(null, "", hash || location.pathname + location.search);
+      if (location.hash !== hash) history.pushState(null, "", url);
+      pushedLevels = hash === "#levels";
       route();
     } else {
-      location.hash = hash;
+      location.hash = hash || "";
+    }
+  }
+
+  /** Leave level select for the title, without ever landing in the game. */
+  function backToTitle() {
+    if (window.Sound) window.Sound.play("ui");
+    if (pushedLevels && history.pushState) {
+      pushedLevels = false;
+      history.back();               // hashchange re-renders
+      return;
+    }
+    if (history.replaceState) {
+      history.replaceState(null, "", location.pathname);
+      route();
+    } else {
+      location.hash = "";
     }
   }
 
@@ -154,9 +177,7 @@
     var back = el("button", "back");
     back.appendChild(el("span", null, "Title"));
     back.setAttribute("aria-label", "Back to title");
-    back.addEventListener("click", function () {
-      if (history.pushState && location.hash) history.back(); else goto("");
-    });
+    back.addEventListener("click", backToTitle);
     bar.appendChild(back);
     bar.appendChild(el("h2", null, "Levels"));
     bar.appendChild(el("span", "count", done + " of " + ORDER.length + " finished"));
@@ -316,7 +337,7 @@
 
   // Every page starts covered, so arriving is a fade rather than a cut. The
   // level's name is already on the cover from the page we left.
-  (function uncover() {
+  function uncover() {
     var f = cover();
     if (!f) return;
     var here = slugInURL();
@@ -325,7 +346,19 @@
     requestAnimationFrame(function () {
       requestAnimationFrame(function () { f.classList.remove("up"); });
     });
-  })();
+  }
+  uncover();
+
+  /* And again on every `pageshow`. A page restored from the back-forward
+   * cache does not re-run its scripts: it comes back exactly as it was left,
+   * and `leaveTo` left it covered, with the name of where it was going still
+   * on the cover. Without this, going back to a page you had navigated away
+   * from is a black screen with a word on it and nothing else -- which is
+   * what a phone actually did. */
+  window.addEventListener("pageshow", function (e) {
+    uncover();
+    if (e.persisted && !slugInURL()) route();
+  });
 
   // The sound toggle lives on every screen; the pause button only appears
   // once a level is running, and game.js owns it.
