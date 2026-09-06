@@ -43,6 +43,9 @@
     arc: 0.0,          // extra height while travelling; a bird flies in
     startles: false,   // does a crow put it up
     flush: 2.2,        // how close you get before it puts itself up
+    boltRate: 2.0,     // how much faster it leaves when something startles it
+    boltArc: 0.45,     // and the hop or the lift it gets away on
+    rest: 5.0,         // and how much longer than usual it stays away after
     recall: 3.2,       // how far a squeak or a crow carries
     settle: 0.5,       // her head coming back round afterwards
     notice: 3.6,       // how near her perch has to be to take her attention
@@ -61,7 +64,8 @@
     bird: {
       period: 6.4, approach: 0.85, linger: 2.6, leave: 0.7,
       from: 3.4, side: 1, arc: 0.75, startles: true,
-      flush: 1.0, recall: 3.2, settle: 0.45, notice: 4.0,
+      flush: 1.0, boltRate: 2.1, boltArc: 0.9, rest: 3.5,
+      recall: 3.2, settle: 0.45, notice: 4.0,
       reach: 2.2, wary: 2.8, takes: 2.6
     }
   };
@@ -110,7 +114,9 @@
              : (+spec.phase) % c.cfg.period,
         cycle: cycle,
         here: false, x: +spec.x, y: +spec.y, dir: -1, flying: false,
-        spooked: false,       // put up early -- gone for the rest of the visit
+        exit: c.cfg.side,     // which way it leaves; it never leaves through you
+        bolting: false,       // startled: going now, and quickly
+        rest: 0,              // extra seconds away, once something has been
         recalled: false,      // she has already been called off this one
         target: -1,           // a kibble it has its eye on
         timer: 0,
@@ -131,11 +137,12 @@
 
     function place(c) {
       var cfg = c.cfg, u = c.u;
-      var far = c.home.x + cfg.from * cfg.side;
+      var from = c.home.x + cfg.from * cfg.side;   // where it came in from
+      var away = c.home.x + cfg.from * c.exit;     // and where it is going
       var lift = 0, x, moving;
       if (u < cfg.approach) {
         var k = u / cfg.approach;
-        x = far + (c.home.x - far) * k;
+        x = from + (c.home.x - from) * k;
         moving = -cfg.side;
         // Coming in: a bird drops onto the perch rather than arriving at it.
         lift = cfg.arc * Math.sin(Math.PI * k) + cfg.arc * 0.6 * (1 - k);
@@ -144,19 +151,35 @@
         moving = cfg.side;                      // sitting up, facing the way in
       } else {
         var k2 = (u - cfg.approach - cfg.linger) / cfg.leave;
-        x = c.home.x + (far - c.home.x) * k2;
-        moving = cfg.side;
-        lift = cfg.arc * 1.3 * k2;               // and lifts off going away
+        x = c.home.x + (away - c.home.x) * k2;
+        moving = c.exit;
+        // Going: a bird lifts off. A squirrel that has been startled gets a
+        // hop out of it too, which is most of what makes a bolt read as a
+        // bolt rather than as the thing having been switched off.
+        var arc = c.bolting ? Math.max(cfg.arc, cfg.boltArc) : cfg.arc;
+        lift = arc * 1.3 * k2;
       }
       c.x = x; c.y = c.home.y + lift; c.dir = moving;
       c.flying = lift > 0.02;
     }
 
-    /** Put one up: it goes at once and takes its hold on her with it. */
-    function putUp(c) {
-      if (!c.here || c.spooked) return false;
-      c.spooked = true; c.here = false; c.target = -1;
-      if (s.watcher === c) { s.watching = false; s.settling = c.cfg.settle; }
+    /**
+     * Put one up. It does not vanish -- it *goes*: dropped straight into the
+     * leaving leg of its visit, running it at `boltRate`, and away from
+     * whatever startled it rather than back the way it came. It had been
+     * switched off on the spot, which from the other side of the screen looks
+     * like a bug and not like a squirrel.
+     */
+    function putUp(c, fromX) {
+      if (!c.here || c.bolting) return false;
+      c.bolting = true;
+      c.rest = c.cfg.rest;
+      c.target = -1;
+      c.exit = (fromX === undefined || c.home.x >= fromX) ? 1 : -1;
+      c.u = Math.max(c.u, c.cfg.approach + c.cfg.linger);
+      place(c);
+      if (s.watcher === c) { s.watching = false; s.watcher = null;
+                             s.settling = c.cfg.settle; }
       return true;
     }
 
@@ -186,22 +209,44 @@
 
       for (var i = 0; i < critters.length; i++) {
         var c = critters[i], cfg = c.cfg;
-        c.u += dt;
-        if (c.u >= cfg.period) {              // round again: a fresh visit
-          c.u -= cfg.period * Math.floor(c.u / cfg.period);
-          c.spooked = false; c.recalled = false;
-          c.target = -1; c.carry = -1; c.visits++;
+        // A startled one runs its leaving leg fast, which is what shortens
+        // the visit: nothing is hidden, it just gets out sooner. Only the
+        // leaving leg -- carry the hurry into the gap between visits and it
+        // is back within a second, which is a strobe, not a squirrel.
+        var hurrying = c.bolting && c.u < c.cycle;
+        c.u += dt * (hurrying ? cfg.boltRate : 1);
+        // One that has been put up stays away longer than one that simply
+        // finished its visit.
+        var period = cfg.period + c.rest;
+        if (c.u >= period) {
+          // And it does not come back at all while you are stood on its
+          // perch, or it would arrive into you and be put up again on the
+          // frame it landed. Exactly the flush radius, not a hair more: any
+          // wider and a critter can be locked out of a perch you were never
+          // close enough to have startled it off, which silently removes the
+          // one beside Ginger from levels where she waits a little back.
+          if (world.x !== undefined && !s.done &&
+              dist(world.x, world.y === undefined ? c.home.y : world.y,
+                   c.home.x, c.home.y) < cfg.flush) {
+            c.u = period - 1e-4;
+            c.here = false;
+            continue;
+          }
+          c.u -= period * Math.floor(c.u / period);
+          c.bolting = false; c.recalled = false; c.exit = cfg.side;
+          c.rest = 0; c.target = -1; c.carry = -1; c.visits++;
         }
-        c.here = c.u < c.cycle && !c.spooked;
+        c.here = c.u < c.cycle;
         if (!c.here) continue;
         place(c);
+        if (c.bolting) continue;              // already going; leave it to it
 
         // Close enough to put it up yourself. A bird perches out of reach, so
         // in practice this is how you move a squirrel and a crow is how you
         // move a bird.
         if (world.x !== undefined &&
             dist(world.x, world.y === undefined ? c.y : world.y, c.x, c.y) < cfg.flush) {
-          putUp(c);
+          putUp(c, world.x);
           continue;
         }
 
@@ -237,7 +282,7 @@
         var bestD = Infinity;
         for (var k = 0; k < critters.length; k++) {
           var q = critters[k];
-          if (!q.here || q.recalled) continue;
+          if (!q.here || q.recalled || q.bolting) continue;
           var dd = dist(dog.x, dog.y, q.x, q.y);
           if (dd < q.cfg.notice && dd < bestD) { bestD = dd; s.watcher = q; }
         }
@@ -276,10 +321,10 @@
       if (s.done) return put;
       for (var i = 0; i < critters.length; i++) {
         var c = critters[i];
-        if (!c.cfg.startles || !c.here) continue;
+        if (!c.cfg.startles || !c.here || c.bolting) continue;
         if (dist(x, y === undefined ? c.y : y, c.x, c.y) > c.cfg.recall) continue;
         var at = { x: c.x, y: c.y };
-        if (putUp(c)) put.push(at);
+        if (putUp(c, x)) put.push(at);
       }
       return put;
     };
@@ -292,7 +337,8 @@
      */
     s.pressing = function () {
       for (var i = 0; i < critters.length; i++) {
-        if (critters[i].here && critters[i].target >= 0) return critters[i];
+        var c = critters[i];
+        if (c.here && !c.bolting && c.target >= 0) return c;
       }
       return null;
     };
@@ -305,7 +351,7 @@
     s.eyeing = function (i) {
       for (var k = 0; k < critters.length; k++) {
         var c = critters[k];
-        if (c.here && c.target === i) {
+        if (c.here && !c.bolting && c.target === i) {
           return Math.max(0, Math.min(1, 1 - c.timer / c.cfg.takes));
         }
       }

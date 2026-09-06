@@ -485,6 +485,27 @@ The outdoor levels mix both, which is what teaches the difference. The living
 room and the kitchen are birds throughout, so `crow` is taught before there is
 anything it does not work on.
 
+### Nothing vanishes
+
+The first version of this switched a critter off the moment you startled it —
+one frame perched, the next frame not there. From the other side of the screen
+that reads as a bug, not as a squirrel.
+
+So being put up is a **departure**, not a deletion. It is dropped straight
+into the leaving leg of its visit and runs that leg at about twice speed, with
+a hop or a lift on the way out, and it goes **away from whatever startled it**
+rather than back the way it came — otherwise it leaves through you. That is
+about 0.45 seconds of squirrel bounding off the ledge and 0.3 of bird getting
+off a branch, which is short but is a thing you watch happen.
+
+Two things had to go with it. The hurry stops the moment it is off screen: at
+first it carried into the gap between visits as well, so a guard with a
+seven-second linger was back within a second of being put up — a strobe, not a
+squirrel. And one that has been put up stays away *longer* than one that
+simply finished its visit, and does not come back at all while you are stood
+on its perch, or it would arrive into you and be put up again on the frame it
+landed.
+
 ### Two things the framing needed
 
 The critter beside Ginger perches on the far side from his approach, so she

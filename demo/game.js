@@ -1103,10 +1103,14 @@
     ctx.save();
     ctx.translate(x, y);
     ctx.scale(f, 1);
-    ctx.fillStyle = "rgba(20, 26, 20, .25)";
-    ctx.beginPath();
-    ctx.ellipse(0, 1, U * 0.5, U * 0.13, 0, 0, Math.PI * 2);
-    ctx.fill();
+    // No contact shadow mid-hop: a bolting squirrel is off the ground, and
+    // an ellipse under its feet would go with it.
+    if (!c.flying) {
+      ctx.fillStyle = "rgba(20, 26, 20, .25)";
+      ctx.beginPath();
+      ctx.ellipse(0, 1, U * 0.5, U * 0.13, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
     // Tail first, so the body sits in front of it.
     ctx.fillStyle = "#7a5334";
     ctx.beginPath();
