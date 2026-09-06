@@ -136,6 +136,39 @@
     };
   }
 
+  /**
+   * The run of floor under `at`, as {min, max} in world units, inset by
+   * `margin`. Platforms butted up against each other at the same height count
+   * as one floor; a hazard or a drop ends it.
+   *
+   * The fetch round asks for this. It used to lay its patch out as her spot
+   * plus or minus a fixed range, which walked her over the water gap before
+   * the last ledge in three of the five levels.
+   */
+  function footing(level, at, margin) {
+    var lv = normalize(level);
+    var m = margin === undefined ? 0.8 : margin;
+    var sameHeight = lv.platforms.filter(function (p) {
+      return Math.abs(p.y - at.y) < 0.05;
+    });
+    var under = null;
+    sameHeight.forEach(function (p) {
+      if (at.x < p.x - 0.25 || at.x > p.x + p.w + 0.25) return;
+      if (!under || p.w > under.w) under = p;
+    });
+    if (!under) return { min: at.x - m, max: at.x + m };
+    var lo = under.x, hi = under.x + under.w, grew = true;
+    while (grew) {
+      grew = false;
+      sameHeight.forEach(function (p) {
+        if (p.x + p.w < lo - 0.25 || p.x > hi + 0.25) return;
+        if (p.x < lo) { lo = p.x; grew = true; }
+        if (p.x + p.w > hi) { hi = p.x + p.w; grew = true; }
+      });
+    }
+    return { min: lo + m, max: Math.max(lo + m, hi - m) };
+  }
+
   /** Every surface he can stand on, as {x, y, w} top edges in world units. */
   function surfaces(level) {
     return normalize(level).platforms.map(function (p) {
@@ -280,6 +313,7 @@
     normalize: normalize,
     toPixels: toPixels,
     surfaces: surfaces,
+    footing: footing,
     unreachable: unreachable,
     hop: hop,
     route: route

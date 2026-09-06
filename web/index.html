@@ -106,10 +106,12 @@ let bonus = null, bonusWait = 0;
 // typed here -- the two drifted apart once and the toy left the screen.
 let bonusBox = null, catchRing = null;
 function measureBonus() {
-  const e = window.Bonus.extent();
+  // The round's own patch, which is slid inside the level rather than centred
+  // on her, so this is asked of the round and not of the config.
+  const e = window.Bonus.span(bonus);
   const pad = 0.55;                       // the toy is about a unit across
   bonusBox = {
-    left: LEVEL.goal.x + e.min - pad, right: LEVEL.goal.x + e.max + pad,
+    left: e.min - pad, right: e.max + pad,
     top: LEVEL.goal.y + window.Bonus.arcHeight() + pad,
     bottom: LEVEL.goal.y - 0.35
   };
@@ -602,9 +604,7 @@ const critterMeshes = distraction ? distraction.critters.map((c) => {
 
 // The other dog at the park: the same model, darkened so nobody mistakes it
 // for Ginger, driven by the `trot` clip she just gained.
-const thieves = [];
-for (const spec of (LEVEL.thieves || [])) {
-  if (!window.Thief) break;
+async function loadOtherDog() {
   const gltf = await new GLTFLoader().loadAsync('../assets/model/ginger.glb');
   let tinted = 0;
   gltf.scene.traverse((o) => {
@@ -626,7 +626,6 @@ for (const spec of (LEVEL.thieves || [])) {
   pivot.add(gltf.scene);
   const root = new THREE.Group();
   root.add(pivot);
-  root.position.set(spec.x, spec.y, 0);
   scene.add(root);
 
   const mixer = new THREE.AnimationMixer(gltf.scene);
@@ -640,8 +639,21 @@ for (const spec of (LEVEL.thieves || [])) {
     current.crossFadeTo(next, fade, false);
     current = next;
   };
-  thieves.push({ root, pivot, mixer, play, state: window.Thief.create(LEVEL, spec) });
+  return { root, pivot, mixer, play };
 }
+
+const thieves = [];
+for (const spec of (LEVEL.thieves || [])) {
+  if (!window.Thief) break;
+  const dog = await loadOtherDog();
+  dog.root.position.set(spec.x, spec.y, 0);
+  thieves.push(Object.assign(dog, { state: window.Thief.create(LEVEL, spec) }));
+}
+
+// And one more of it for the fetch round: it turns up at the end of every
+// level, whether or not that level had a thief in it.
+const rivalDog = LEVEL.goal && window.Bonus ? await loadOtherDog() : null;
+if (rivalDog) rivalDog.root.visible = false;
 
 // A blob shadow costs nothing and suits the toy better than a shadow map.
 const shadow = new THREE.Mesh(
@@ -703,26 +715,38 @@ function pickState(crouching) {
 function startBonus() {
   if (!window.Bonus || !LEVEL.goal) return null;
   bonus = window.Bonus.create();
-  bonus.start(LEVEL.goal.x, LEVEL.goal.y);
+  // The floor she is standing on, not the level's full width: three of the
+  // five levels have a water gap before their last ledge, and the round would
+  // lay its patch straight across it.
+  bonus.start(LEVEL.goal.x, LEVEL.goal.y,
+              window.Level.footing(LEVEL, LEVEL.goal));
   // The level's own kibble would read as treats, so it steps out of the way.
   for (const k of kibbles) k.visible = false;
+  // The wildlife stops when she has him back, but the update loop that hides
+  // its meshes does not run during the round -- so they would hang there.
+  for (const g of critterMeshes) g.visible = false;
   measureBonus();
   onResize();
 
   // Where he will land, drawn *up* off the ground: this camera is side-on
   // and orthographic, so anything lying flat is edge-on and invisible.
-  const R = bonus.cfg.catchRadius;
-  catchRing = new THREE.Mesh(
-    new THREE.BoxGeometry(R * 2, 0.06, 0.06),
-    new THREE.MeshBasicMaterial({ color: 0xfff6cf, transparent: true, opacity: 0.8 }));
-  catchRing.visible = false;
-  scene.add(catchRing);
+  if (!catchRing) {
+    const R = bonus.cfg.catchRadius;
+    catchRing = new THREE.Mesh(
+      new THREE.BoxGeometry(R * 2, 0.06, 0.06),
+      new THREE.MeshBasicMaterial({ color: 0xfff6cf, transparent: true, opacity: 0.8 }));
+    catchRing.visible = false;
+    scene.add(catchRing);
+  }
 
   onResize();                                   // pull the camera back
   return bonus;
 }
 
 function updateBonus(dt) {
+  // The toy is a rooster, and the other dog does not care for it: one crow a
+  // throw stops it dead. Same button, same meaning as in the level.
+  if (pressed.crow) bonus.crow();
   bonus.update(dt, { left: keys.left, right: keys.right });
 
   // One ring on the ground: where he will land, and where she has to be.
@@ -732,16 +756,33 @@ function updateBonus(dt) {
     if (live) {
       const lx = window.Bonus.landing(bonus);
       const under = Math.abs(lx - bonus.dog.x) <= bonus.cfg.catchRadius;
+      // Green when she has it, red when the other dog is nearer to it than
+      // she is: the ring is the one thing you are watching.
+      const rv = bonus.rival;
+      const theirs = rv.active && rv.flinch <= 0 &&
+                     Math.abs(rv.x - lx) < Math.abs(bonus.dog.x - lx);
       catchRing.position.set(lx, LEVEL.goal.y + 0.02, 0);
-      catchRing.material.color.setHex(under ? 0x96f08c : 0xfff6cf);
-      catchRing.material.opacity = under ? 1.0 : 0.8;
+      catchRing.material.color.setHex(under ? 0x96f08c : (theirs ? 0xe46056 : 0xfff6cf));
+      catchRing.material.opacity = under || theirs ? 1.0 : 0.8;
     }
   }
 
   for (const e of bonus.drain()) {
     if (e === 'catch') { bird.play('squeak', { restart: true });
                          if (ginger) ginger.play('greet', 0.08); }
-    else if (e === 'miss') bird.play('land', { restart: true });
+    else if (e === 'miss' || e === 'steal') bird.play('land', { restart: true });
+  }
+
+  // The other dog, running for the same spot she is.
+  if (rivalDog) {
+    const r = bonus.rival;
+    rivalDog.root.visible = r.active;
+    if (r.active) {
+      rivalDog.root.position.set(r.x, LEVEL.goal.y, 0);
+      rivalDog.root.rotation.y = r.dir > 0 ? Math.PI : 0;
+      rivalDog.play(Math.abs(r.vx) > 0.4 ? 'trot' : 'stand');
+      rivalDog.mixer.update(dt);
+    }
   }
 
   // He is the toy; she is the one you are steering.
@@ -774,16 +815,27 @@ function updateBonus(dt) {
   camera.position.x += (cx - camera.position.x) * Math.min(1, dt * 6);
   camera.position.y += (cy - camera.position.y) * Math.min(1, dt * 4);
 
-  document.getElementById('prompt').hidden =
-    !(bonus.throwIndex === 0 && bonus.phase === 'wind');
+  // Two prompts: how the round works, and -- said again the moment the other
+  // dog first turns up -- what it is for.
+  const first = bonus.throwIndex === 0, meeting = bonus.throwIndex === bonus.cfg.rivalFrom;
+  const prompt = document.getElementById('prompt');
+  prompt.hidden = !((first || meeting) && bonus.phase === 'wind');
+  if (!prompt.hidden) {
+    prompt.querySelector('b').textContent =
+      first ? 'Fetch! \u25C0 \u25B6 run Ginger' : 'Here comes the other dog';
+    prompt.querySelector('span').textContent =
+      first ? 'catch him in the ring before he lands'
+            : 'beat it to the ring, or crow to stop it';
+  }
 
   pressed = {};
   document.getElementById('state').textContent = bird.current.getClip().name;
+  const total = bonus.total();
   document.getElementById('levelName').textContent =
     (bonus.phase === 'done' ? 'fetch! \u2014 final'
-      : 'fetch! throw ' + Math.min(bonus.throwIndex + 1, bonus.cfg.throws) +
-        '/' + bonus.cfg.throws) +
-    '  ' + bonus.caught + '/' + bonus.cfg.throws + ' caught' +
+      : 'fetch! throw ' + Math.min(bonus.throwIndex + 1, total) + '/' + total) +
+    '  ' + bonus.caught + '/' + total + ' caught' +
+    (bonus.lost ? '  \u2014 ' + bonus.lost + ' to the other dog' : '') +
     (bonus.streak > 1 ? '  \u2014 ' + bonus.streak + ' in a row!' : '');
 }
 

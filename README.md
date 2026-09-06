@@ -645,10 +645,9 @@ whip-like rather than stubby.
 ## The fetch round
 
 Reaching her is not the end of the level. She throws the toy up, and **you run
-Ginger under him** to catch it. Five throws, alternating sides and getting
-further out, so the round teaches itself.
+Ginger under him** to catch it.
 
-### This is the third attempt, and the first two failed the same way
+### This is the third attempt at the control, and the first two failed the same way
 
 They put you in the air *as the toy*, steering with left/right. Except
 left/right changed his **acceleration**, not his position — pressing right did
@@ -665,28 +664,94 @@ press right and she goes right. One goal — be under him when he comes down —
 and one thing on screen to watch, the ring where he will land. It is the
 oldest catching game there is, and it is legible in the second you have.
 
-The landing marker survives from the old version, and it finally means
-something: it used to show the consequence of a control you could not feel,
-and now it is simply the spot you run to.
+### The round itself was the second thing that had to be rethought
+
+The control was settled and the round was not. It threw five times from a
+fixed list of aims: every throw the same height, the same 1.8 seconds in the
+air, in the same order, in every level. It read well the first time and was
+over by the third — nothing changed, nothing escalated, and there was nothing
+to do but hold a direction.
+
+Three things vary now.
+
+**The throw.** A *lob* hangs, a *flick* is low and quickly over, a *high* one
+goes up forever and lands a long way out — so the rhythm changes and not just
+the distance. Where it lands is picked from where she is standing and how far
+she can actually cover in the time that throw gives her, so every throw is
+reachable and none of them is free. The first two are plain lobs; the round
+should teach itself before it starts varying.
+
+**The other dog.** From the third throw it turns up and runs for the same
+spot. Early on it is timed to arrive *after* the toy; by the end of the round
+it arrives before it. Two answers, and they are the two the level teaches:
+be standing on the spot first — she wins a tie, so holding your ground works
+— or **crow** at it, which stops it dead for a moment, once per throw. Crowing
+is the safe play and standing your ground is the brave one, and the score says
+which you took: a catch with the other dog still breathing down her neck is
+worth an extra point.
+
+**The length.** Five throws, and a run of three or more earns another, up to
+eight. A good round lasts longer than a poor one, which is the cheapest
+possible reason to keep playing well — and it stays short enough to be a
+coda rather than a second level.
+
+### It stays on the floor now
+
+Her patch is up to 12.4 units wide and it used to be centred on her, which in
+a level whose goal is two and a half units from the right-hand wall put her,
+the toy and the other dog out past the end of the floor — standing on nothing,
+at the far edge of a frame that was mostly sky. Sliding it inside the level's
+*width* is not enough either: three of the five levels have a water gap before
+their last ledge, so a patch that fits the level still walked her across it.
+
+So `Level.footing(level, at)` answers the actual question — the run of floor
+under a point, extended through anything butted up against it at the same
+height, and ended by a hazard or a drop — and the round lays its patch inside
+that:
+
+| | floor at the goal | her patch |
+| --- | --- | --- |
+| Living Room | 26.3 – 41.2 | 28.8 – 41.2 |
+| The Garden | 35.4 – 47.2 | 35.4 – 47.2 |
+| The Kitchen | 28.1 – 39.2 | 28.1 – 39.2 |
+| The Lane | 54.6 – 63.2 | 54.6 – 63.2 |
+| The Park | 48.2 – 57.2 | 48.2 – 57.2 |
+
+The round is a little tighter where the last ledge is short, which is the
+right answer rather than a compromise: the throws are measured against how far
+she can get, not against a fixed distance, so a narrow patch is a shorter
+round and not an unfair one. The other dog waits just outside the patch
+instead of wherever its run-up happened to start, and runs whatever pace that
+leaves it.
+
+Both demos hand the round its ends in their own bonus coordinates — the sprite
+demo counts from the goal, the three.js one from the level's origin — and the
+framing asks the round where it went rather than asking the config how wide it
+could be.
 
 ### Numbers
 
 | | |
 | --- | --- |
-| Throws | 5 |
-| Hang time | 1.80 s |
-| Peak | 3.79 units above her feet |
-| Her speed | 4.6 units/s — she covers 8 units in a flight |
-| Furthest throw | 5.4 units out |
+| Throws | 5, up to 8 |
+| Hang time | 1.20 s (flick), 1.80 s (lob), 2.00 s (high) |
+| Peak | 4.45 units above her feet, on the high one |
+| Her speed | 4.6 units/s |
+| Furthest throw | as far as she can get in the time — about 9 units on a high one |
 | Catch radius | 0.78 units, deliberately generous |
+| The other dog | from the third throw on, at whatever pace covers its run-up in the time it has, capped at 6.2 units/s |
 
-Nothing is random: throw N is always throw N, so both demos show the same
-round and a test can play it. Doing nothing catches **0 of 5**; running to the
-ring catches **5 of 5** — in the sprite demo, the three.js demo, and the rules
-stepped alone under Node, all three identical.
+The variety is **seeded, not random**. `Bonus.create({ seed })` plays the same
+round every time, so a test can replay one and both demos can be handed the
+same round to compare; a round created without a seed is a different round
+each time, which is the point. Stepped alone under Node, a perfect chase
+catches every throw and earns the full eight; standing still catches none of
+its five and loses three of them to the other dog. A player with a 0.3-second
+reaction and half a unit of slop averages 5.8 catches from 7.5 throws, losing
+1.6 to the other dog — which is about the shape a bonus round should have.
 
 A run of catches is worth more than the same number scattered, which is the
-only scoring subtlety and does not need explaining to be felt.
+only other scoring subtlety and does not need explaining to be felt.
 
 ## Textures
 

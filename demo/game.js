@@ -60,11 +60,13 @@
   var bonusBox = null;
   function measureBonus() {
     var pad = Math.hypot(CELL, CELL) / 2;       // worst case while tumbling
-    var e = window.Bonus.extent();
+    // The round's own patch, which is slid inside the level rather than
+    // centred on her, so this is asked of the round and not of the config.
+    var e = window.Bonus.span(bonus);
     var g = LEVEL.goal;
     bonusBox = {
-      left: g.x + e.min * PX - pad,
-      right: g.x + e.max * PX + pad,
+      left: bx2px(e.min) - pad,
+      right: bx2px(e.max) + pad,
       top: g.y - window.Bonus.arcHeight() * PX - Math.max(ANCHOR.y, pad),
       bottom: g.y + 26
     };
@@ -203,17 +205,29 @@
   function bx2px(x) { return LEVEL.goal.x + x * PX; }
   function by2py(y) { return LEVEL.goal.y - y * PX; }
 
+  var rivalAnim = null;                // the other dog, in the fetch round
+
   function startBonus() {
     if (!window.Bonus || !LEVEL.goal) return null;
     bonus = window.Bonus.create();
-    // She faces back down the level, which is the way she throws.
-    bonus.start(0, 0, -1);
+    rivalAnim = GDATA ? new Anim("stand", GDATA) : null;
+    // The floor she is standing on, not the level's full width: three of the
+    // five levels have a water gap before their last ledge, and the round
+    // would lay its patch straight across it. Its origin is her feet, so the
+    // ends come back relative to the goal.
+    var floor = window.Level.footing(WORLD, WORLD.goal);
+    bonus.start(0, 0, { min: floor.min - WORLD.goal.x,
+                        max: floor.max - WORLD.goal.x });
     measureBonus();
     pops = [];
     return bonus;
   }
 
   function updateBonus(dt) {
+    // The toy is a rooster, and the other dog does not care for it: one crow
+    // a throw stops it dead. Same button, same meaning as in the level.
+    if (pressed.crow) bonus.crow();
+    var before = bonus.score;
     bonus.update(dt, { left: keys.left, right: keys.right });
 
     var evs = bonus.drain();
@@ -225,11 +239,22 @@
         window.Sound && window.Sound.play("catch");
         window.Sound && window.Sound.play("bark");
         pops.push({ x: bx2px(bonus.dog.x), y: by2py(bonus.dog.y), t: 0,
-                    text: bonus.streak > 1 ? "+2" : "+1" });
+                    text: "+" + (bonus.score - before) });
         if (ginger) ginger.anim.set("greet", true);
       } else if (e === "miss") {
         window.Sound && window.Sound.play("miss");
         player.anim.set("land", true);
+      } else if (e === "steal") {
+        // Worse than dropping it: the other dog has him.
+        window.Sound && window.Sound.play("miss");
+        window.Sound && window.Sound.play("bark");
+        player.anim.set("land", true);
+        pops.push({ x: bx2px(bonus.rival.x), y: by2py(bonus.dog.y), t: 0,
+                   text: "!" });
+      } else if (e === "flinch") {
+        window.Sound && window.Sound.play("bump");
+        puff(bx2px(bonus.rival.x), by2py(bonus.dog.y) - 26,
+             7, "rgba(228, 236, 244, .85)", 0.7, 60);
       }
     }
 
@@ -241,6 +266,11 @@
     if (flying && player.anim.name !== "tumble") player.anim.set("tumble", true);
     if (!flying && player.anim.name === "tumble") player.anim.set("idle", true);
     player.anim.update(dt);
+
+    if (rivalAnim && bonus.rival.active) {
+      rivalAnim.set(Math.abs(bonus.rival.vx) > 0.4 ? "trot" : "stand");
+      rivalAnim.update(dt);
+    }
 
     if (ginger) {
       // Running when she is running, pleased with herself when she catches.
@@ -1107,11 +1137,18 @@
   // standing on it. There is nothing else on screen to track.
   function drawTarget() {
     if (bonus.phase !== "flight") return;
-    var lx = bx2px(window.Bonus.landing(bonus));
+    var lw = window.Bonus.landing(bonus);
+    var lx = bx2px(lw);
     var gy = by2py(bonus.dog.y);
-    var under = Math.abs(window.Bonus.landing(bonus) - bonus.dog.x) <=
-                bonus.cfg.catchRadius;
-    var col = under ? "rgba(150, 240, 140, .95)" : "rgba(255, 250, 210, .8)";
+    var under = Math.abs(lw - bonus.dog.x) <= bonus.cfg.catchRadius;
+    // Green when she has it, red when the other dog is nearer to it than she
+    // is: the ring is the one thing you are watching, so it is where the
+    // threat has to be said.
+    var rv = bonus.rival;
+    var theirs = rv.active && rv.flinch <= 0 &&
+                 Math.abs(rv.x - lw) < Math.abs(bonus.dog.x - lw);
+    var col = under ? "rgba(150, 240, 140, .95)"
+                    : (theirs ? "rgba(228, 96, 86, .95)" : "rgba(255, 250, 210, .8)");
 
     ctx.save();
     ctx.strokeStyle = col;
@@ -1132,9 +1169,31 @@
     ctx.restore();
   }
 
+  // The other dog in the fetch round: her model, tinted, running for the same
+  // spot she is. Same sheet the level's thieves use.
+  function drawRival() {
+    if (!bonus || !bonus.rival.active || !rivalAnim || !thiefSheet || !GDATA) return;
+    var r = bonus.rival;
+    var x = bx2px(r.x), y = by2py(bonus.dog.y);
+    var b = rivalAnim.box(), ga = GDATA.meta.anchor;
+    ctx.fillStyle = "rgba(20, 30, 20, .24)";
+    ctx.beginPath();
+    ctx.ellipse(x, y + 2, 48, 9, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(r.dir > 0 ? 1 : -1, 1);        // baked facing right
+    ctx.drawImage(thiefSheet, b.x, b.y, b.w, b.h, -ga.x, -ga.y, b.w, b.h);
+    ctx.restore();
+  }
+
   // Said once, at the start, because nothing else explains the round.
   function drawPrompt(w, h) {
-    if (bonus.throwIndex > 0 || bonus.phase !== "wind") return;
+    // The first is how the round works; the second is said the moment the
+    // other dog first turns up, because that is a new rule mid-round.
+    var first = bonus.throwIndex === 0;
+    var meeting = bonus.throwIndex === bonus.cfg.rivalFrom;
+    if ((!first && !meeting) || bonus.phase !== "wind") return;
     var a = Math.min(1, bonus.t / 0.25);
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -1143,10 +1202,13 @@
     ctx.fillStyle = "rgba(20, 26, 32, " + (0.55 * a).toFixed(2) + ")";
     ctx.fillRect(0, h * 0.13, w, h * 0.155);
     ctx.fillStyle = "rgba(255, 250, 225, " + a.toFixed(2) + ")";
-    ctx.fillText("Fetch! \u25C0 \u25B6 run Ginger", w / 2, h * 0.19);
+    ctx.fillText(first ? "Fetch! \u25C0 \u25B6 run Ginger"
+                       : "Here comes the other dog", w / 2, h * 0.19);
     ctx.font = Math.round(h / 30) + "px system-ui, sans-serif";
     ctx.fillStyle = "rgba(210, 230, 245, " + a.toFixed(2) + ")";
-    ctx.fillText("catch him in the ring before he lands", w / 2, h * 0.245);
+    ctx.fillText(first ? "catch him in the ring before he lands"
+                       : "beat it to the ring, or crow to stop it",
+                 w / 2, h * 0.245);
     ctx.restore();
   }
 
@@ -1223,6 +1285,7 @@
     }
 
     for (var thi = 0; thi < thieves.length; thi++) drawThief(thieves[thi]);
+    drawRival();
 
     if (distraction) {
       for (var ci = 0; ci < distraction.critters.length; ci++) {
@@ -1329,12 +1392,13 @@
     var title = document.getElementById("levelName");
     if (title) {
       if (bonus) {
+        var total = bonus.total();
         var head = bonus.phase === "done"
           ? "fetch! \u2014 final"
-          : "fetch! throw " + Math.min(bonus.throwIndex + 1, bonus.cfg.throws) +
-            "/" + bonus.cfg.throws;
-        title.textContent = head + "  " + bonus.caught + "/" + bonus.cfg.throws +
-          " caught" + (bonus.streak > 1 ? "  \u2014 " + bonus.streak + " in a row!" : "");
+          : "fetch! throw " + Math.min(bonus.throwIndex + 1, total) + "/" + total;
+        title.textContent = head + "  " + bonus.caught + "/" + total + " caught" +
+          (bonus.lost ? "  \u2014 " + bonus.lost + " to the other dog" : "") +
+          (bonus.streak > 1 ? "  \u2014 " + bonus.streak + " in a row!" : "");
       } else {
         var got = Object.keys(collected).length;
         var note = "";
