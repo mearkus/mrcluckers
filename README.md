@@ -60,8 +60,11 @@ land on the floor.
 
 **`web/index.html` — the live 3D model in three.js.** An orthographic camera
 locked to the same side-on angle as the sprites, so it looks like the sheet
-but animates continuously and lights dynamically. Needs a local server
-because browsers block module and glTF loads over `file://`:
+but animates continuously and lights dynamically. It plays the same levels as
+the canvas demo, with the same themes, platform kinds, props and rideable
+machines — the two read the same files and the same shared rules, so a level
+is the same place in either. Needs a local server because browsers block
+module and glTF loads over `file://`:
 
 ```
 python3 -m http.server 8000     # then open localhost:8000/web/
