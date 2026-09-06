@@ -24,6 +24,7 @@
     spawn: { x: 1.5, y: 0 },
     goal: null,
     platforms: [],
+    props: [],
     pickups: [],
     hazards: [],
     patrols: [],
@@ -35,9 +36,19 @@
     for (var k in DEFAULTS) {
       lv[k] = raw[k] === undefined ? DEFAULTS[k] : raw[k];
     }
+    // `kind` says what shape a thing is -- ledge, slab, soft, crate, pipe --
+    // and the theme says what it is made of there. A `soft` platform is a
+    // sofa in the living room and a hedge in the lane, from the same field.
     lv.platforms = (lv.platforms || []).map(function (p) {
       return { x: +p.x, y: +p.y, w: +p.w, h: p.h === undefined ? 0.5 : +p.h,
-               ground: !!p.ground };
+               kind: p.kind || 'ledge', ground: !!p.ground };
+    });
+    // Scenery. Props are never collided with and never scored -- they exist
+    // so a level reads as a place rather than as a row of ledges.
+    lv.props = (lv.props || []).map(function (d) {
+      return { x: +d.x, y: d.y === undefined ? 0 : +d.y, kind: d.kind || 'plant',
+               scale: d.scale === undefined ? 1 : +d.scale,
+               flip: !!d.flip, front: !!d.front };
     });
     lv.pickups = (lv.pickups || []).map(function (p) {
       return { x: +p.x, y: +p.y, kind: p.kind || 'kibble' };
@@ -75,7 +86,11 @@
       goal: lv.goal ? { x: lv.goal.x * px, y: toY(lv.goal.y) } : null,
       platforms: lv.platforms.map(function (p) {
         return { x: p.x * px, y: toY(p.y), w: p.w * px, h: p.h * px,
-                 ground: p.ground };
+                 kind: p.kind, ground: p.ground };
+      }),
+      props: lv.props.map(function (d) {
+        return { x: d.x * px, y: toY(d.y), kind: d.kind, scale: d.scale,
+                 flip: d.flip, front: d.front };
       }),
       pickups: lv.pickups.map(function (p) {
         return { x: p.x * px, y: toY(p.y), kind: p.kind };

@@ -473,7 +473,9 @@
     }
 
     var wasAir = !player.onGround;
+    var wasRiding = player.riding;
     player.onGround = false;
+    player.riding = null;
     if (player.vy >= 0) {
       for (var i = 0; i < LEVEL.platforms.length; i++) {
         var p = LEVEL.platforms[i];
@@ -482,15 +484,46 @@
           player.y = p.y;
           player.vy = 0;
           player.onGround = true;
-          if (wasAir) {
-            player.landTimer = 0.28;
-            window.Sound && window.Sound.play("land");
-            puff(player.x, player.y, 6,
-                 (THEME && THEME.dust) || "rgba(150,130,100,.7)", 0.5, 55);
-          }
           break;
         }
       }
+      // The top of a vacuum is a surface too. `Patrol.hits` has always
+      // treated being above one as safe; this makes that space stand on,
+      // which turns the thing you were dodging into the thing that carries
+      // you over the gap it patrols.
+      if (!player.onGround && window.Patrol) {
+        for (var ri = 0; ri < LEVEL.patrols.length; ri++) {
+          var d = window.Patrol.deck(LEVEL.patrols[ri], levelClock);
+          var deckY = LEVEL.ground - d.y * PX;
+          if (Math.abs(player.x - d.x * PX) < d.halfW * PX + 10 &&
+              prevY <= deckY + 6 && player.y >= deckY) {
+            player.y = deckY;
+            player.vy = 0;
+            player.onGround = true;
+            player.riding = LEVEL.patrols[ri];
+            break;
+          }
+        }
+      }
+      if (player.onGround && wasAir) {
+        player.landTimer = 0.28;
+        window.Sound && window.Sound.play("land");
+        puff(player.x, player.y, 6,
+             (THEME && THEME.dust) || "rgba(150,130,100,.7)", 0.5, 55);
+      }
+    }
+    // Carried by whatever he is standing on. Taken as the deck's own
+    // movement over this frame, so he keeps station on it exactly -- through
+    // the turnaround pause included -- instead of drifting off the back.
+    if (player.riding) {
+      player.x += window.Patrol.drift(player.riding, levelClock - dt,
+                                      levelClock) * PX;
+    }
+    if (wasRiding && !player.riding && player.vy < 0) {
+      // Stepping off keeps a little of the machine's motion, which is what
+      // makes riding worth doing: it throws you further than a standing jump.
+      player.vx += window.Patrol.drift(wasRiding, levelClock - dt, levelClock)
+                   * PX / Math.max(dt, 0.001) * 0.5;
     }
 
     // Hazards are judged *after* the platform collision has run, not before.
@@ -530,11 +563,13 @@
     }
 
 
-    // The vacuum. Not lethal -- it bats him back down the room, and being
-    // above it is safe, so the counterplay is to time the gap or jump it.
+    // The vacuum. Not lethal -- it bats him back down the room. Being above
+    // one is safe, and now standing on one is a ride, so the counterplay is
+    // to time the gap, jump it, or get on top of it.
     if (window.Patrol && player.hitCool <= 0) {
       for (var mi = 0; mi < LEVEL.patrols.length; mi++) {
         var m = LEVEL.patrols[mi];
+        if (player.riding === m) continue;
         var feet = (LEVEL.ground - player.y) / PX;
         var hit = window.Patrol.hits(m, levelClock, player.x / PX, feet,
                                      J.HALF_WIDTH);
@@ -691,7 +726,204 @@
     sky.addColorStop(1, t.sky[1]);
     ctx.fillStyle = sky;
     ctx.fillRect(0, 0, w, h);
-    for (var i = 0; i < t.layers.length; i++) drawLayer(t.layers[i], w, h);
+    for (var i = 0; i < t.layers.length; i++) {
+      if (!t.layers[i].front) drawLayer(t.layers[i], w, h);
+    }
+  }
+
+  /** The layers that pass in front of him, drawn after everything else. */
+  function drawFront(w, h) {
+    var t = THEME;
+    if (!t || !t.layers) return;
+    for (var i = 0; i < t.layers.length; i++) {
+      if (t.layers[i].front) drawLayer(t.layers[i], w, h);
+    }
+  }
+
+  /* ------------------------------------------------------ platforms */
+  /* Five shapes, drawn from the theme's own palette. The level says what
+   * shape a thing is; `shared/theme.js` says what it is made of here -- so
+   * one `soft` platform is a sofa in the living room, a hedge in the lane
+   * and a bush in the park, from the same field in the same file. */
+
+  function roundRect(x, y, w, h, r) {
+    r = Math.min(r, w * 0.5, h * 0.5);
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function drawPlatform(p) {
+    var G = (THEME || {}).ground ||
+            { dirt: "#6b4a33", edge: "#7d5940", cap: "#5c9e46", lip: "#7cc55e" };
+    var C = window.Theme ? window.Theme.part(LEVEL.theme, p.kind) : null;
+
+    if (p.kind === "slab" && C) {
+      // A worktop or a bench: a top with legs under it, and daylight between
+      // them. The gap is the whole point -- it is what stops a row of these
+      // reading as one long wall.
+      var legW = Math.max(5, p.w * 0.09), inset = Math.max(4, p.w * 0.07);
+      ctx.fillStyle = C.leg;
+      ctx.fillRect(p.x + inset, p.y + 7, legW, p.h - 7);
+      ctx.fillRect(p.x + p.w - inset - legW, p.y + 7, legW, p.h - 7);
+      ctx.fillStyle = C.body;
+      ctx.fillRect(p.x, p.y + 4, p.w, 9);
+      ctx.fillStyle = C.top;
+      ctx.fillRect(p.x - 2, p.y, p.w + 4, 5);
+    } else if (p.kind === "soft" && C) {
+      // Upholstery, or foliage: rounded, with a scatter of highlights along
+      // the top so the silhouette is not a straight line.
+      ctx.fillStyle = C.body;
+      roundRect(p.x, p.y, p.w, Math.max(p.h, 14), 9);
+      ctx.fill();
+      ctx.fillStyle = C.top;
+      roundRect(p.x, p.y, p.w, 11, 6);
+      ctx.fill();
+      ctx.fillStyle = C.tuft;
+      for (var t = p.x + 8; t < p.x + p.w - 6; t += 17) {
+        ctx.beginPath();
+        ctx.ellipse(t, p.y + 3, 6, 3.2, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (p.kind === "crate" && C) {
+      ctx.fillStyle = C.body;
+      ctx.fillRect(p.x, p.y, p.w, p.h);
+      ctx.strokeStyle = C.line;
+      ctx.lineWidth = 2;
+      ctx.strokeRect(p.x + 1, p.y + 1, p.w - 2, p.h - 2);
+      // Planks, and a diagonal brace: a crate you can read at a glance.
+      ctx.beginPath();
+      for (var b = p.y + 12; b < p.y + p.h - 4; b += 12) {
+        ctx.moveTo(p.x + 1, b); ctx.lineTo(p.x + p.w - 1, b);
+      }
+      ctx.moveTo(p.x + 2, p.y + p.h - 2); ctx.lineTo(p.x + p.w - 2, p.y + 2);
+      ctx.stroke();
+      ctx.fillStyle = C.top;
+      ctx.fillRect(p.x, p.y, p.w, 4);
+    } else if (p.kind === "pipe" && C) {
+      var ph = Math.max(p.h, 13);
+      ctx.fillStyle = C.body;
+      roundRect(p.x, p.y, p.w, ph, Math.min(7, ph * 0.5));
+      ctx.fill();
+      ctx.fillStyle = C.top;
+      roundRect(p.x + 2, p.y + 1, p.w - 4, 5, 2.5);
+      ctx.fill();
+    } else {
+      // `ledge` -- ground, walls, everything structural. Unchanged.
+      ctx.fillStyle = G.dirt;
+      ctx.fillRect(p.x, p.y, p.w, p.h);
+      ctx.fillStyle = G.edge;
+      ctx.fillRect(p.x, p.y, 3, p.h);
+      ctx.fillRect(p.x + p.w - 3, p.y, 3, p.h);
+      ctx.fillStyle = G.cap;
+      ctx.fillRect(p.x, p.y, p.w, 5);
+      ctx.fillStyle = G.lip;
+      ctx.fillRect(p.x, p.y, p.w, 2);
+    }
+  }
+
+  /* ---------------------------------------------------------- props */
+  /* Scenery. Nothing here is collided with or scored -- it exists so the
+   * level reads as a room or a lane instead of a row of ledges. Props carry
+   * their own colours: a pot plant is a pot plant wherever it stands. */
+  function drawProp(d) {
+    var s = d.scale || 1;
+    ctx.save();
+    ctx.translate(d.x, d.y);
+    ctx.scale(d.flip ? -s : s, s);
+
+    if (d.kind === "plant") {
+      ctx.fillStyle = "#a9603c";
+      ctx.beginPath();
+      ctx.moveTo(-13, 0); ctx.lineTo(13, 0); ctx.lineTo(10, -22); ctx.lineTo(-10, -22);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = "#c07047";
+      ctx.fillRect(-14, -26, 28, 5);
+      ctx.fillStyle = "#4e8a45";
+      [[-11, -40, 9, 17], [0, -50, 10, 20], [11, -41, 9, 16]].forEach(function (l) {
+        ctx.beginPath();
+        ctx.ellipse(l[0], l[1], l[2], l[3], 0, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    } else if (d.kind === "lamp") {
+      ctx.fillStyle = "#5c5148";
+      ctx.fillRect(-2.5, -74, 5, 74);
+      ctx.fillRect(-11, -3, 22, 4);
+      ctx.fillStyle = "#e8cf9a";
+      ctx.beginPath();
+      ctx.moveTo(-19, -74); ctx.lineTo(19, -74); ctx.lineTo(13, -100);
+      ctx.lineTo(-13, -100); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = "rgba(255, 232, 170, .28)";
+      ctx.beginPath();
+      ctx.ellipse(0, -68, 30, 16, 0, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (d.kind === "bowl") {
+      // Ginger's. Which is why there is kibble all over this game.
+      ctx.fillStyle = "#3f6f96";
+      ctx.beginPath();
+      ctx.moveTo(-17, -14); ctx.lineTo(17, -14); ctx.lineTo(12, 0); ctx.lineTo(-12, 0);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = "#5b93bd";
+      ctx.beginPath();
+      ctx.ellipse(0, -14, 17, 4.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#c9913f";
+      ctx.beginPath();
+      ctx.ellipse(0, -14, 11, 3, 0, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (d.kind === "ball") {
+      ctx.fillStyle = "#d34a3f";
+      ctx.beginPath(); ctx.arc(0, -11, 11, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#f0f2f4";
+      ctx.beginPath(); ctx.arc(0, -11, 11, 2.5, 3.9); ctx.fill();
+    } else if (d.kind === "tree") {
+      ctx.fillStyle = "#6b4a2f";
+      ctx.fillRect(-7, -74, 14, 74);
+      ctx.fillStyle = "#4f8a3f";
+      [[0, -96, 34, 27], [-22, -80, 22, 18], [22, -82, 21, 17]].forEach(function (c) {
+        ctx.beginPath();
+        ctx.ellipse(c[0], c[1], c[2], c[3], 0, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      ctx.fillStyle = "#63a44f";
+      ctx.beginPath(); ctx.ellipse(-8, -101, 19, 13, 0, 0, Math.PI * 2); ctx.fill();
+    } else if (d.kind === "flowers") {
+      ctx.strokeStyle = "#4e8a45";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      [-12, -3, 7, 15].forEach(function (x, i) {
+        ctx.moveTo(x, 0); ctx.lineTo(x + (i % 2 ? 2 : -2), -17 - (i % 3) * 5);
+      });
+      ctx.stroke();
+      var cols = ["#e8d24a", "#e07ba8", "#f2f2f2", "#e8d24a"];
+      [-12, -3, 7, 15].forEach(function (x, i) {
+        ctx.fillStyle = cols[i];
+        ctx.beginPath();
+        ctx.arc(x + (i % 2 ? 2 : -2), -18 - (i % 3) * 5, 4.5, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    } else if (d.kind === "bin") {
+      ctx.fillStyle = "#4a5560";
+      ctx.beginPath();
+      ctx.moveTo(-15, 0); ctx.lineTo(15, 0); ctx.lineTo(12, -38); ctx.lineTo(-12, -38);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = "#5d6b78";
+      ctx.fillRect(-16, -44, 32, 6);
+      ctx.fillStyle = "#3b444d";
+      ctx.fillRect(-13, -30, 26, 3);
+    } else if (d.kind === "post") {
+      ctx.fillStyle = "#6d5945";
+      ctx.fillRect(-4, -56, 8, 56);
+      ctx.fillStyle = "#856f56";
+      ctx.fillRect(-4, -56, 3, 56);
+      ctx.fillStyle = "#8a7359";
+      ctx.fillRect(-10, -60, 20, 5);
+    }
+    ctx.restore();
   }
 
   // The robot vacuum: a dark disc with a bumper on its leading edge, a light
@@ -855,21 +1087,13 @@
     // From here on everything is drawn in world units.
     ctx.setTransform(SCALE, 0, 0, SCALE, -camX * SCALE, -camY * SCALE);
 
-    for (var i = 0; i < LEVEL.platforms.length; i++) {
-      var p = LEVEL.platforms[i];
-      var G = (THEME || {}).ground ||
-              { dirt: "#6b4a33", edge: "#7d5940", cap: "#5c9e46", lip: "#7cc55e" };
-      ctx.fillStyle = G.dirt;
-      ctx.fillRect(p.x, p.y, p.w, p.h);
-      // A lit edge down each side stops a platform reading as a flat slab.
-      ctx.fillStyle = G.edge;
-      ctx.fillRect(p.x, p.y, 3, p.h);
-      ctx.fillRect(p.x + p.w - 3, p.y, 3, p.h);
-      ctx.fillStyle = G.cap;
-      ctx.fillRect(p.x, p.y, p.w, 5);
-      ctx.fillStyle = G.lip;
-      ctx.fillRect(p.x, p.y, p.w, 2);
+    // Scenery behind the platforms, so a lamp stands against the wall and a
+    // tree is behind the bench rather than pasted over it.
+    for (var d1 = 0; d1 < LEVEL.props.length; d1++) {
+      if (!LEVEL.props[d1].front) drawProp(LEVEL.props[d1]);
     }
+
+    for (var i = 0; i < LEVEL.platforms.length; i++) drawPlatform(LEVEL.platforms[i]);
 
     for (var hi2 = 0; hi2 < LEVEL.hazards.length; hi2++) {
       var hz2 = LEVEL.hazards[hi2];
@@ -978,6 +1202,16 @@
     ctx.drawImage(sheet, box.x, box.y, box.w, box.h,
                   -ANCHOR.x, -ANCHOR.y, CELL, CELL);
     ctx.restore();
+    // Scenery marked `front`, then any theme layer marked the same: things
+    // he passes behind. One flat backdrop cannot give a scene depth; a
+    // couple of things nearer than he is can.
+    for (var d2 = 0; d2 < LEVEL.props.length; d2++) {
+      if (LEVEL.props[d2].front) drawProp(LEVEL.props[d2]);
+    }
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    drawFront(canvas.width, canvas.height);
+    ctx.setTransform(SCALE, 0, 0, SCALE, -camX * SCALE, -camY * SCALE);
+
     if (bonus) drawPops();
     if (bonus) { ctx.setTransform(1, 0, 0, 1, 0, 0); drawPrompt(w, h); }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -1016,6 +1250,13 @@
     // The patrol clock, so a test can time a jump against the machine.
     clock: function () { return levelClock; },
     get checkpoint() { return checkpoint ? checkpoint.at : null; },
+    // Whether he is stood on a machine rather than on the floor, so a test
+    // can tell a ride from a lucky landing beside one.
+    get riding() { return !!player.riding; },
+    // World units, for tests -- the player is kept in pixels internally.
+    get where() {
+      return { x: player.x / PX, y: (LEVEL.ground - player.y) / PX };
+    },
     get distraction() { return distraction; },
     get thieves() { return thieves.map(function (t) { return t.state; }); },
     get camera() { return { camX: camX, camY: camY, scale: SCALE,

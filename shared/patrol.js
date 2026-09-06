@@ -71,11 +71,38 @@
     return here;
   }
 
+  /**
+   * The top of the machine, as a platform: {x, y, halfW}.
+   *
+   * `hits` has always returned null once his feet clear `height` -- being
+   * above one was already safe. This makes that space stand on, which turns
+   * the thing you were dodging into the thing that carries you across.
+   * Ginger is afraid of the vacuum; the toy rides it.
+   *
+   * As wide as the machine looks. An earlier pass made the deck narrower
+   * than the disc, on the theory that you should not stand on overhang --
+   * but it is a moving target you are jumping at, and a deck you can see
+   * and still miss reads as the game cheating rather than as difficulty.
+   */
+  function deck(p, t) {
+    return { x: at(p, t).x, y: p.y + CFG.height, halfW: CFG.radius * 0.95 };
+  }
+
+  /**
+   * How far the deck moves between two times -- what a rider is carried by.
+   * Taken as a difference rather than differentiated, so it is exactly the
+   * motion `at` produces, turnaround pauses included.
+   */
+  function drift(p, t0, t1) {
+    return at(p, t1).x - at(p, t0).x;
+  }
+
   /** The shove a hit produces, away from the machine. */
   function knockFrom(here, x) {
     var away = x < here.x ? -1 : 1;
     return { vx: away * CFG.knock, vy: CFG.lift, stun: CFG.stun };
   }
 
-  return { CFG: CFG, at: at, hits: hits, knockFrom: knockFrom };
+  return { CFG: CFG, at: at, deck: deck, drift: drift, hits: hits,
+           knockFrom: knockFrom };
 });
