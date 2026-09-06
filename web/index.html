@@ -57,6 +57,7 @@
 <script src="../shared/jump.js"></script>
 <script src="../shared/level.js"></script>
 <script src="../levels/levels.js"></script>
+<script src="../shared/theme.js"></script>
 <script src="../shared/patrol.js"></script>
 <script src="../shared/checkpoint.js"></script>
 <script src="../shared/distraction.js"></script>
@@ -130,6 +131,11 @@ const SLUG = (want && window.MRCLUCKERS_LEVELS[want])
   ? want : window.MRCLUCKERS_LEVEL_ORDER[0];
 const LEVEL = window.Level.normalize(window.MRCLUCKERS_LEVELS[SLUG]);
 const PLATFORMS = LEVEL.platforms;
+// The same palette the canvas demo paints with. Without it every level here
+// was the same brown dirt under the same green grass, so the kitchen looked
+// like the garden.
+const THEME = window.Theme ? window.Theme.get(LEVEL.theme) : null;
+const part = (kind) => window.Theme ? window.Theme.part(LEVEL.theme, kind) : null;
 const collected = new Set();
 // Where he comes back to. The level is already in authored units here, so the
 // shared rule can read it directly.
@@ -144,26 +150,284 @@ renderer.setSize(innerWidth, innerHeight);
 document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color('#9cc3dc');
-scene.fog = new THREE.Fog('#b8d3e4', 16, 40);
+// Sky from the theme: the far colour overhead, the near one on the fog, so
+// the level fades into its own horizon rather than a generic blue.
+scene.background = new THREE.Color(THEME ? THEME.sky[0] : '#9cc3dc');
+scene.fog = new THREE.Fog(THEME ? THEME.sky[1] : '#b8d3e4', 16, 40);
 const camera = sideCamera(innerWidth / innerHeight, viewHeight());
 plushLighting(scene);
 
 // --- level ---------------------------------------------------------------
 // A side-on orthographic camera only ever sees the front face, so the grass
 // is a separate cap sitting proud of the dirt rather than a top-face material.
-const dirtMat = new THREE.MeshStandardMaterial({ color: '#6b4b34', roughness: 1 });
-const grassMat = new THREE.MeshStandardMaterial({ color: '#5da041', roughness: 1 });
+const G = (THEME && THEME.ground) ||
+          { dirt: '#6b4b34', edge: '#7d5940', cap: '#5da041', lip: '#7cc55e' };
+const dirtMat = new THREE.MeshStandardMaterial({ color: G.dirt, roughness: 1 });
+const grassMat = new THREE.MeshStandardMaterial({ color: G.cap, roughness: 1 });
 const GRASS = 0.16;
+const matCache = new Map();
+const mat = (hex, rough = 0.85) => {
+  if (!matCache.has(hex)) matCache.set(hex,
+    new THREE.MeshStandardMaterial({ color: hex, roughness: rough }));
+  return matCache.get(hex);
+};
+const box = (w, h, d, hex, x, y, z = 0) => {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(hex));
+  m.position.set(x, y, z);
+  scene.add(m);
+  return m;
+};
+
+/* A platform's `kind` says what shape it is; the theme says what it is made
+ * of here. The canvas demo draws these five in 2D -- these are the same five
+ * as solids, so a level reads as the same place in either demo rather than
+ * as a row of identical slabs in one of them. */
 for (const p of PLATFORMS) {
   const depth = p.ground ? 3 : 1.2;
-  const dirt = new THREE.Mesh(new THREE.BoxGeometry(p.w, p.h, depth), dirtMat);
-  dirt.position.set(p.x + p.w / 2, p.y - p.h / 2, 0);
-  scene.add(dirt);
-  const cap = new THREE.Mesh(
-    new THREE.BoxGeometry(p.w, GRASS, depth + 0.06), grassMat);
-  cap.position.set(p.x + p.w / 2, p.y - GRASS / 2, 0);
-  scene.add(cap);
+  const cx = p.x + p.w / 2;
+  const C = part(p.kind);
+
+  if (p.kind === 'slab' && C) {
+    // A top on legs, with daylight under it: table, worktop, bench.
+    const legW = Math.max(0.08, p.w * 0.09), inset = Math.max(0.06, p.w * 0.07);
+    const legH = Math.max(0.05, p.h - 0.17);
+    box(legW, legH, depth * 0.5, C.leg, p.x + inset + legW / 2, p.y - 0.17 - legH / 2);
+    box(legW, legH, depth * 0.5, C.leg, p.x + p.w - inset - legW / 2, p.y - 0.17 - legH / 2);
+    box(p.w, 0.12, depth, C.body, cx, p.y - 0.11);
+    box(p.w + 0.05, 0.06, depth + 0.05, C.top, cx, p.y - 0.03);
+  } else if (p.kind === 'soft' && C) {
+    // Upholstery or foliage: a body with a rounded top and a few tufts.
+    const bh = Math.max(0.2, p.h);
+    box(p.w, bh - 0.1, depth, C.body, cx, p.y - 0.1 - (bh - 0.1) / 2);
+    const roll = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.11, 0.11, p.w, 10), mat(C.top));
+    roll.rotation.z = Math.PI / 2;
+    roll.position.set(cx, p.y - 0.05, 0);
+    scene.add(roll);
+    for (let t = p.x + 0.22; t < p.x + p.w - 0.15; t += 0.42) {
+      const tuft = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 5), mat(C.tuft));
+      tuft.scale.set(1, 0.55, 1);
+      tuft.position.set(t, p.y + 0.01, depth * 0.22);
+      scene.add(tuft);
+    }
+  } else if (p.kind === 'crate' && C) {
+    box(p.w, p.h, depth, C.body, cx, p.y - p.h / 2);
+    box(p.w, 0.05, depth + 0.04, C.top, cx, p.y - 0.025);
+    // Plank lines, as thin proud strips rather than a texture.
+    for (let b = p.y - 0.22; b > p.y - p.h + 0.06; b -= 0.22)
+      box(p.w + 0.02, 0.03, depth + 0.03, C.line, cx, b);
+  } else if (p.kind === 'pipe' && C) {
+    const r = Math.max(0.07, Math.min(0.17, p.h * 0.5));
+    const tube = new THREE.Mesh(
+      new THREE.CylinderGeometry(r, r, p.w, 12), mat(C.body));
+    tube.rotation.z = Math.PI / 2;
+    tube.position.set(cx, p.y - r, 0);
+    scene.add(tube);
+    box(p.w - 0.06, 0.05, r * 1.1, C.top, cx, p.y - 0.02);
+  } else {
+    // `ledge` -- ground, walls, shelves. What every platform used to be.
+    box(p.w, p.h, depth, G.dirt, cx, p.y - p.h / 2);
+    box(p.w, GRASS, depth + 0.06, G.cap, cx, p.y - GRASS / 2);
+    box(p.w, 0.04, depth + 0.08, G.lip, cx, p.y - 0.02);
+  }
+}
+
+/* Scenery. Never collided with, never scored -- it exists so a level reads
+ * as a room or a lane instead of a row of ledges. Props carry their own
+ * colours, because a pot plant is a pot plant wherever it stands.
+ *
+ * Depth is the one thing this demo can do that the canvas cannot: a prop sits
+ * behind or in front of the play plane rather than merely being drawn in a
+ * different order, so it parallaxes for free as the camera tracks. */
+const cyl = (rt, rb, h, hex, x, y, z, seg = 10) => {
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg), mat(hex));
+  m.position.set(x, y, z);
+  scene.add(m);
+  return m;
+};
+const ball = (r, hex, x, y, z, sy = 1) => {
+  const m = new THREE.Mesh(new THREE.SphereGeometry(r, 9, 6), mat(hex));
+  m.scale.y = sy;
+  m.position.set(x, y, z);
+  scene.add(m);
+  return m;
+};
+
+for (const d of LEVEL.props) {
+  const s = d.scale || 1;
+  const x = d.x, y = d.y;
+  const z = d.front ? 1.5 : -1.35;      // nearer than him, or behind him
+  if (d.kind === 'plant') {
+    cyl(0.17 * s, 0.13 * s, 0.32 * s, '#a9603c', x, y + 0.16 * s, z);
+    ball(0.13 * s, '#4e8a45', x - 0.14 * s, y + 0.52 * s, z);
+    ball(0.15 * s, '#4e8a45', x + 0.02 * s, y + 0.66 * s, z);
+    ball(0.12 * s, '#4e8a45', x + 0.15 * s, y + 0.53 * s, z);
+  } else if (d.kind === 'lamp') {
+    cyl(0.035 * s, 0.035 * s, 1.0 * s, '#5c5148', x, y + 0.5 * s, z);
+    cyl(0.02 * s, 0.16 * s, 0.06 * s, '#5c5148', x, y + 0.03 * s, z);
+    cyl(0.17 * s, 0.26 * s, 0.34 * s, '#e8cf9a', x, y + 1.17 * s, z);
+  } else if (d.kind === 'bowl') {
+    cyl(0.24 * s, 0.17 * s, 0.19 * s, '#3f6f96', x, y + 0.09 * s, z);
+    cyl(0.15 * s, 0.15 * s, 0.04 * s, '#c9913f', x, y + 0.18 * s, z);
+  } else if (d.kind === 'ball') {
+    ball(0.15 * s, '#d34a3f', x, y + 0.15 * s, z);
+  } else if (d.kind === 'tree') {
+    cyl(0.09 * s, 0.12 * s, 1.0 * s, '#6b4a2f', x, y + 0.5 * s, z);
+    ball(0.46 * s, '#4f8a3f', x, y + 1.32 * s, z, 0.8);
+    ball(0.3 * s, '#4f8a3f', x - 0.32 * s, y + 1.1 * s, z, 0.8);
+    ball(0.28 * s, '#63a44f', x + 0.3 * s, y + 1.16 * s, z, 0.8);
+  } else if (d.kind === 'flowers') {
+    const cols = ['#e8d24a', '#e07ba8', '#f2f2f2', '#e8d24a'];
+    [-0.16, -0.04, 0.09, 0.2].forEach((o, i) => {
+      cyl(0.015 * s, 0.015 * s, 0.26 * s, '#4e8a45', x + o * s, y + 0.13 * s, z, 6);
+      ball(0.06 * s, cols[i], x + o * s, y + 0.29 * s, z);
+    });
+  } else if (d.kind === 'bin') {
+    cyl(0.19 * s, 0.23 * s, 0.52 * s, '#4a5560', x, y + 0.26 * s, z);
+    cyl(0.22 * s, 0.22 * s, 0.06 * s, '#5d6b78', x, y + 0.55 * s, z);
+  } else if (d.kind === 'post') {
+    box(0.11 * s, 0.78 * s, 0.11 * s, '#6d5945', x, y + 0.39 * s, z);
+    box(0.26 * s, 0.07 * s, 0.16 * s, '#8a7359', x, y + 0.81 * s, z);
+  }
+}
+
+/* The parallax backdrop, from the same theme the canvas demo paints.
+ *
+ * The camera here is orthographic, so putting a layer further away buys
+ * nothing on its own -- there is no perspective divide, and a thing at z=-10
+ * tracks the camera exactly like a thing at z=0. So the parallax is driven by
+ * hand, as it is in 2D: a layer sits at `camX * (1 - speed)`, which leaves
+ * speed 1 stuck to the floor and speed 0 painted on the far wall. Depth is
+ * still worth setting, because it decides what occludes what.
+ *
+ * Layers are authored in the canvas demo's world pixels, and `step` is
+ * halved when it draws, so both are converted here rather than in the theme.
+ */
+const PXU = window.Jump.C.PX_PER_HEIGHT;      // world pixels per world unit
+const backdrops = [];
+if (THEME && THEME.layers) {
+  // Wide enough to cover the widest view plus a step either side. The tiles
+  // are wrapped under the camera every frame rather than laid end to end
+  // across the level, which was hundreds of instances to show about thirty.
+  const span = MIN_WORLD_WIDTH * 2 + 8;
+  for (const L of THEME.layers) {
+    /* Phones are fill-rate bound long before they are triangle bound, and a
+     * backdrop layer is a screenful of pixels each. The furthest two are also
+     * the most fogged and the least parallaxed -- the ones you would notice
+     * least -- so a touch device does without them. */
+    if (coarse && (L.speed || 0.4) < 0.25) continue;
+    const g = new THREE.Group();
+    const speed = L.speed === undefined ? 0.4 : L.speed;
+    // Nearer layers sit nearer. Anything marked `front` comes past him.
+    g.position.z = L.front ? 1.9 : -2.4 - (1 - Math.min(speed, 1)) * 9;
+    const y = -(L.y || 0) / PXU;
+    // A translucent layer that fills the screen is the worst thing you can
+    // hand a phone: it cannot be depth-rejected, so every pixel behind it is
+    // shaded anyway. A background layer only ever composites over the sky, so
+    // the alpha is mixed into the colour instead and the layer stays opaque.
+    // Front layers pass over him and do need real blending.
+    /* Unlit, on purpose. A backdrop layer is a flat silhouette -- it has no
+     * form to shade, and it covers most of the screen, so lighting it is a
+     * per-pixel cost across the whole viewport for a colour that never
+     * changes. `MeshBasicMaterial` is the same picture without that. */
+    let hex = L.color;
+    if (L.alpha !== undefined && L.alpha < 1 && !L.front) {
+      // Fills the screen, so it cannot be depth-rejected and every pixel
+      // behind it gets shaded anyway. It only ever sits over the sky, so the
+      // alpha is mixed into the colour and the layer stays opaque.
+      hex = '#' + new THREE.Color(L.color)
+        .lerp(new THREE.Color(THEME.sky[1]), 1 - L.alpha).getHexString();
+    }
+    const lm = new THREE.MeshBasicMaterial({ color: hex });
+    if (L.front && L.alpha !== undefined && L.alpha < 1) {
+      lm.transparent = true; lm.opacity = L.alpha;
+    }
+
+    if (L.kind === 'band') {
+      // A band is a flat stripe of colour. In front of him that is a 2D
+      // shading trick -- a darker strip of near floor -- and in 3D it becomes
+      // a slab hanging in mid-air, so only the ones behind him are built.
+      if (L.front) continue;
+      const h = (L.h || 8) / PXU;
+      const bar = new THREE.Mesh(new THREE.BoxGeometry(span, h, 0.4), lm);
+      bar.position.set(0, y - h / 2, 0);
+      g.add(bar);
+    } else {
+      const step = (L.step || 200) / 2 / PXU;
+      const n = Math.max(2, Math.ceil(span / step));
+      if (L.kind === 'blobs') {
+        /* Hills and canopies are a row of overlapping ellipses. Drawn as N
+         * separate discs they cover the screen several times over -- and
+         * inside one InstancedMesh three.js cannot sort them, so every one
+         * shades pixels the next one paints over. That overdraw, not the
+         * triangle count, was halving the frame rate.
+         *
+         * Drawn as *one* silhouette it is a single unbroken shape: sample the
+         * union of the ellipse tops across the span and fill down from it.
+         * Same picture, one draw, and no pixel painted twice. */
+        const rx = (L.rx || 120) / PXU, ry = (L.ry || 70) / PXU;
+        const half = span / 2;
+        const shape = new THREE.Shape();
+        const STEPS = 160;
+        shape.moveTo(-half, y - 14);
+        for (let i = 0; i <= STEPS; i++) {
+          const px = -half + (span * i) / STEPS;
+          // The tallest ellipse over this x wins; that union is the skyline.
+          let top = y - 14;
+          const first = Math.floor((px - half) / step);
+          for (let k = first; k <= first + Math.ceil(span / step) + 1; k++) {
+            const cx2 = -half + k * step;
+            const d = Math.abs(px - cx2);
+            if (d < rx) top = Math.max(top, y + ry * Math.sqrt(1 - (d / rx) ** 2));
+          }
+          shape.lineTo(px, top);
+        }
+        shape.lineTo(half, y - 14);
+        shape.closePath();
+        const hill = new THREE.Mesh(new THREE.ShapeGeometry(shape), lm);
+        g.add(hill);
+        scene.add(g);
+        backdrops.push({ g, speed, step });
+        continue;
+      }
+      let geo;
+      if (L.kind === 'panes') {
+        geo = new THREE.BoxGeometry((L.w || 140) / PXU, (L.h || 180) / PXU, 0.3);
+      } else {                                   // posts
+        geo = new THREE.BoxGeometry((L.w || 10) / PXU, (L.h || 60) / PXU, 0.3);
+      }
+      const inst = new THREE.InstancedMesh(geo, lm, n);
+      const t = new THREE.Object3D();
+      for (let i = 0; i < n; i++) {
+        t.position.set(-span / 2 + i * step, y, 0);
+        t.scale.set(1, 1, 1);
+        // Boxes are authored from their top edge downward.
+        t.position.y = y - ((L.kind === 'panes' ? (L.h || 180) : (L.h || 60)) / PXU) / 2;
+        t.updateMatrix();
+        inst.setMatrixAt(i, t.matrix);
+      }
+      inst.instanceMatrix.needsUpdate = true;
+      g.add(inst);
+
+      if (L.kind === 'panes' && L.frame) {
+        // A frame just behind each pane, a touch larger on every side.
+        const fg = new THREE.BoxGeometry((L.w || 140) / PXU + 0.18,
+                                         (L.h || 180) / PXU + 0.18, 0.2);
+        const fi = new THREE.InstancedMesh(fg, mat(L.frame, 1), n);
+        for (let i = 0; i < n; i++) {
+          t.position.set(-span / 2 + i * step, y - ((L.h || 180) / PXU) / 2, -0.16);
+          t.scale.set(1, 1, 1);
+          t.updateMatrix();
+          fi.setMatrixAt(i, t.matrix);
+        }
+        fi.instanceMatrix.needsUpdate = true;
+        g.add(fi);
+      }
+    }
+    scene.add(g);
+    backdrops.push({ g, speed, step: L.kind === 'band' ? 0
+                                   : (L.step || 200) / 2 / PXU });
+  }
 }
 
 const kibbleMat = new THREE.MeshStandardMaterial({ color: '#c8892f', roughness: .7 });
@@ -546,21 +810,46 @@ function update(dt) {
   P.y += P.vy * dt;
 
   const wasAir = !P.onGround;
+  const wasRiding = P.riding;
   P.onGround = false;
+  P.riding = null;
   if (P.vy <= 0) {
     for (const p of PLATFORMS) {
       if (P.x + 0.22 > p.x && P.x - 0.22 < p.x + p.w &&
           prevY >= p.y - 0.001 && P.y <= p.y) {
         P.y = p.y; P.vy = 0; P.onGround = true;
-        if (wasAir) P.landTimer = 0.26;
         break;
       }
     }
+    // The top of a vacuum is a surface too. `Patrol.hits` has always treated
+    // being above one as safe; this makes that space stand on, which turns
+    // the thing you were dodging into the thing that carries you.
+    if (!P.onGround) {
+      for (const m of LEVEL.patrols) {
+        const d = window.Patrol.deck(m, levelClock);
+        if (Math.abs(P.x - d.x) < d.halfW + 0.14 &&
+            prevY >= d.y - 0.08 && P.y <= d.y) {
+          P.y = d.y; P.vy = 0; P.onGround = true; P.riding = m;
+          break;
+        }
+      }
+    }
+    if (P.onGround && wasAir) P.landTimer = 0.26;
+  }
+  // Carried by whatever he is standing on, taken as the deck's own movement
+  // over this frame so he keeps station on it through the turnaround pause.
+  if (P.riding) P.x += window.Patrol.drift(P.riding, levelClock - dt, levelClock);
+  if (wasRiding && !P.riding && P.vy > 0) {
+    // Stepping off keeps some of the machine's motion: a ride throws him
+    // further than a standing jump, which is what makes it worth doing.
+    P.vx += window.Patrol.drift(wasRiding, levelClock - dt, levelClock)
+            / Math.max(dt, 0.001) * 0.5;
   }
   // Hazards and falling out of the world put him back at the start.
   // The vacuum: drive each machine from the shared clock, then see if it
-  // caught him. Not lethal -- it bats him back down the room -- and being
-  // above it is safe, so the counterplay is to time the gap or jump it.
+  // caught him. Not lethal -- it bats him back down the room. Being above one
+  // is safe and standing on one is a ride, so the counterplay is to time the
+  // gap, jump it, or get on top of it.
   for (const v of vacuums) {
     const { m, lamp, bumper } = v.userData;
     const here = window.Patrol.at(m, levelClock);
@@ -569,7 +858,7 @@ function update(dt) {
     lamp.material.color.setHex(
       here.turning ? (Math.floor(performance.now() / 180) % 2 ? 0xffd34d : 0x6b5a20)
                    : 0x7fd46b);
-    if (P.hitCool > 0) continue;
+    if (P.hitCool > 0 || P.riding === m) continue;
     if (!window.Patrol.hits(m, levelClock, P.x, P.y, HALF_W)) continue;
     const k = window.Patrol.knockFrom(here, P.x);
     P.vx = k.vx; P.vy = k.vy; P.onGround = false; P.stun = k.stun;
@@ -676,6 +965,20 @@ function update(dt) {
   camera.position.x += ((P.x + lean) - camera.position.x) * Math.min(1, dt * 6);
   camera.position.y += (P.y + 0.9 - camera.position.y) * Math.min(1, dt * 4);
 
+  // Drive the backdrop by hand: an orthographic camera gets no parallax from
+  // depth, so each layer is slid to `camX * (1 - speed)`. Speed 1 stays put
+  // against the floor, speed 0 is painted on the far wall, and anything over
+  // 1 slides past faster than he runs.
+  for (const L of backdrops) {
+    const cx = camera.position.x;
+    // Follow the camera, then step back by however far into the current tile
+    // the parallax has travelled. Over one camera unit that nets out to
+    // (1 - speed) of movement, which is the parallax, but the tiles never
+    // leave the view so only a screenful of them has to exist.
+    L.g.position.x = L.step ? cx - (cx * L.speed) % L.step : cx * (1 - L.speed);
+    L.g.position.y = camera.position.y * 0.14;   // a touch of vertical drift
+  }
+
   pressed = {};
   document.getElementById('state').textContent = bird.current.getClip().name;
   let note = '';
@@ -709,8 +1012,14 @@ renderer.setAnimationLoop((now) => {
   }
 });
 window.__bird = bird;   // handy for poking at it from the console
-window.__player = P;    // used by the automated input tests
+window.__player = P;
+window.__backdrops = backdrops;   // for the per-layer cost check
+window.__renderer = renderer;   // draw calls and triangles, for the perf check
+// For the automated look-at-it checks: how much got built, and in what sky.
+window.__scene = scene;
+window.__sky = THEME ? THEME.sky[0] : null;    // used by the automated input tests
 window.__level = LEVEL; // ditto: the autoplayer needs the route
+window.__clock = () => levelClock;   // to line a jump up against a machine
 window.__checkpoint = () => (checkpoint ? checkpoint.at : null);
 window.__distraction = () => distraction;
 window.__thieves = () => thieves.map((t) => t.state);
