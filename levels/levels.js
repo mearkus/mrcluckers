@@ -3,7 +3,6 @@ window.MRCLUCKERS_LEVELS = {
     "name": "Living Room",
     "order": 1,
     "theme": "indoors",
-    "distraction": "bird",
     "width": 42,
     "spawn": {
       "x": 1.5,
@@ -13,6 +12,27 @@ window.MRCLUCKERS_LEVELS = {
       "x": 39.4,
       "y": 0
     },
+    "critters": [
+      {
+        "x": 7.0,
+        "y": 3.75,
+        "kind": "bird",
+        "linger": 7.0,
+        "period": 9.0
+      },
+      {
+        "x": 33.6,
+        "y": 4.55,
+        "kind": "bird",
+        "linger": 7.0,
+        "period": 9.0
+      },
+      {
+        "x": 40.35,
+        "kind": "bird",
+        "y": 1.32
+      }
+    ],
     "platforms": [
       {
         "x": 0,
@@ -241,7 +261,6 @@ window.MRCLUCKERS_LEVELS = {
     "name": "The Kitchen",
     "order": 2,
     "theme": "kitchen",
-    "distraction": "bird",
     "width": 40,
     "spawn": {
       "x": 1.5,
@@ -251,6 +270,27 @@ window.MRCLUCKERS_LEVELS = {
       "x": 37.6,
       "y": 0
     },
+    "critters": [
+      {
+        "x": 14.6,
+        "y": 5.25,
+        "kind": "bird",
+        "linger": 7.0,
+        "period": 9.0
+      },
+      {
+        "x": 33.6,
+        "y": 4.75,
+        "kind": "bird",
+        "linger": 7.0,
+        "period": 9.0
+      },
+      {
+        "x": 38.55,
+        "kind": "bird",
+        "y": 1.32
+      }
+    ],
     "platforms": [
       {
         "x": 0,
@@ -508,7 +548,6 @@ window.MRCLUCKERS_LEVELS = {
     "name": "The Garden",
     "order": 3,
     "theme": "garden",
-    "distraction": "squirrel",
     "width": 48,
     "spawn": {
       "x": 1.5,
@@ -518,6 +557,34 @@ window.MRCLUCKERS_LEVELS = {
       "x": 45.4,
       "y": 0
     },
+    "critters": [
+      {
+        "x": 16.9,
+        "y": 2.1,
+        "kind": "squirrel",
+        "linger": 7.0,
+        "period": 9.0
+      },
+      {
+        "x": 31.3,
+        "y": 3.0,
+        "kind": "squirrel",
+        "linger": 7.0,
+        "period": 9.0
+      },
+      {
+        "x": 40.8,
+        "y": 4.05,
+        "kind": "bird",
+        "linger": 7.0,
+        "period": 9.0
+      },
+      {
+        "x": 46.35,
+        "kind": "squirrel",
+        "y": 0.0
+      }
+    ],
     "platforms": [
       {
         "x": 0,
@@ -793,7 +860,6 @@ window.MRCLUCKERS_LEVELS = {
     "name": "The Park",
     "order": 4,
     "theme": "park",
-    "distraction": "bird",
     "width": 58,
     "spawn": {
       "x": 1.5,
@@ -803,6 +869,34 @@ window.MRCLUCKERS_LEVELS = {
       "x": 55.2,
       "y": 0
     },
+    "critters": [
+      {
+        "x": 16.8,
+        "y": 2.2,
+        "kind": "squirrel",
+        "linger": 7.0,
+        "period": 9.0
+      },
+      {
+        "x": 29.3,
+        "y": 1.2,
+        "kind": "squirrel",
+        "linger": 7.0,
+        "period": 9.0
+      },
+      {
+        "x": 44.6,
+        "y": 5.35,
+        "kind": "bird",
+        "linger": 7.0,
+        "period": 9.0
+      },
+      {
+        "x": 56.15,
+        "kind": "bird",
+        "y": 2.2
+      }
+    ],
     "platforms": [
       {
         "x": 0,
@@ -1135,7 +1229,6 @@ window.MRCLUCKERS_LEVELS = {
     "name": "The Lane",
     "order": 5,
     "theme": "lane",
-    "distraction": "squirrel",
     "width": 64,
     "spawn": {
       "x": 1.5,
@@ -1145,6 +1238,41 @@ window.MRCLUCKERS_LEVELS = {
       "x": 61.2,
       "y": 0
     },
+    "critters": [
+      {
+        "x": 17.4,
+        "y": 2.2,
+        "kind": "squirrel",
+        "linger": 7.0,
+        "period": 9.0
+      },
+      {
+        "x": 29.2,
+        "y": 5.05,
+        "kind": "bird",
+        "linger": 7.0,
+        "period": 9.0
+      },
+      {
+        "x": 46.9,
+        "y": 2.4,
+        "kind": "squirrel",
+        "linger": 7.0,
+        "period": 9.0
+      },
+      {
+        "x": 60.5,
+        "y": 5.15,
+        "kind": "bird",
+        "linger": 7.0,
+        "period": 9.0
+      },
+      {
+        "x": 62.15,
+        "kind": "squirrel",
+        "y": 0.0
+      }
+    ],
     "platforms": [
       {
         "x": 0,

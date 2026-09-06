@@ -106,10 +106,12 @@ let bonus = null, bonusWait = 0;
 // typed here -- the two drifted apart once and the toy left the screen.
 let bonusBox = null, catchRing = null;
 function measureBonus() {
-  const e = window.Bonus.extent();
+  // The round's own patch, which is slid inside the level rather than centred
+  // on her, so this is asked of the round and not of the config.
+  const e = window.Bonus.span(bonus);
   const pad = 0.55;                       // the toy is about a unit across
   bonusBox = {
-    left: LEVEL.goal.x + e.min - pad, right: LEVEL.goal.x + e.max + pad,
+    left: e.min - pad, right: e.max + pad,
     top: LEVEL.goal.y + window.Bonus.arcHeight() + pad,
     bottom: LEVEL.goal.y - 0.35
   };
@@ -481,7 +483,7 @@ for (const h of LEVEL.hazards) {
 
 // Ginger waits at the goal, facing back down the level so she is looking at
 // him as he arrives.
-let ginger = null, distraction = null, squirrel = null;
+let ginger = null, distraction = null;
 if (LEVEL.goal) {
   const gltf = await new GLTFLoader().loadAsync('../assets/model/ginger.glb');
   const pivot = new THREE.Group();
@@ -515,63 +517,6 @@ if (LEVEL.goal) {
   }
   ginger = { root, mixer, play };
 
-  // Something more interesting than a toy chicken keeps turning up behind her.
-  distraction = window.Distraction
-    ? window.Distraction.create(LEVEL.goal.x, LEVEL.goal.y, 1, LEVEL.distraction)
-    : null;
-  if (distraction && distraction.kind === 'bird') {
-    // A bird: rounder, smaller, and it perches over her head rather than
-    // sitting on the floor, so it is drawn without a tail worth the name.
-    const feather = new THREE.MeshStandardMaterial({ color: '#5b788d', roughness: .8 });
-    const wingMat = new THREE.MeshStandardMaterial({ color: '#6d8ba1', roughness: .8 });
-    squirrel = new THREE.Group();
-    const body = new THREE.Mesh(new THREE.SphereGeometry(0.13, 12, 10), feather);
-    body.scale.set(1.15, 1, 1); body.position.y = 0.13;
-    squirrel.add(body);
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.085, 12, 10), feather);
-    head.position.set(0.12, 0.25, 0);
-    squirrel.add(head);
-    const beak = new THREE.Mesh(new THREE.ConeGeometry(0.032, 0.09, 7),
-      new THREE.MeshStandardMaterial({ color: '#e0a33c', roughness: .6 }));
-    beak.rotation.z = -Math.PI / 2;
-    beak.position.set(0.21, 0.24, 0);
-    squirrel.add(beak);
-    const tail = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), feather);
-    tail.scale.set(1.5, 0.4, 0.6); tail.position.set(-0.17, 0.13, 0);
-    squirrel.add(tail);
-    // Kept on the group so the wings can be flapped while it is in the air.
-    const wings = [];
-    for (const z of [0.07, -0.07]) {
-      const w = new THREE.Mesh(new THREE.SphereGeometry(0.1, 10, 8), wingMat);
-      w.scale.set(1.1, 0.28, 0.6);
-      w.position.set(-0.01, 0.16, z);
-      squirrel.add(w);
-      wings.push(w);
-    }
-    squirrel.userData.wings = wings;
-    squirrel.visible = false;
-    scene.add(squirrel);
-  } else if (distraction) {
-    const fur = new THREE.MeshStandardMaterial({ color: '#8d6440', roughness: .85 });
-    const dark = new THREE.MeshStandardMaterial({ color: '#7a5334', roughness: .9 });
-    squirrel = new THREE.Group();
-    const body = new THREE.Mesh(new THREE.SphereGeometry(0.15, 14, 12), fur);
-    body.scale.set(1, 1.2, 1); body.position.y = 0.17;
-    squirrel.add(body);
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.10, 14, 12), fur);
-    head.position.set(0.10, 0.36, 0);
-    squirrel.add(head);
-    const ear = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.09, 8), fur);
-    ear.position.set(0.07, 0.46, 0.03);
-    squirrel.add(ear);
-    const tail = new THREE.Mesh(new THREE.SphereGeometry(0.13, 14, 12), dark);
-    tail.scale.set(0.55, 1.5, 0.8); tail.position.set(-0.20, 0.28, 0);
-    tail.rotation.z = 0.4;
-    squirrel.add(tail);
-    squirrel.visible = false;
-    scene.add(squirrel);
-  }
-
   const shadow = new THREE.Mesh(
     new THREE.CircleGeometry(0.72, 28),
     new THREE.MeshBasicMaterial({ color: 0x24401c, transparent: true, opacity: 0.24 })
@@ -581,11 +526,85 @@ if (LEVEL.goal) {
   scene.add(shadow);
 }
 
+// The wildlife. Each critter has an authored perch somewhere in the level,
+// and where it sits is what it does: one near Ginger takes her attention,
+// one near a kibble takes the kibble.
+function makeBird() {
+  // Rounder and smaller than the squirrel, and it perches out of reach, so
+  // it is drawn without a tail worth the name.
+  const feather = new THREE.MeshStandardMaterial({ color: '#5b788d', roughness: .8 });
+  const wingMat = new THREE.MeshStandardMaterial({ color: '#6d8ba1', roughness: .8 });
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.13, 12, 10), feather);
+  body.scale.set(1.15, 1, 1); body.position.y = 0.13;
+  g.add(body);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.085, 12, 10), feather);
+  head.position.set(0.12, 0.25, 0);
+  g.add(head);
+  const beak = new THREE.Mesh(new THREE.ConeGeometry(0.032, 0.09, 7),
+    new THREE.MeshStandardMaterial({ color: '#e0a33c', roughness: .6 }));
+  beak.rotation.z = -Math.PI / 2;
+  beak.position.set(0.21, 0.24, 0);
+  g.add(beak);
+  const tail = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), feather);
+  tail.scale.set(1.5, 0.4, 0.6); tail.position.set(-0.17, 0.13, 0);
+  g.add(tail);
+  // Kept on the group so the wings can be flapped while it is in the air.
+  const wings = [];
+  for (const z of [0.07, -0.07]) {
+    const w = new THREE.Mesh(new THREE.SphereGeometry(0.1, 10, 8), wingMat);
+    w.scale.set(1.1, 0.28, 0.6);
+    w.position.set(-0.01, 0.16, z);
+    g.add(w); wings.push(w);
+  }
+  g.userData.wings = wings;
+  g.userData.carryAt = [0.26, 0.2];
+  return g;
+}
+
+function makeSquirrel() {
+  const fur = new THREE.MeshStandardMaterial({ color: '#8d6440', roughness: .85 });
+  const dark = new THREE.MeshStandardMaterial({ color: '#7a5334', roughness: .9 });
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.15, 14, 12), fur);
+  body.scale.set(1, 1.2, 1); body.position.y = 0.17;
+  g.add(body);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.10, 14, 12), fur);
+  head.position.set(0.10, 0.36, 0);
+  g.add(head);
+  const ear = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.09, 8), fur);
+  ear.position.set(0.07, 0.46, 0.03);
+  g.add(ear);
+  const tail = new THREE.Mesh(new THREE.SphereGeometry(0.13, 14, 12), dark);
+  tail.scale.set(0.55, 1.5, 0.8); tail.position.set(-0.20, 0.28, 0);
+  tail.rotation.z = 0.4;
+  g.add(tail);
+  g.userData.carryAt = [0.20, 0.33];
+  return g;
+}
+
+distraction = window.Distraction
+  ? window.Distraction.flock({
+      critters: LEVEL.critters,
+      dog: LEVEL.goal ? { x: LEVEL.goal.x, y: LEVEL.goal.y } : null,
+      pickups: LEVEL.pickups })
+  : null;
+// One mesh per perch, plus the kibble it makes off with.
+const critterMeshes = distraction ? distraction.critters.map((c) => {
+  const g = c.kind === 'bird' ? makeBird() : makeSquirrel();
+  const carried = new THREE.Mesh(kibbleGeo, kibbleMat);
+  carried.position.set(g.userData.carryAt[0], g.userData.carryAt[1], 0);
+  carried.visible = false;
+  g.add(carried);
+  g.userData.carried = carried;
+  g.visible = false;
+  scene.add(g);
+  return g;
+}) : [];
+
 // The other dog at the park: the same model, darkened so nobody mistakes it
 // for Ginger, driven by the `trot` clip she just gained.
-const thieves = [];
-for (const spec of (LEVEL.thieves || [])) {
-  if (!window.Thief) break;
+async function loadOtherDog() {
   const gltf = await new GLTFLoader().loadAsync('../assets/model/ginger.glb');
   let tinted = 0;
   gltf.scene.traverse((o) => {
@@ -607,7 +626,6 @@ for (const spec of (LEVEL.thieves || [])) {
   pivot.add(gltf.scene);
   const root = new THREE.Group();
   root.add(pivot);
-  root.position.set(spec.x, spec.y, 0);
   scene.add(root);
 
   const mixer = new THREE.AnimationMixer(gltf.scene);
@@ -621,8 +639,21 @@ for (const spec of (LEVEL.thieves || [])) {
     current.crossFadeTo(next, fade, false);
     current = next;
   };
-  thieves.push({ root, pivot, mixer, play, state: window.Thief.create(LEVEL, spec) });
+  return { root, pivot, mixer, play };
 }
+
+const thieves = [];
+for (const spec of (LEVEL.thieves || [])) {
+  if (!window.Thief) break;
+  const dog = await loadOtherDog();
+  dog.root.position.set(spec.x, spec.y, 0);
+  thieves.push(Object.assign(dog, { state: window.Thief.create(LEVEL, spec) }));
+}
+
+// And one more of it for the fetch round: it turns up at the end of every
+// level, whether or not that level had a thief in it.
+const rivalDog = LEVEL.goal && window.Bonus ? await loadOtherDog() : null;
+if (rivalDog) rivalDog.root.visible = false;
 
 // A blob shadow costs nothing and suits the toy better than a shadow map.
 const shadow = new THREE.Mesh(
@@ -684,26 +715,38 @@ function pickState(crouching) {
 function startBonus() {
   if (!window.Bonus || !LEVEL.goal) return null;
   bonus = window.Bonus.create();
-  bonus.start(LEVEL.goal.x, LEVEL.goal.y);
+  // The floor she is standing on, not the level's full width: three of the
+  // five levels have a water gap before their last ledge, and the round would
+  // lay its patch straight across it.
+  bonus.start(LEVEL.goal.x, LEVEL.goal.y,
+              window.Level.footing(LEVEL, LEVEL.goal));
   // The level's own kibble would read as treats, so it steps out of the way.
   for (const k of kibbles) k.visible = false;
+  // The wildlife stops when she has him back, but the update loop that hides
+  // its meshes does not run during the round -- so they would hang there.
+  for (const g of critterMeshes) g.visible = false;
   measureBonus();
   onResize();
 
   // Where he will land, drawn *up* off the ground: this camera is side-on
   // and orthographic, so anything lying flat is edge-on and invisible.
-  const R = bonus.cfg.catchRadius;
-  catchRing = new THREE.Mesh(
-    new THREE.BoxGeometry(R * 2, 0.06, 0.06),
-    new THREE.MeshBasicMaterial({ color: 0xfff6cf, transparent: true, opacity: 0.8 }));
-  catchRing.visible = false;
-  scene.add(catchRing);
+  if (!catchRing) {
+    const R = bonus.cfg.catchRadius;
+    catchRing = new THREE.Mesh(
+      new THREE.BoxGeometry(R * 2, 0.06, 0.06),
+      new THREE.MeshBasicMaterial({ color: 0xfff6cf, transparent: true, opacity: 0.8 }));
+    catchRing.visible = false;
+    scene.add(catchRing);
+  }
 
   onResize();                                   // pull the camera back
   return bonus;
 }
 
 function updateBonus(dt) {
+  // The toy is a rooster, and the other dog does not care for it: one crow a
+  // throw stops it dead. Same button, same meaning as in the level.
+  if (pressed.crow) bonus.crow();
   bonus.update(dt, { left: keys.left, right: keys.right });
 
   // One ring on the ground: where he will land, and where she has to be.
@@ -713,16 +756,33 @@ function updateBonus(dt) {
     if (live) {
       const lx = window.Bonus.landing(bonus);
       const under = Math.abs(lx - bonus.dog.x) <= bonus.cfg.catchRadius;
+      // Green when she has it, red when the other dog is nearer to it than
+      // she is: the ring is the one thing you are watching.
+      const rv = bonus.rival;
+      const theirs = rv.active && rv.flinch <= 0 &&
+                     Math.abs(rv.x - lx) < Math.abs(bonus.dog.x - lx);
       catchRing.position.set(lx, LEVEL.goal.y + 0.02, 0);
-      catchRing.material.color.setHex(under ? 0x96f08c : 0xfff6cf);
-      catchRing.material.opacity = under ? 1.0 : 0.8;
+      catchRing.material.color.setHex(under ? 0x96f08c : (theirs ? 0xe46056 : 0xfff6cf));
+      catchRing.material.opacity = under || theirs ? 1.0 : 0.8;
     }
   }
 
   for (const e of bonus.drain()) {
     if (e === 'catch') { bird.play('squeak', { restart: true });
                          if (ginger) ginger.play('greet', 0.08); }
-    else if (e === 'miss') bird.play('land', { restart: true });
+    else if (e === 'miss' || e === 'steal') bird.play('land', { restart: true });
+  }
+
+  // The other dog, running for the same spot she is.
+  if (rivalDog) {
+    const r = bonus.rival;
+    rivalDog.root.visible = r.active;
+    if (r.active) {
+      rivalDog.root.position.set(r.x, LEVEL.goal.y, 0);
+      rivalDog.root.rotation.y = r.dir > 0 ? Math.PI : 0;
+      rivalDog.play(Math.abs(r.vx) > 0.4 ? 'trot' : 'stand');
+      rivalDog.mixer.update(dt);
+    }
   }
 
   // He is the toy; she is the one you are steering.
@@ -755,16 +815,27 @@ function updateBonus(dt) {
   camera.position.x += (cx - camera.position.x) * Math.min(1, dt * 6);
   camera.position.y += (cy - camera.position.y) * Math.min(1, dt * 4);
 
-  document.getElementById('prompt').hidden =
-    !(bonus.throwIndex === 0 && bonus.phase === 'wind');
+  // Two prompts: how the round works, and -- said again the moment the other
+  // dog first turns up -- what it is for.
+  const first = bonus.throwIndex === 0, meeting = bonus.throwIndex === bonus.cfg.rivalFrom;
+  const prompt = document.getElementById('prompt');
+  prompt.hidden = !((first || meeting) && bonus.phase === 'wind');
+  if (!prompt.hidden) {
+    prompt.querySelector('b').textContent =
+      first ? 'Fetch! \u25C0 \u25B6 run Ginger' : 'Here comes the other dog';
+    prompt.querySelector('span').textContent =
+      first ? 'catch him in the ring before he lands'
+            : 'beat it to the ring, or crow to stop it';
+  }
 
   pressed = {};
   document.getElementById('state').textContent = bird.current.getClip().name;
+  const total = bonus.total();
   document.getElementById('levelName').textContent =
     (bonus.phase === 'done' ? 'fetch! \u2014 final'
-      : 'fetch! throw ' + Math.min(bonus.throwIndex + 1, bonus.cfg.throws) +
-        '/' + bonus.cfg.throws) +
-    '  ' + bonus.caught + '/' + bonus.cfg.throws + ' caught' +
+      : 'fetch! throw ' + Math.min(bonus.throwIndex + 1, total) + '/' + total) +
+    '  ' + bonus.caught + '/' + total + ' caught' +
+    (bonus.lost ? '  \u2014 ' + bonus.lost + ' to the other dog' : '') +
     (bonus.streak > 1 ? '  \u2014 ' + bonus.streak + ' in a row!' : '');
 }
 
@@ -921,6 +992,7 @@ function update(dt) {
 
   for (const k of kibbles) {
     if (!k.visible) continue;
+    if (distraction && distraction.lost(k.userData.index)) continue;
     if (Math.abs(k.position.x - P.x) < 0.36 &&
         Math.abs(k.position.y - (P.y + 0.5)) < 0.55) {
       k.visible = false;
@@ -947,28 +1019,37 @@ function update(dt) {
   }
 
   if (distraction) {
-    distraction.update(dt);
-    if (squirrel) {
-      squirrel.visible = !!distraction.critter;
-      if (distraction.critter) {
-        squirrel.position.set(distraction.critter.x, distraction.critter.y, 0);
-        squirrel.rotation.y = distraction.critter.dir > 0 ? 0 : Math.PI;
-        const wings = squirrel.userData.wings;
-        if (wings) {
-          // Out and beating in the air, folded flat once it has landed.
-          const flap = distraction.critter.flying
-            ? Math.sin(levelClock * 22) * 0.6 : -0.15;
-          wings[0].rotation.x = -flap;
-          wings[1].rotation.x = flap;
-        }
+    distraction.update(dt, { x: P.x, y: P.y + 0.45,
+                             taken: (i) => collected.has(i) });
+    for (let i = 0; i < critterMeshes.length; i++) {
+      const c = distraction.critters[i], g = critterMeshes[i];
+      g.visible = c.here;
+      if (!c.here) continue;
+      g.position.set(c.x, c.y, 0);
+      g.rotation.y = c.dir > 0 ? 0 : Math.PI;
+      g.userData.carried.visible = c.carry >= 0;
+      const wings = g.userData.wings;
+      if (wings) {
+        // Out and beating in the air, folded flat once it has landed.
+        const flap = c.flying ? Math.sin(levelClock * 22) * 0.6 : -0.15;
+        wings[0].rotation.x = -flap;
+        wings[1].rotation.x = flap;
       }
+    }
+    // Anything carried off is gone: take it out of the level for good.
+    for (const i of distraction.stolen) {
+      if (kibbles[i]) kibbles[i].visible = false;
     }
     // A squeak fetches her back, if he is close enough to be heard over it.
     if (pressed.squeak && distraction.squeak(P.x) && ginger) ginger.play('greet', 0.08);
-    // And a crow puts a bird up, which ends its visit outright.
-    if (pressed.crow) distraction.scare(P.x);
+    // And a crow puts up every bird within earshot, ending its visit and any
+    // theft it was halfway through.
+    if (pressed.crow) distraction.scare(P.x, P.y + 0.45);
     // She turns to whatever has her attention.
-    if (ginger) ginger.root.rotation.y = distraction.watching ? Math.PI : 0;
+    if (ginger) {
+      ginger.root.rotation.y =
+        (distraction.watcher && distraction.watcher.home.x >= LEVEL.goal.x) ? Math.PI : 0;
+    }
   }
   if (ginger) {
     ginger.mixer.update(dt);
@@ -1003,13 +1084,16 @@ function update(dt) {
   // Lean toward her while a squirrel has her, so the thing you are being
   // told about is actually in shot. This camera frames tighter than the
   // sprite demo's, and the squirrel sits just behind her.
-  const nearHer = distraction && distraction.watching &&
+  const nearHer = distraction && distraction.watching && LEVEL.goal &&
                   Math.abs(LEVEL.goal.x - P.x) < 4;
   const lean = nearHer ? 1.1 : 0;
   // A bird perches over her head, and this camera frames tighter than the
   // sprite demo's -- without a lift it is above the top of the screen, and
-  // you cannot see the thing you are being told to squeak at.
-  const lift = (nearHer && distraction.kind === 'bird') ? 0.8 : 0;
+  // you cannot see the thing you are being told to squeak at. How far it sits
+  // above her is authored per perch, so the lift follows it.
+  const lift = nearHer
+    ? Math.max(0, Math.min(1.8, distraction.watcher.home.y - LEVEL.goal.y - 0.5))
+    : 0;
   camera.position.x += ((P.x + lean) - camera.position.x) * Math.min(1, dt * 6);
   camera.position.y += (P.y + 0.9 + lift - camera.position.y) * Math.min(1, dt * 4);
 
@@ -1031,11 +1115,20 @@ function update(dt) {
   document.getElementById('state').textContent = bird.current.getClip().name;
   let note = '';
   if (P.reached) note = '  \u2014 reunited!';
-  else if (distraction && distraction.watching &&
+  else if (distraction && distraction.watching && LEVEL.goal &&
            Math.abs(LEVEL.goal.x - P.x) < 6) {
-    note = distraction.kind === 'bird'
+    note = distraction.watcher.kind === 'bird'
       ? "  \u2014 she's watching a bird. Squeak, or crow to put it up!"
       : "  \u2014 she's watching a squirrel. Squeak!";
+  } else if (distraction) {
+    const thief = distraction.pressing();
+    if (thief) {
+      note = thief.kind === 'bird'
+        ? '  \u2014 a bird is after your kibble. Crow at it!'
+        : '  \u2014 a squirrel is after your kibble. Run it off!';
+    } else if (distraction.stolen.length) {
+      note = '  \u2014 ' + distraction.stolen.length + ' lost to the wildlife';
+    }
   }
   document.getElementById('levelName').textContent =
     LEVEL.name + '  ' + collected.size + '/' + LEVEL.pickups.length + note;
@@ -1073,6 +1166,10 @@ window.__camera = camera;            // to check the bird is actually in shot
 window.__clock = () => levelClock;   // to line a jump up against a machine
 window.__checkpoint = () => (checkpoint ? checkpoint.at : null);
 window.__distraction = () => distraction;
+// The meshes and the kibble, so a test can tell that what the shared module
+// says and what is actually on screen are the same thing.
+window.__critterMeshes = critterMeshes;
+window.__kibbles = kibbles;
 window.__thieves = () => thieves.map((t) => t.state);
 // Used by the automated tests, and handy for looking at act two without
 // replaying the level first.

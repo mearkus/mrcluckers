@@ -2,7 +2,6 @@
   "name": "Living Room",
   "order": 1,
   "theme": "indoors",
-  "distraction": "bird",
   "width": 42,
   "spawn": {
     "x": 1.5,
@@ -12,6 +11,27 @@
     "x": 39.4,
     "y": 0
   },
+  "critters": [
+    {
+      "x": 7.0,
+      "y": 3.75,
+      "kind": "bird",
+      "linger": 7.0,
+      "period": 9.0
+    },
+    {
+      "x": 33.6,
+      "y": 4.55,
+      "kind": "bird",
+      "linger": 7.0,
+      "period": 9.0
+    },
+    {
+      "x": 40.35,
+      "kind": "bird",
+      "y": 1.32
+    }
+  ],
   "platforms": [
     {
       "x": 0,

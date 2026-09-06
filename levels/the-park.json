@@ -2,7 +2,6 @@
   "name": "The Park",
   "order": 4,
   "theme": "park",
-  "distraction": "bird",
   "width": 58,
   "spawn": {
     "x": 1.5,
@@ -12,6 +11,34 @@
     "x": 55.2,
     "y": 0
   },
+  "critters": [
+    {
+      "x": 16.8,
+      "y": 2.2,
+      "kind": "squirrel",
+      "linger": 7.0,
+      "period": 9.0
+    },
+    {
+      "x": 29.3,
+      "y": 1.2,
+      "kind": "squirrel",
+      "linger": 7.0,
+      "period": 9.0
+    },
+    {
+      "x": 44.6,
+      "y": 5.35,
+      "kind": "bird",
+      "linger": 7.0,
+      "period": 9.0
+    },
+    {
+      "x": 56.15,
+      "kind": "bird",
+      "y": 2.2
+    }
+  ],
   "platforms": [
     {
       "x": 0,

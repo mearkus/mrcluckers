@@ -21,8 +21,10 @@
     name: 'Untitled',
     theme: 'indoors',
     // What Ginger would rather be looking at while she waits: 'squirrel' on
-    // the ground, or 'bird' perched over her head.
+    // the ground, or 'bird' perched over her head. Shorthand for a single
+    // critter perched beside her; `critters` is the general form.
     distraction: 'squirrel',
+    critters: [],
     width: 34,
     spawn: { x: 1.5, y: 0 },
     goal: null,
@@ -68,6 +70,25 @@
                phase: m.phase === undefined ? 0 : +m.phase,
                kind: m.kind || 'vacuum' };
     });
+    // Wildlife, perched at (x, y) in world units. Where a critter sits is
+    // what it does: near Ginger it takes her attention, near a kibble it
+    // takes the kibble. Timings on a perch override the kind's defaults, so
+    // a guard can be authored to sit there nearly all the time.
+    lv.critters = (lv.critters || []).map(function (c) {
+      var out = { x: +c.x, y: c.y === undefined ? 0 : +c.y,
+                  kind: c.kind || 'squirrel' };
+      ['side', 'phase', 'period', 'approach', 'linger', 'leave', 'from',
+       'notice', 'reach', 'takes', 'wary', 'flush'].forEach(function (k) {
+        if (c[k] !== undefined) out[k] = +c[k];
+      });
+      return out;
+    });
+    // The old one-critter shorthand: put it beside her, on the ground for a
+    // squirrel and above her head for a bird.
+    if (!lv.critters.length && lv.distraction && lv.goal) {
+      lv.critters = [{ x: +lv.goal.x + 0.95, kind: lv.distraction,
+                       y: +lv.goal.y + (lv.distraction === 'bird' ? 1.32 : 0) }];
+    }
     // Another dog, standing at (x, y), that will carry him back down the level.
     lv.thieves = (lv.thieves || []).map(function (t) {
       return { x: +t.x, y: +t.y };
@@ -84,6 +105,9 @@
       name: lv.name,
       theme: lv.theme,
       distraction: lv.distraction,
+      // Critters keep world units: the demo asks shared/distraction.js where
+      // one is and converts the answer, the same way patrols work.
+      critters: lv.critters,
       width: lv.width * px,
       ground: GROUND_Y,
       spawn: { x: lv.spawn.x * px, y: toY(lv.spawn.y) },
@@ -110,6 +134,39 @@
                  phase: m.phase, kind: m.kind };
       })
     };
+  }
+
+  /**
+   * The run of floor under `at`, as {min, max} in world units, inset by
+   * `margin`. Platforms butted up against each other at the same height count
+   * as one floor; a hazard or a drop ends it.
+   *
+   * The fetch round asks for this. It used to lay its patch out as her spot
+   * plus or minus a fixed range, which walked her over the water gap before
+   * the last ledge in three of the five levels.
+   */
+  function footing(level, at, margin) {
+    var lv = normalize(level);
+    var m = margin === undefined ? 0.8 : margin;
+    var sameHeight = lv.platforms.filter(function (p) {
+      return Math.abs(p.y - at.y) < 0.05;
+    });
+    var under = null;
+    sameHeight.forEach(function (p) {
+      if (at.x < p.x - 0.25 || at.x > p.x + p.w + 0.25) return;
+      if (!under || p.w > under.w) under = p;
+    });
+    if (!under) return { min: at.x - m, max: at.x + m };
+    var lo = under.x, hi = under.x + under.w, grew = true;
+    while (grew) {
+      grew = false;
+      sameHeight.forEach(function (p) {
+        if (p.x + p.w < lo - 0.25 || p.x > hi + 0.25) return;
+        if (p.x < lo) { lo = p.x; grew = true; }
+        if (p.x + p.w > hi) { hi = p.x + p.w; grew = true; }
+      });
+    }
+    return { min: lo + m, max: Math.max(lo + m, hi - m) };
   }
 
   /** Every surface he can stand on, as {x, y, w} top edges in world units. */
@@ -256,6 +313,7 @@
     normalize: normalize,
     toPixels: toPixels,
     surfaces: surfaces,
+    footing: footing,
     unreachable: unreachable,
     hop: hop,
     route: route

@@ -34,7 +34,7 @@ python3 build.py
 | `shared/bonus.js` | The bonus round's rules and physics, with no rendering. |
 | `shared/patrol.js` | Machines that move along a surface — where they are, and what they do to you. |
 | `shared/checkpoint.js` | Where he comes back to after a fall. |
-| `shared/distraction.js` | The things Ginger would rather be looking at. |
+| `shared/distraction.js` | Wildlife: what it takes, and how you stop it. |
 | `shared/thief.js` | The other dog at the park, and what it does with the toy. |
 | `shared/progress.js` | Which levels are finished, and what that opens up. |
 | `shared/sound.js` | Every sound in the game, synthesised on the spot. |
@@ -274,7 +274,7 @@ top surface, the edge that matters for landing.
   "goal":  { "x": 30.5, "y": 0 },
   "platforms": [ { "x": 4, "y": 1, "w": 2.5, "h": 0.9, "kind": "soft" } ],
   "props":     [ { "x": 7.4, "y": 0, "kind": "lamp" } ],
-  "distraction": "bird",
+  "critters":  [ { "x": 7.0, "y": 3.75, "kind": "bird", "linger": 7 } ],
   "pickups":   [ { "x": 5.25, "y": 1.6 } ],
   "hazards":   [ { "x": 10, "y": 0, "w": 2.5, "h": 0.4, "kind": "water" } ]
 }
@@ -386,8 +386,8 @@ place for it: there is a checkpoint immediately before both.
 
 ## The other dog
 
-Three obstacles, three different verbs. The vacuum **shoves** you, a squirrel
-takes **Ginger's attention** — this one takes **you**. It trots over, picks
+Three obstacles, three different verbs. The vacuum **shoves** you, wildlife
+takes **your kibble and Ginger's attention** — this one takes **you**. It trots over, picks
 the toy up, carries it back down the level and drops it. No damage, no
 distraction: you lose ground.
 
@@ -427,12 +427,26 @@ first attempt silently did nothing, because those meshes carry material
 ## Squirrels and birds
 
 A squirrel is no threat to a plush chicken, so making it hurt *him* would be
-borrowed from a different game. What a squirrel actually does is take the
-dog's attention — so it goes after the one thing the whole level is for.
+borrowed from a different game. What a squirrel actually does is **take
+things** — and a level says which things by saying where it sits.
 
-One turns up behind Ginger every ten seconds or so, sits being interesting for
-three and a half, and leaves. **Arrive while she is watching it and there is
-no reunion.** She has her back to you. You have to **squeak** to get her
+Critters are authored as perches, in world units, next to the platforms:
+
+```json
+"critters": [
+  { "x": 16.9, "y": 2.1, "kind": "squirrel", "linger": 7, "period": 9 },
+  { "x": 46.35, "y": 0, "kind": "squirrel" }
+]
+```
+
+Anything a kind sets can be overridden on a perch, which is how a guard that
+sits there nearly all the time differs from one that only flickers past.
+
+### A perch near her takes her attention
+
+One perched within about four units of Ginger goes after the one thing the
+whole level is for. **Arrive while she is watching it and there is no
+reunion.** She has her back to you, and you have to **squeak** to get her
 round, from within about three units.
 
 That finally gives `squeak` something to do. It has been in the animation set
@@ -440,10 +454,40 @@ and on the button bar since the very beginning as a pure flourish.
 
 She turns to face whatever has her attention, which is the whole tell — in the
 sprite demo she is drawn unmirrored, in the three.js one her root yaws round.
+Exactly one perch per level is inside her notice: one squeak is a verb, two
+in a row is a chore.
+
+### A perch near a kibble takes the kibble
+
+Every other perch sits over a pickup. Come within about three units — near
+enough that it is on your screen — and the critter starts eyeing it: the
+kibble shakes and a ring closes round it. Let the ring close and the critter
+**leaves with it**, and that kibble is out of the level for the rest of the
+run.
+
+Three units is not an arbitrary number. Both demos show about five units
+across, so a theft started further out than that would be a tax collected off
+screen rather than a race you were offered.
+
+### Two kinds, two answers
+
+A **bird** perches above the kibble, out of reach, and the only thing that
+moves it is a **crow** — which puts up every bird within about three units,
+ending the visit and any theft halfway through it. That gives `crow` something
+to do, which was the other button that never meant anything.
+
+A **squirrel** sits where you can get at it, ignores shouting entirely (as in
+life), and bolts when you come within a couple of units. So the two are
+genuinely different problems: a bird is a button you press the moment you see
+it, a squirrel is a race you have to win with your legs.
+
+The outdoor levels mix both, which is what teaches the difference. The living
+room and the kitchen are birds throughout, so `crow` is taught before there is
+anything it does not work on.
 
 ### Two things the framing needed
 
-The squirrel perches *behind* her, on the far side from his approach, so she
+The critter beside Ginger perches on the far side from his approach, so she
 turns away from the direction he is coming and he never has to walk through
 it. That meant widening the living room from 36 to 38 units, because there was
 nothing but two and a half units of floor behind her.
@@ -451,25 +495,12 @@ nothing but two and a half units of floor behind her.
 The three.js camera frames tighter than the sprite one, so it leans a unit
 toward her while she is distracted. Otherwise the game tells you she is
 watching a squirrel and the squirrel is off the side of the screen. A bird
-needs the same treatment vertically — it perches over her head, which is above
-the top of that frame — so the camera also lifts while she is watching one.
+needs the same treatment vertically, and how far above her it perches is
+authored per level, so the lift follows the perch rather than a constant.
 
-### Birds, and the other flourish
-
-A bird is the same idea with a different shape to it. It comes in on an arc
-and perches **above** her, out of reach, and it is twitchier: it visits nearly
-twice as often and stays half as long, so it costs you her attention in
-flickers rather than one long stretch.
-
-And it gives `crow` something to do, which was the other button that never
-meant anything. **A squeak calls her back off either of them; a crow puts a
-bird up**, which ends the visit outright. Two verbs, two answers — and
-shouting at a squirrel does nothing at all, as in life.
-
-Which one a level gets is authored, with `"distraction": "bird"` beside the
-theme. Birds go where there is something to perch on and squirrels where there
-is something to run along; the living room gets a bird so that `crow` is
-taught in the first level.
+A bird guarding a kibble sits about 0.85 units above it. At 1.2 it was on the
+top edge of the frame when you were standing on the ledge below, which is the
+one place you are certain to be looking from.
 
 ## Checkpoints
 
@@ -614,10 +645,9 @@ whip-like rather than stubby.
 ## The fetch round
 
 Reaching her is not the end of the level. She throws the toy up, and **you run
-Ginger under him** to catch it. Five throws, alternating sides and getting
-further out, so the round teaches itself.
+Ginger under him** to catch it.
 
-### This is the third attempt, and the first two failed the same way
+### This is the third attempt at the control, and the first two failed the same way
 
 They put you in the air *as the toy*, steering with left/right. Except
 left/right changed his **acceleration**, not his position — pressing right did
@@ -634,28 +664,94 @@ press right and she goes right. One goal — be under him when he comes down —
 and one thing on screen to watch, the ring where he will land. It is the
 oldest catching game there is, and it is legible in the second you have.
 
-The landing marker survives from the old version, and it finally means
-something: it used to show the consequence of a control you could not feel,
-and now it is simply the spot you run to.
+### The round itself was the second thing that had to be rethought
+
+The control was settled and the round was not. It threw five times from a
+fixed list of aims: every throw the same height, the same 1.8 seconds in the
+air, in the same order, in every level. It read well the first time and was
+over by the third — nothing changed, nothing escalated, and there was nothing
+to do but hold a direction.
+
+Three things vary now.
+
+**The throw.** A *lob* hangs, a *flick* is low and quickly over, a *high* one
+goes up forever and lands a long way out — so the rhythm changes and not just
+the distance. Where it lands is picked from where she is standing and how far
+she can actually cover in the time that throw gives her, so every throw is
+reachable and none of them is free. The first two are plain lobs; the round
+should teach itself before it starts varying.
+
+**The other dog.** From the third throw it turns up and runs for the same
+spot. Early on it is timed to arrive *after* the toy; by the end of the round
+it arrives before it. Two answers, and they are the two the level teaches:
+be standing on the spot first — she wins a tie, so holding your ground works
+— or **crow** at it, which stops it dead for a moment, once per throw. Crowing
+is the safe play and standing your ground is the brave one, and the score says
+which you took: a catch with the other dog still breathing down her neck is
+worth an extra point.
+
+**The length.** Five throws, and a run of three or more earns another, up to
+eight. A good round lasts longer than a poor one, which is the cheapest
+possible reason to keep playing well — and it stays short enough to be a
+coda rather than a second level.
+
+### It stays on the floor now
+
+Her patch is up to 12.4 units wide and it used to be centred on her, which in
+a level whose goal is two and a half units from the right-hand wall put her,
+the toy and the other dog out past the end of the floor — standing on nothing,
+at the far edge of a frame that was mostly sky. Sliding it inside the level's
+*width* is not enough either: three of the five levels have a water gap before
+their last ledge, so a patch that fits the level still walked her across it.
+
+So `Level.footing(level, at)` answers the actual question — the run of floor
+under a point, extended through anything butted up against it at the same
+height, and ended by a hazard or a drop — and the round lays its patch inside
+that:
+
+| | floor at the goal | her patch |
+| --- | --- | --- |
+| Living Room | 26.3 – 41.2 | 28.8 – 41.2 |
+| The Garden | 35.4 – 47.2 | 35.4 – 47.2 |
+| The Kitchen | 28.1 – 39.2 | 28.1 – 39.2 |
+| The Lane | 54.6 – 63.2 | 54.6 – 63.2 |
+| The Park | 48.2 – 57.2 | 48.2 – 57.2 |
+
+The round is a little tighter where the last ledge is short, which is the
+right answer rather than a compromise: the throws are measured against how far
+she can get, not against a fixed distance, so a narrow patch is a shorter
+round and not an unfair one. The other dog waits just outside the patch
+instead of wherever its run-up happened to start, and runs whatever pace that
+leaves it.
+
+Both demos hand the round its ends in their own bonus coordinates — the sprite
+demo counts from the goal, the three.js one from the level's origin — and the
+framing asks the round where it went rather than asking the config how wide it
+could be.
 
 ### Numbers
 
 | | |
 | --- | --- |
-| Throws | 5 |
-| Hang time | 1.80 s |
-| Peak | 3.79 units above her feet |
-| Her speed | 4.6 units/s — she covers 8 units in a flight |
-| Furthest throw | 5.4 units out |
+| Throws | 5, up to 8 |
+| Hang time | 1.20 s (flick), 1.80 s (lob), 2.00 s (high) |
+| Peak | 4.45 units above her feet, on the high one |
+| Her speed | 4.6 units/s |
+| Furthest throw | as far as she can get in the time — about 9 units on a high one |
 | Catch radius | 0.78 units, deliberately generous |
+| The other dog | from the third throw on, at whatever pace covers its run-up in the time it has, capped at 6.2 units/s |
 
-Nothing is random: throw N is always throw N, so both demos show the same
-round and a test can play it. Doing nothing catches **0 of 5**; running to the
-ring catches **5 of 5** — in the sprite demo, the three.js demo, and the rules
-stepped alone under Node, all three identical.
+The variety is **seeded, not random**. `Bonus.create({ seed })` plays the same
+round every time, so a test can replay one and both demos can be handed the
+same round to compare; a round created without a seed is a different round
+each time, which is the point. Stepped alone under Node, a perfect chase
+catches every throw and earns the full eight; standing still catches none of
+its five and loses three of them to the other dog. A player with a 0.3-second
+reaction and half a unit of slop averages 5.8 catches from 7.5 throws, losing
+1.6 to the other dog — which is about the shape a bonus round should have.
 
 A run of catches is worth more than the same number scattered, which is the
-only scoring subtlety and does not need explaining to be felt.
+only other scoring subtlety and does not need explaining to be felt.
 
 ## Textures
 
