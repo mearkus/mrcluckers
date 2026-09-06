@@ -2,6 +2,7 @@
   "name": "Living Room",
   "order": 1,
   "theme": "indoors",
+  "distraction": "bird",
   "width": 42,
   "spawn": {
     "x": 1.5,

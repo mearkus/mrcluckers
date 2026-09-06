@@ -274,6 +274,7 @@ top surface, the edge that matters for landing.
   "goal":  { "x": 30.5, "y": 0 },
   "platforms": [ { "x": 4, "y": 1, "w": 2.5, "h": 0.9, "kind": "soft" } ],
   "props":     [ { "x": 7.4, "y": 0, "kind": "lamp" } ],
+  "distraction": "bird",
   "pickups":   [ { "x": 5.25, "y": 1.6 } ],
   "hazards":   [ { "x": 10, "y": 0, "w": 2.5, "h": 0.4, "kind": "water" } ]
 }
@@ -423,7 +424,7 @@ which darkens the coat without flattening its texture. In the three.js demo the
 first attempt silently did nothing, because those meshes carry material
 *arrays* and `material.clone()` on an array has no `.color` to set.
 
-## Squirrels
+## Squirrels and birds
 
 A squirrel is no threat to a plush chicken, so making it hurt *him* would be
 borrowed from a different game. What a squirrel actually does is take the
@@ -449,7 +450,26 @@ nothing but two and a half units of floor behind her.
 
 The three.js camera frames tighter than the sprite one, so it leans a unit
 toward her while she is distracted. Otherwise the game tells you she is
-watching a squirrel and the squirrel is off the side of the screen.
+watching a squirrel and the squirrel is off the side of the screen. A bird
+needs the same treatment vertically — it perches over her head, which is above
+the top of that frame — so the camera also lifts while she is watching one.
+
+### Birds, and the other flourish
+
+A bird is the same idea with a different shape to it. It comes in on an arc
+and perches **above** her, out of reach, and it is twitchier: it visits nearly
+twice as often and stays half as long, so it costs you her attention in
+flickers rather than one long stretch.
+
+And it gives `crow` something to do, which was the other button that never
+meant anything. **A squeak calls her back off either of them; a crow puts a
+bird up**, which ends the visit outright. Two verbs, two answers — and
+shouting at a squirrel does nothing at all, as in life.
+
+Which one a level gets is authored, with `"distraction": "bird"` beside the
+theme. Birds go where there is something to perch on and squirrels where there
+is something to run along; the living room gets a bird so that `crow` is
+taught in the first level.
 
 ## Checkpoints
 

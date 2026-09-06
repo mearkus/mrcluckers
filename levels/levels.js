@@ -3,6 +3,7 @@ window.MRCLUCKERS_LEVELS = {
     "name": "Living Room",
     "order": 1,
     "theme": "indoors",
+    "distraction": "bird",
     "width": 42,
     "spawn": {
       "x": 1.5,
@@ -240,6 +241,7 @@ window.MRCLUCKERS_LEVELS = {
     "name": "The Kitchen",
     "order": 2,
     "theme": "kitchen",
+    "distraction": "bird",
     "width": 40,
     "spawn": {
       "x": 1.5,
@@ -506,6 +508,7 @@ window.MRCLUCKERS_LEVELS = {
     "name": "The Garden",
     "order": 3,
     "theme": "garden",
+    "distraction": "squirrel",
     "width": 48,
     "spawn": {
       "x": 1.5,
@@ -790,6 +793,7 @@ window.MRCLUCKERS_LEVELS = {
     "name": "The Park",
     "order": 4,
     "theme": "park",
+    "distraction": "bird",
     "width": 58,
     "spawn": {
       "x": 1.5,
@@ -1131,6 +1135,7 @@ window.MRCLUCKERS_LEVELS = {
     "name": "The Lane",
     "order": 5,
     "theme": "lane",
+    "distraction": "squirrel",
     "width": 64,
     "spawn": {
       "x": 1.5,

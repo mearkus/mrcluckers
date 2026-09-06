@@ -517,8 +517,41 @@ if (LEVEL.goal) {
 
   // Something more interesting than a toy chicken keeps turning up behind her.
   distraction = window.Distraction
-    ? window.Distraction.create(LEVEL.goal.x, LEVEL.goal.y, 1) : null;
-  if (distraction) {
+    ? window.Distraction.create(LEVEL.goal.x, LEVEL.goal.y, 1, LEVEL.distraction)
+    : null;
+  if (distraction && distraction.kind === 'bird') {
+    // A bird: rounder, smaller, and it perches over her head rather than
+    // sitting on the floor, so it is drawn without a tail worth the name.
+    const feather = new THREE.MeshStandardMaterial({ color: '#5b788d', roughness: .8 });
+    const wingMat = new THREE.MeshStandardMaterial({ color: '#6d8ba1', roughness: .8 });
+    squirrel = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.SphereGeometry(0.13, 12, 10), feather);
+    body.scale.set(1.15, 1, 1); body.position.y = 0.13;
+    squirrel.add(body);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.085, 12, 10), feather);
+    head.position.set(0.12, 0.25, 0);
+    squirrel.add(head);
+    const beak = new THREE.Mesh(new THREE.ConeGeometry(0.032, 0.09, 7),
+      new THREE.MeshStandardMaterial({ color: '#e0a33c', roughness: .6 }));
+    beak.rotation.z = -Math.PI / 2;
+    beak.position.set(0.21, 0.24, 0);
+    squirrel.add(beak);
+    const tail = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), feather);
+    tail.scale.set(1.5, 0.4, 0.6); tail.position.set(-0.17, 0.13, 0);
+    squirrel.add(tail);
+    // Kept on the group so the wings can be flapped while it is in the air.
+    const wings = [];
+    for (const z of [0.07, -0.07]) {
+      const w = new THREE.Mesh(new THREE.SphereGeometry(0.1, 10, 8), wingMat);
+      w.scale.set(1.1, 0.28, 0.6);
+      w.position.set(-0.01, 0.16, z);
+      squirrel.add(w);
+      wings.push(w);
+    }
+    squirrel.userData.wings = wings;
+    squirrel.visible = false;
+    scene.add(squirrel);
+  } else if (distraction) {
     const fur = new THREE.MeshStandardMaterial({ color: '#8d6440', roughness: .85 });
     const dark = new THREE.MeshStandardMaterial({ color: '#7a5334', roughness: .9 });
     squirrel = new THREE.Group();
@@ -920,10 +953,20 @@ function update(dt) {
       if (distraction.critter) {
         squirrel.position.set(distraction.critter.x, distraction.critter.y, 0);
         squirrel.rotation.y = distraction.critter.dir > 0 ? 0 : Math.PI;
+        const wings = squirrel.userData.wings;
+        if (wings) {
+          // Out and beating in the air, folded flat once it has landed.
+          const flap = distraction.critter.flying
+            ? Math.sin(levelClock * 22) * 0.6 : -0.15;
+          wings[0].rotation.x = -flap;
+          wings[1].rotation.x = flap;
+        }
       }
     }
     // A squeak fetches her back, if he is close enough to be heard over it.
     if (pressed.squeak && distraction.squeak(P.x) && ginger) ginger.play('greet', 0.08);
+    // And a crow puts a bird up, which ends its visit outright.
+    if (pressed.crow) distraction.scare(P.x);
     // She turns to whatever has her attention.
     if (ginger) ginger.root.rotation.y = distraction.watching ? Math.PI : 0;
   }
@@ -960,10 +1003,15 @@ function update(dt) {
   // Lean toward her while a squirrel has her, so the thing you are being
   // told about is actually in shot. This camera frames tighter than the
   // sprite demo's, and the squirrel sits just behind her.
-  const lean = (distraction && distraction.watching &&
-                Math.abs(LEVEL.goal.x - P.x) < 4) ? 1.1 : 0;
+  const nearHer = distraction && distraction.watching &&
+                  Math.abs(LEVEL.goal.x - P.x) < 4;
+  const lean = nearHer ? 1.1 : 0;
+  // A bird perches over her head, and this camera frames tighter than the
+  // sprite demo's -- without a lift it is above the top of the screen, and
+  // you cannot see the thing you are being told to squeak at.
+  const lift = (nearHer && distraction.kind === 'bird') ? 0.8 : 0;
   camera.position.x += ((P.x + lean) - camera.position.x) * Math.min(1, dt * 6);
-  camera.position.y += (P.y + 0.9 - camera.position.y) * Math.min(1, dt * 4);
+  camera.position.y += (P.y + 0.9 + lift - camera.position.y) * Math.min(1, dt * 4);
 
   // Drive the backdrop by hand: an orthographic camera gets no parallax from
   // depth, so each layer is slid to `camX * (1 - speed)`. Speed 1 stays put
@@ -985,7 +1033,9 @@ function update(dt) {
   if (P.reached) note = '  \u2014 reunited!';
   else if (distraction && distraction.watching &&
            Math.abs(LEVEL.goal.x - P.x) < 6) {
-    note = "  \u2014 she's watching a squirrel. Squeak!";
+    note = distraction.kind === 'bird'
+      ? "  \u2014 she's watching a bird. Squeak, or crow to put it up!"
+      : "  \u2014 she's watching a squirrel. Squeak!";
   }
   document.getElementById('levelName').textContent =
     LEVEL.name + '  ' + collected.size + '/' + LEVEL.pickups.length + note;
@@ -1019,6 +1069,7 @@ window.__renderer = renderer;   // draw calls and triangles, for the perf check
 window.__scene = scene;
 window.__sky = THEME ? THEME.sky[0] : null;    // used by the automated input tests
 window.__level = LEVEL; // ditto: the autoplayer needs the route
+window.__camera = camera;            // to check the bird is actually in shot
 window.__clock = () => levelClock;   // to line a jump up against a machine
 window.__checkpoint = () => (checkpoint ? checkpoint.at : null);
 window.__distraction = () => distraction;

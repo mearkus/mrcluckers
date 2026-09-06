@@ -2,6 +2,7 @@
   "name": "The Kitchen",
   "order": 2,
   "theme": "kitchen",
+  "distraction": "bird",
   "width": 40,
   "spawn": {
     "x": 1.5,

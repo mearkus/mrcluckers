@@ -20,6 +20,9 @@
   var DEFAULTS = {
     name: 'Untitled',
     theme: 'indoors',
+    // What Ginger would rather be looking at while she waits: 'squirrel' on
+    // the ground, or 'bird' perched over her head.
+    distraction: 'squirrel',
     width: 34,
     spawn: { x: 1.5, y: 0 },
     goal: null,
@@ -80,6 +83,7 @@
     return {
       name: lv.name,
       theme: lv.theme,
+      distraction: lv.distraction,
       width: lv.width * px,
       ground: GROUND_Y,
       spawn: { x: lv.spawn.x * px, y: toY(lv.spawn.y) },

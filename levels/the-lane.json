@@ -2,6 +2,7 @@
   "name": "The Lane",
   "order": 5,
   "theme": "lane",
+  "distraction": "squirrel",
   "width": 64,
   "spawn": {
     "x": 1.5,
