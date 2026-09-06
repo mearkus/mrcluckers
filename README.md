@@ -133,6 +133,11 @@ four kinds of layer rather than knowing about any particular place:
 | `band` | a stripe at a fixed height — skirting, a path, a hedge top |
 | `panes` | rectangles with a warm centre — windows |
 
+A layer with `"front": true` is drawn **over** the player rather than behind
+him — grass he wades through, the near floorboards, a kerb he passes behind.
+One flat backdrop cannot give a scene depth; a couple of things nearer than
+he is can.
+
 Layers are described in world pixels and drawn in screen space, so `speed` is
 how much of the camera's motion a layer takes: 0 is painted on the far wall, 1
 moves with the floor. The five levels get a room, a kitchen, a garden, a park and a lane at dusk,
@@ -264,11 +269,30 @@ top surface, the edge that matters for landing.
   "width": 33,
   "spawn": { "x": 1.5, "y": 0 },
   "goal":  { "x": 30.5, "y": 0 },
-  "platforms": [ { "x": 4, "y": 1, "w": 2.5, "h": 0.5 } ],
+  "platforms": [ { "x": 4, "y": 1, "w": 2.5, "h": 0.9, "kind": "soft" } ],
+  "props":     [ { "x": 7.4, "y": 0, "kind": "lamp" } ],
   "pickups":   [ { "x": 5.25, "y": 1.6 } ],
   "hazards":   [ { "x": 10, "y": 0, "w": 2.5, "h": 0.4, "kind": "water" } ]
 }
 ```
+
+A platform's `kind` says what **shape** it is; the theme says what it is made
+of there. The same `soft` platform is a sofa in the living room, a hedge in
+the lane and a bush in the park:
+
+| | |
+| --- | --- |
+| `ledge` | ground, walls, shelves — the default, and everything structural |
+| `slab` | a top on legs, with daylight under it — table, worktop, bench |
+| `soft` | rounded and tufted — sofa, cushion, hedge, bush |
+| `crate` | planked and braced — toy box, pallet, seed tray |
+| `pipe` | a rounded bar — radiator, rail, kerb, fallen log |
+
+`props` are scenery: never collided with, never scored, and drawn behind the
+platforms unless you set `"front": true`. They carry their own colours,
+because a pot plant is a pot plant wherever it stands: `plant`, `lamp`,
+`bowl`, `ball`, `tree`, `flowers`, `bin`, `post`. `scale` and `flip` stop a
+row of them looking stamped.
 
 Open [`editor/`](editor/) to draw one. It snaps to a half-height grid and
 draws **his real jump arc under the cursor**, so you can see what's reachable
