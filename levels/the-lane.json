@@ -2,7 +2,6 @@
   "name": "The Lane",
   "order": 5,
   "theme": "lane",
-  "distraction": "squirrel",
   "width": 64,
   "spawn": {
     "x": 1.5,
@@ -12,6 +11,41 @@
     "x": 61.2,
     "y": 0
   },
+  "critters": [
+    {
+      "x": 17.4,
+      "y": 2.2,
+      "kind": "squirrel",
+      "linger": 7.0,
+      "period": 9.0
+    },
+    {
+      "x": 29.2,
+      "y": 5.05,
+      "kind": "bird",
+      "linger": 7.0,
+      "period": 9.0
+    },
+    {
+      "x": 46.9,
+      "y": 2.4,
+      "kind": "squirrel",
+      "linger": 7.0,
+      "period": 9.0
+    },
+    {
+      "x": 60.5,
+      "y": 5.15,
+      "kind": "bird",
+      "linger": 7.0,
+      "period": 9.0
+    },
+    {
+      "x": 62.15,
+      "kind": "squirrel",
+      "y": 0.0
+    }
+  ],
   "platforms": [
     {
       "x": 0,

@@ -177,11 +177,19 @@
   }) : [];
   var thiefSheet = null;
 
-  var distraction = (window.Distraction && LEVEL.goal)
-    ? window.Distraction.create(LEVEL.goal.x / PX,
-                               (LEVEL.ground - LEVEL.goal.y) / PX, 1,
-                               LEVEL.distraction)
+  // The wildlife. Perches are authored into the level, so what a critter
+  // does to you depends on where it is sitting: one near her takes her
+  // attention, one near a kibble takes the kibble.
+  var distraction = window.Distraction
+    ? window.Distraction.flock({
+        critters: WORLD.critters,
+        dog: WORLD.goal ? { x: WORLD.goal.x, y: WORLD.goal.y } : null,
+        pickups: WORLD.pickups })
     : null;
+  function playerWorld() {
+    return { x: player.x / PX, y: (LEVEL.ground - player.y) / PX + 0.45,
+             taken: function (i) { return !!collected[i]; } };
+  }
 
   var player = {
     x: LEVEL.spawn.x, y: LEVEL.spawn.y, vx: 0, vy: 0,
@@ -412,6 +420,7 @@
     // Pickups are collected on touch; the goal ends the level.
     for (var pi = 0; pi < LEVEL.pickups.length; pi++) {
       if (collected[pi]) continue;
+      if (distraction && distraction.lost(pi)) continue;
       var pk = LEVEL.pickups[pi];
       if (Math.abs(pk.x - player.x) < 26 &&
           Math.abs(pk.y - (player.y - 34)) < 40) {
@@ -445,20 +454,31 @@
     }
 
     if (distraction) {
-      distraction.update(dt);
+      var stolenBefore = distraction.stolen.length;
+      var pw = playerWorld();
+      distraction.update(dt, pw);
+      // Something just left with a kibble you will not be getting back.
+      if (distraction.stolen.length > stolenBefore) {
+        window.Sound && window.Sound.play("bump");
+        for (var sIdx = stolenBefore; sIdx < distraction.stolen.length; sIdx++) {
+          var lost = LEVEL.pickups[distraction.stolen[sIdx]];
+          if (lost) puff(lost.x, lost.y - 12, 6, "rgba(200, 137, 47, .8)", 0.5, 50);
+        }
+      }
       // A squeak fetches her back, if he is close enough to be heard over it.
       if (pressed.squeak || (player.action === "squeak" && player.actionTime < dt * 1.5)) {
         if (distraction.squeak(player.x / PX) && ginger) {
           ginger.anim.set("greet", true);
         }
       }
-      // And a crow puts a bird up, which ends the visit outright. The other
+      // And a crow puts every bird within earshot up, which ends the visit
+      // outright -- and any theft that bird was halfway through. The other
       // half of the deal: two flourishes, two things they are actually for.
       if (pressed.crow || (player.action === "crow" && player.actionTime < dt * 1.5)) {
-        if (distraction.scare(player.x / PX)) {
-          window.Sound && window.Sound.play("bump");
-          puff(distraction.dogX * PX + PX * 0.8,
-               LEVEL.ground - (distraction.dogY + 1.4) * PX,
+        var flushed = distraction.scare(pw.x, pw.y);
+        if (flushed.length) window.Sound && window.Sound.play("bump");
+        for (var fi = 0; fi < flushed.length; fi++) {
+          puff(flushed[fi].x * PX, LEVEL.ground - flushed[fi].y * PX,
                7, "rgba(228, 236, 244, .85)", 0.7, 60);
         }
       }
@@ -1033,7 +1053,17 @@
     ctx.beginPath();
     ctx.arc(U * 0.36, -U * 0.95, U * 0.05, 0, Math.PI * 2);
     ctx.fill();
+    drawCarry(c, U, [U * 0.62, -U * 0.78]);
     ctx.restore();
+  }
+
+  // A kibble in the mouth of whatever is making off with it.
+  function drawCarry(c, U, at) {
+    if (c.carry < 0) return;
+    ctx.fillStyle = "#c8892f";
+    ctx.beginPath();
+    ctx.ellipse(at[0], at[1], U * 0.16, U * 0.12, 0.5, 0, Math.PI * 2);
+    ctx.fill();
   }
 
   function drawCritter(c) {
@@ -1069,6 +1099,7 @@
     ctx.beginPath();
     ctx.arc(U * 0.29, -U * 0.75, U * 0.045, 0, Math.PI * 2);
     ctx.fill();
+    drawCarry(c, U, [U * 0.42, -U * 0.66]);
     ctx.restore();
   }
 
@@ -1166,8 +1197,22 @@
     if (!bonus) {
       for (var pi2 = 0; pi2 < LEVEL.pickups.length; pi2++) {
         if (collected[pi2]) continue;
+        if (distraction && distraction.lost(pi2)) continue;
         var pk2 = LEVEL.pickups[pi2];
         var bob = Math.sin(Date.now() / 260 + pi2) * 3;
+        // A kibble something has its eye on shakes, and wears a closing ring,
+        // so the race is legible before you lose it rather than after.
+        var eyed = distraction ? distraction.eyeing(pi2) : -1;
+        if (eyed >= 0) {
+          var shake = Math.sin(Date.now() / 45) * eyed * 2.4;
+          ctx.strokeStyle = "rgba(224, 51, 58, .8)";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(pk2.x, pk2.y - 12, 13, -Math.PI / 2,
+                  -Math.PI / 2 + Math.PI * 2 * eyed);
+          ctx.stroke();
+          pk2 = { x: pk2.x + shake, y: pk2.y };
+        }
         ctx.fillStyle = "#c8892f";
         ctx.beginPath();
         ctx.ellipse(pk2.x, pk2.y - 12 + bob, 7, 5, 0.5, 0, Math.PI * 2);
@@ -1179,7 +1224,12 @@
 
     for (var thi = 0; thi < thieves.length; thi++) drawThief(thieves[thi]);
 
-    if (distraction && distraction.critter) drawCritter(distraction.critter);
+    if (distraction) {
+      for (var ci = 0; ci < distraction.critters.length; ci++) {
+        var cr = distraction.critters[ci];
+        if (cr.here) drawCritter(cr);
+      }
+    }
 
     if (LEVEL.goal && ginger && gingerSheet) {
       // In the fetch round she is the one moving, so she is drawn wherever
@@ -1196,7 +1246,9 @@
       // Baked facing right, drawn mirrored to look back down the level -- but
       // when a squirrel has her, she turns round to watch it instead.
       var look = bonus ? (bonus.dog.dir > 0 ? 1 : -1)
-                       : ((distraction && distraction.watching) ? 1 : -1);
+                       : ((distraction && distraction.watcher)
+                            ? (distraction.watcher.home.x >= WORLD.goal.x ? 1 : -1)
+                            : -1);
       ctx.save();
       ctx.translate(g.x, g.y);
       ctx.scale(look, 1);
@@ -1289,9 +1341,21 @@
         if (player.reached) note = "  \u2014 reunited!";
         else if (distraction && distraction.watching &&
                  Math.abs(LEVEL.goal.x - player.x) / PX < 6) {
-          note = distraction.kind === "bird"
+          note = distraction.watcher.kind === "bird"
             ? "  \u2014 she's watching a bird. Squeak, or crow to put it up!"
             : "  \u2014 she's watching a squirrel. Squeak!";
+        } else if (distraction) {
+          var thief = distraction.pressing();
+          if (thief) {
+            note = thief.kind === "bird"
+              ? "  \u2014 a bird is after your kibble. Crow at it!"
+              : "  \u2014 a squirrel is after your kibble. Run it off!";
+          } else if (distraction.stolen.length) {
+            // Otherwise the count simply refuses to reach the total and you
+            // are left wondering which kibble you walked past.
+            note = "  \u2014 " + distraction.stolen.length +
+                   " lost to the wildlife";
+          }
         }
         title.textContent = LEVEL.name + "  " + got + "/" +
           LEVEL.pickups.length + note;

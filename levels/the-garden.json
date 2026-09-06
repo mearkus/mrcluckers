@@ -2,7 +2,6 @@
   "name": "The Garden",
   "order": 3,
   "theme": "garden",
-  "distraction": "squirrel",
   "width": 48,
   "spawn": {
     "x": 1.5,
@@ -12,6 +11,34 @@
     "x": 45.4,
     "y": 0
   },
+  "critters": [
+    {
+      "x": 16.9,
+      "y": 2.1,
+      "kind": "squirrel",
+      "linger": 7.0,
+      "period": 9.0
+    },
+    {
+      "x": 31.3,
+      "y": 3.0,
+      "kind": "squirrel",
+      "linger": 7.0,
+      "period": 9.0
+    },
+    {
+      "x": 40.8,
+      "y": 4.05,
+      "kind": "bird",
+      "linger": 7.0,
+      "period": 9.0
+    },
+    {
+      "x": 46.35,
+      "kind": "squirrel",
+      "y": 0.0
+    }
+  ],
   "platforms": [
     {
       "x": 0,

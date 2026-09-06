@@ -2,7 +2,6 @@
   "name": "The Kitchen",
   "order": 2,
   "theme": "kitchen",
-  "distraction": "bird",
   "width": 40,
   "spawn": {
     "x": 1.5,
@@ -12,6 +11,27 @@
     "x": 37.6,
     "y": 0
   },
+  "critters": [
+    {
+      "x": 14.6,
+      "y": 5.25,
+      "kind": "bird",
+      "linger": 7.0,
+      "period": 9.0
+    },
+    {
+      "x": 33.6,
+      "y": 4.75,
+      "kind": "bird",
+      "linger": 7.0,
+      "period": 9.0
+    },
+    {
+      "x": 38.55,
+      "kind": "bird",
+      "y": 1.32
+    }
+  ],
   "platforms": [
     {
       "x": 0,
