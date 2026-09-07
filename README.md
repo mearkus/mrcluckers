@@ -66,6 +66,30 @@ machines — the two read the same files and the same shared rules, so a level
 is the same place in either. Needs a local server because browsers block
 module and glTF loads over `file://`:
 
+### It is the same *game*, not just the same level
+
+For a long time it was not. The 3D demo had every rule the sprite demo had
+and none of the things around them: no sound at all, no way to stop, and
+finishing a level counted for nothing. It read as a tech preview of a game
+rather than as the game.
+
+All three were already written and already shared, so this was wiring rather
+than invention:
+
+| | |
+| --- | --- |
+| **Sound** | `shared/sound.js`, the same voices at the same moments — jump, land, splash, kibble, the vacuum's shove, the other dog taking him, both flourishes, and the whole fetch round. Plus the mute button, and the unlock every browser insists on before a page may make noise. |
+| **Pause** | <kbd>Esc</kbd> or the button: resume, restart, or out to the level select. The loop stops advancing but keeps drawing, so the frozen frame is the one you paused on. |
+| **Progress** | `shared/progress.js`, the same store under the same key — so finishing The Living Room *here* unlocks The Kitchen over *there*. |
+
+Two things the wiring turned up. `.panel { display: grid }` outranks the
+browser's own rule for `[hidden]`, so both panels sat invisible over the whole
+screen eating every click — the sprite demo had already met this one and
+carries a `[hidden] { display: none !important }` guard, which this now has
+too. And the on-screen pad dispatches *real* key events, so guarding the
+keyboard handler covers touch as well; the pad also hides itself while a panel
+is up, so a panel is the only thing there is to touch.
+
 ```
 python3 -m http.server 8000     # then open localhost:8000/web/
 ```
