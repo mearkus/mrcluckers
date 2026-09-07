@@ -814,7 +814,7 @@ function levelFinished(stats) {
                   () => { location.href = '?level=' + next; }]);
   }
   buttons.push(['quiet', 'Play it again', () => location.reload()]);
-  buttons.push(['quiet', 'Level select', () => { location.href = '../demo/?#levels'; }]);
+  buttons.push(['quiet', 'Level select', () => { location.href = '../?#levels'; }]);
   panel(document.getElementById('done'), LEVEL.name + ' \u2014 done',
         next ? starLine(stats, LEVEL.pickups.length)
              : starLine(stats, LEVEL.pickups.length) +
@@ -845,7 +845,7 @@ function togglePause(force) {
     ['quiet', 'Restart level', () => location.reload()],
     // The level select is the sprite demo's shell; this page is one level and
     // a URL. Send them there rather than pretending to have a menu.
-    ['quiet', 'Level select', () => { location.href = '../demo/?#levels'; }]
+    ['quiet', 'Level select', () => { location.href = '../?#levels'; }]
   ]);
 }
 

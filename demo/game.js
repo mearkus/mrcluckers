@@ -1491,7 +1491,7 @@
     gingerSheet = new Image();
     gingerSheet.onload = function () { thiefSheet = makeThiefSheet(gingerSheet); };
     gingerSheet.src = window.GINGER_IMAGE ||
-      "../assets/sprites/" + GDATA.image;
+      "assets/sprites/" + GDATA.image;
   }
 
   sheet.onload = function () {
@@ -1522,5 +1522,5 @@
       ? window.TouchControls : null;
   }
   sheet.src = window.MRCLUCKERS_IMAGE ||
-    "../assets/sprites/" + DATA.image;
+    "assets/sprites/" + DATA.image;
 })();
