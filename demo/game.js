@@ -216,8 +216,11 @@
     // would lay its patch straight across it. Its origin is her feet, so the
     // ends come back relative to the goal.
     var floor = window.Level.footing(WORLD, WORLD.goal);
+    // And what he arrived with: kibble buys throws, so the level's whole
+    // point -- please her -- pays out in more fetch rather than a number.
     bonus.start(0, 0, { min: floor.min - WORLD.goal.x,
-                        max: floor.max - WORLD.goal.x });
+                        max: floor.max - WORLD.goal.x },
+                Object.keys(collected).length);
     measureBonus();
     pops = [];
     return bonus;
@@ -495,6 +498,27 @@
           if (lost) puff(lost.x, lost.y - 12, 6, "rgba(200, 137, 47, .8)", 0.5, 50);
         }
       }
+      // A bird going up in his face, or something a squirrel knocked off its
+      // branch. Same shape as the vacuum's shove -- not lethal, but it can
+      // put him somewhere that is.
+      var blows = distraction.knocks();
+      for (var bi = 0; bi < blows.length; bi++) {
+        if (player.hitCool > 0) break;
+        var bw = blows[bi];
+        player.vx = bw.vx * PX;
+        player.vy = -bw.vy * PX;
+        player.onGround = false;
+        player.stun = bw.stun;
+        player.hitCool = window.Distraction.CFG.immune;
+        window.Sound && window.Sound.play("bump");
+        player.action = "tumble";
+        player.actionTime = 0;
+        player.anim.set("tumble", true);
+        puff(bw.x * PX, LEVEL.ground - bw.y * PX, 6,
+             bw.kind === "acorn" ? "rgba(150, 110, 60, .9)"
+                                 : "rgba(228, 236, 244, .85)", 0.6, 55);
+      }
+
       // A squeak fetches her back, if he is close enough to be heard over it.
       if (pressed.squeak || (player.action === "squeak" && player.actionTime < dt * 1.5)) {
         if (distraction.squeak(player.x / PX) && ginger) {
@@ -1087,6 +1111,28 @@
     ctx.restore();
   }
 
+  // Whatever a squirrel has knocked off its branch, on its way down. Drawn
+  // with a little spin so it reads as falling rather than as placed.
+  function drawFalling() {
+    for (var i = 0; i < distraction.acorns.length; i++) {
+      var n = distraction.acorns[i];
+      var x = n.x * PX, y = LEVEL.ground - n.y * PX;
+      var U = PX * 0.16;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate((n.from - n.y) * 2.2);
+      ctx.fillStyle = "#8a6a3c";
+      ctx.beginPath();
+      ctx.ellipse(0, 0, U, U * 1.25, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#5d4527";                 // the cap
+      ctx.beginPath();
+      ctx.ellipse(0, -U * 0.95, U * 0.85, U * 0.45, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
   // A kibble in the mouth of whatever is making off with it.
   function drawCarry(c, U, at) {
     if (c.carry < 0) return;
@@ -1210,9 +1256,13 @@
                        : "Here comes the other dog", w / 2, h * 0.19);
     ctx.font = Math.round(h / 30) + "px system-ui, sans-serif";
     ctx.fillStyle = "rgba(210, 230, 245, " + a.toFixed(2) + ")";
-    ctx.fillText(first ? "catch him in the ring before he lands"
-                       : "beat it to the ring, or crow to stop it",
-                 w / 2, h * 0.245);
+    var line = first ? "catch him in the ring before he lands"
+                     : "beat it to the ring, or crow to stop it";
+    if (first && bonus.fromKibble) {
+      line = bonus.brought + " kibble for her \u2014 " + bonus.fromKibble +
+             " extra throw" + (bonus.fromKibble > 1 ? "s" : "");
+    }
+    ctx.fillText(line, w / 2, h * 0.245);
     ctx.restore();
   }
 
@@ -1296,6 +1346,7 @@
         var cr = distraction.critters[ci];
         if (cr.here) drawCritter(cr);
       }
+      drawFalling();
     }
 
     if (LEVEL.goal && ginger && gingerSheet) {

@@ -42,7 +42,10 @@
     side: 1,           // which side of the perch that is
     arc: 0.0,          // extra height while travelling; a bird flies in
     startles: false,   // does a crow put it up
-    flush: 2.2,        // how close you get before it puts itself up
+    flush: 2.2,        // how close alongside you get before it puts itself up
+    flushUp: 1.0,      // and how far above or below still counts as alongside --
+                       // walking *under* a squirrel is not crowding it, which
+                       // matters now one can sit over the path and drop things
     boltRate: 2.0,     // how much faster it leaves when something startles it
     boltArc: 0.45,     // and the hop or the lift it gets away on
     rest: 5.0,         // and how much longer than usual it stays away after
@@ -53,22 +56,55 @@
     wary: 2.8,         // it only starts once the kibble is on your screen --
                        // the demos show about five units across, so a theft
                        // begun further off than this is a tax, not a race
-    takes: 3.2         // seconds of eyeing a kibble before it takes it
+    takes: 3.2,        // seconds of eyeing a kibble before it takes it
+
+    /* What it does to *him*. Taking Ginger's attention and taking a kibble
+     * are both things that happen beside him rather than to him, and a
+     * critter you can walk straight through is scenery with a scoreboard.
+     * A squirrel still will not attack a plush rooster -- but it will sit
+     * over your head and knock things down, which is exactly what a squirrel
+     * does. */
+    burst: false,      // does putting it up knock him about
+    drops: 0,          // seconds between the things it throws down (0 = never)
+    dropSpan: 2.4,     // how far either side of the perch it will aim
+    dropFall: 5.5,     // and how far one falls before it is gone
+    knock: 2.6,        // the shove either of those lands
+    lift: 3.6,
+    stun: 0.3,
+    immune: 0.7,       // and how long before the same critter can land another
+    gravity: 16.0      // what it drops falls at; slower than he does, to read
   };
 
-  /* A bird visits more often and stays a shorter time, perches over your head
-   * where you could never reach it, and is quicker about a theft -- it only
-   * has to drop, take and go. */
-  var KINDS = {
-    squirrel: CFG,
+  /* A bird visits more often and stays a shorter time, is quicker about a
+   * theft -- it only has to drop, take and go -- and it sits *on* the ledge
+   * you were going to land on, so going up off it is a faceful of wings.
+   * Crowing at it from a distance clears the ledge without the shove, which
+   * is the whole point of owning the verb.
+   *
+   * These are **overrides**, not a replacement. A kind that listed its own
+   * complete set silently lost every field added to CFG afterwards -- birds
+   * had no `flushUp` and so could not be disturbed at all, and no `immune`,
+   * which would have let one shove him exactly once and then never again. */
+  var CHANGES = {
+    squirrel: {},
     bird: {
       period: 6.4, approach: 0.85, linger: 2.6, leave: 0.7,
-      from: 3.4, side: 1, arc: 0.75, startles: true,
+      from: 3.4, arc: 0.75, startles: true,
       flush: 1.0, boltRate: 2.1, boltArc: 0.9, rest: 3.5,
-      recall: 3.2, settle: 0.45, notice: 4.0,
-      reach: 2.2, wary: 2.8, takes: 2.6
+      settle: 0.45, notice: 4.0, takes: 2.6, reach: 2.2,
+      burst: true, knock: 2.4, lift: 4.0, stun: 0.28
     }
   };
+
+  /** Every default, then what the kind changes: complete, by construction. */
+  function settings(kind) {
+    var out = {}, k;
+    for (k in CFG) out[k] = CFG[k];
+    for (k in CHANGES[kind]) out[k] = CHANGES[kind][k];
+    return out;
+  }
+
+  var KINDS = { squirrel: settings('squirrel'), bird: settings('bird') };
 
   function cfgFor(spec) {
     var kind = KINDS[spec && spec.kind] ? spec.kind : 'squirrel';
@@ -117,6 +153,8 @@
         exit: c.cfg.side,     // which way it leaves; it never leaves through you
         bolting: false,       // startled: going now, and quickly
         rest: 0,              // extra seconds away, once something has been
+        dropIn: 0,            // countdown to the next thing it knocks down
+        cool: 0,              // it cannot land two shoves back to back
         recalled: false,      // she has already been called off this one
         target: -1,           // a kibble it has its eye on
         timer: 0,
@@ -128,6 +166,12 @@
     var s = {
       critters: critters,
       dog: dog,
+      // What a squirrel has knocked off its branch and is on its way down.
+      // The caller draws these and asks whether one landed on him.
+      acorns: [],           // {x, y, vy, from}
+      // Shoves to apply this frame, drained like events: the rules decide how
+      // hard, so both demos are knocked about identically.
+      blows: [],            // {x, y, vx, vy, stun, kind}
       stolen: [],           // pickup indices carried off, in the order taken
       watching: false,      // is her attention on a critter
       watcher: null,        // which one
@@ -170,17 +214,44 @@
      * switched off on the spot, which from the other side of the screen looks
      * like a bug and not like a squirrel.
      */
-    function putUp(c, fromX) {
+    function putUp(c, fromX, close) {
       if (!c.here || c.bolting) return false;
+      // Going up in his face is a shove; being shouted at from across the
+      // room is not. That difference is the whole reason to own a `crow`.
+      if (close && c.cfg.burst && c.cool <= 0) {
+        c.cool = c.cfg.immune;
+        s.blows.push({ x: c.x, y: c.y, kind: c.kind,
+                       vx: (c.x >= fromX ? -1 : 1) * c.cfg.knock,
+                       vy: c.cfg.lift, stun: c.cfg.stun });
+      }
       c.bolting = true;
       c.rest = c.cfg.rest;
       c.target = -1;
+      c.dropIn = c.cfg.drops;
       c.exit = (fromX === undefined || c.home.x >= fromX) ? 1 : -1;
       c.u = Math.max(c.u, c.cfg.approach + c.cfg.linger);
       place(c);
       if (s.watcher === c) { s.watching = false; s.watcher = null;
                              s.settling = c.cfg.settle; }
       return true;
+    }
+
+    /**
+     * Close enough to crowd it. Measured as a box, not a circle: sideways is
+     * what bothers a critter, and being a body-length below it is not.
+     * The flush and the will-it-come-back check share this, or a critter can
+     * be locked out of a perch you were never close enough to move it from.
+     */
+    function crowding(c, x, y, perchY) {
+      if (x === undefined) return false;
+      var ay = perchY === undefined ? c.y : perchY;
+      return Math.abs(x - c.x) < c.cfg.flush &&
+             Math.abs((y === undefined ? ay : y) - ay) < c.cfg.flushUp;
+    }
+
+    /** Sitting on the perch, as opposed to arriving at it or leaving it. */
+    function perchedAt(c) {
+      return c.u >= c.cfg.approach && c.u < c.cfg.approach + c.cfg.linger;
     }
 
     function freeKibble(c, taken) {
@@ -203,12 +274,32 @@
       s.settling = Math.max(0, s.settling - dt);
       if (s.done) {
         for (var d = 0; d < critters.length; d++) critters[d].here = false;
+        s.acorns.length = 0;
         s.watching = false; s.watcher = null;
         return s;
       }
 
+      // What is already falling keeps falling, whatever the critters do next.
+      for (var a = s.acorns.length - 1; a >= 0; a--) {
+        var n = s.acorns[a];
+        n.vy -= CFG.gravity * dt;
+        n.y += n.vy * dt;
+        var hit = world.x !== undefined &&
+                  Math.abs(n.x - world.x) < 0.34 &&
+                  Math.abs(n.y - (world.y === undefined ? n.y : world.y)) < 0.5;
+        if (hit) {
+          s.blows.push({ x: n.x, y: n.y, kind: 'acorn',
+                         vx: (n.x >= world.x ? -1 : 1) * CFG.knock,
+                         vy: CFG.lift, stun: CFG.stun });
+        }
+        // Gone when it lands on him or when it has fallen out of the picture.
+        // The module does not know where the floor is, so it counts the drop.
+        if (hit || n.from - n.y > CFG.dropFall) s.acorns.splice(a, 1);
+      }
+
       for (var i = 0; i < critters.length; i++) {
         var c = critters[i], cfg = c.cfg;
+        c.cool = Math.max(0, c.cool - dt);
         // A startled one runs its leaving leg fast, which is what shortens
         // the visit: nothing is hidden, it just gets out sooner. Only the
         // leaving leg -- carry the hurry into the gap between visits and it
@@ -225,9 +316,8 @@
           // wider and a critter can be locked out of a perch you were never
           // close enough to have startled it off, which silently removes the
           // one beside Ginger from levels where she waits a little back.
-          if (world.x !== undefined && !s.done &&
-              dist(world.x, world.y === undefined ? c.home.y : world.y,
-                   c.home.x, c.home.y) < cfg.flush) {
+          if (!s.done && crowding({ cfg: cfg, x: c.home.x, y: c.home.y },
+                                  world.x, world.y, c.home.y)) {
             c.u = period - 1e-4;
             c.here = false;
             continue;
@@ -244,15 +334,31 @@
         // Close enough to put it up yourself. A bird perches out of reach, so
         // in practice this is how you move a squirrel and a crow is how you
         // move a bird.
-        if (world.x !== undefined &&
-            dist(world.x, world.y === undefined ? c.y : world.y, c.x, c.y) < cfg.flush) {
-          putUp(c, world.x);
+        if (crowding(c, world.x, world.y)) {
+          putUp(c, world.x, true);      // close enough to wear the wings
           continue;
+        }
+
+        // Sitting over your head with something to hand. A squirrel will not
+        // come down and fight a plush rooster, but it will drop things on
+        // one, which is both truer and more use to a platformer.
+        var overhead = perchedAt(c) && cfg.drops > 0 && world.x !== undefined &&
+                       Math.abs(world.x - c.home.x) < cfg.dropSpan &&
+                       (world.y === undefined || world.y < c.home.y - 0.4);
+        if (overhead) {
+          c.dropIn -= dt;
+          if (c.dropIn <= 0) {
+            c.dropIn = cfg.drops;
+            s.acorns.push({ x: c.x, y: c.y, vy: 0, from: c.home.y });
+          }
+        } else {
+          // A short fuse when you walk back under it, not a saved-up volley.
+          c.dropIn = Math.min(c.dropIn <= 0 ? cfg.drops : c.dropIn, cfg.drops);
         }
 
         // Sitting on the perch, with a kibble within reach and you near
         // enough to watch it happen: it will take it.
-        var perched = c.u >= cfg.approach && c.u < cfg.approach + cfg.linger;
+        var perched = perchedAt(c);
         if (perched && c.carry < 0) {
           if (c.target >= 0 &&
               (s.stolen.indexOf(c.target) >= 0 || (world.taken && world.taken(c.target)))) {
@@ -357,6 +463,13 @@
       }
       return -1;
     };
+
+    /**
+     * The shoves landed since you last asked -- a bird going up in his face,
+     * or something a squirrel knocked down onto him. The caller applies them,
+     * so both demos are knocked about by the same numbers.
+     */
+    s.knocks = function () { var b = s.blows; s.blows = []; return b; };
 
     /** Whether a kibble is gone for good. */
     s.lost = function (i) { return s.stolen.indexOf(i) >= 0; };

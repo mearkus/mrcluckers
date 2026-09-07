@@ -78,7 +78,11 @@
       var out = { x: +c.x, y: c.y === undefined ? 0 : +c.y,
                   kind: c.kind || 'squirrel' };
       ['side', 'phase', 'period', 'approach', 'linger', 'leave', 'from',
-       'notice', 'reach', 'takes', 'wary', 'flush'].forEach(function (k) {
+       'notice', 'reach', 'takes', 'wary', 'flush',
+       // What it does to him, which a perch may also tune: `drops` is how
+       // often a squirrel knocks something down on you, and is the field that
+       // turns one from scenery into a hazard.
+       'drops', 'dropSpan', 'burst', 'knock', 'lift', 'stun'].forEach(function (k) {
         if (c[k] !== undefined) out[k] = +c[k];
       });
       return out;

@@ -465,9 +465,10 @@ first attempt silently did nothing, because those meshes carry material
 
 ## Squirrels and birds
 
-A squirrel is no threat to a plush chicken, so making it hurt *him* would be
+A squirrel is no threat to a plush chicken, so making it *attack* him would be
 borrowed from a different game. What a squirrel actually does is **take
-things** — and a level says which things by saying where it sits.
+things**, and **knock things down** — and a level says which by saying where
+it sits.
 
 Critters are authored as perches, in world units, next to the platforms:
 
@@ -507,6 +508,35 @@ run.
 Three units is not an arbitrary number. Both demos show about five units
 across, so a theft started further out than that would be a tax collected off
 screen rather than a race you were offered.
+
+### They have to reach *him*, not just his things
+
+Taking her attention and taking a kibble both happen beside him rather than to
+him, and for a while that was all they did: you could walk straight through a
+critter. A thing you cannot touch and that cannot touch you is scenery with a
+scoreboard, however carefully it is simulated.
+
+So each kind reaches him in the way that kind actually would.
+
+**A bird sits on the ledge you were going to land on.** Come up onto it and it
+goes off in your face — a shove of the same shape as the vacuum's, never
+lethal, but perfectly able to put you somewhere that is. The counterplay is
+the verb you already own: **crow at it from across the gap and the ledge is
+clear before you jump.** That is the whole argument for `crow` existing, and
+it is why the bird guards came *down* out of the air onto their ledges; they
+used to hover out of reach where nothing could ever disturb them.
+
+**A squirrel sits above the path and knocks things down.** It will not come
+down and fight a plush rooster, but it will drop acorns on one, which is both
+truer and more use to a platformer. It only bothers while you are actually
+under it, and the counterplay is legs: get up to its level and it bolts.
+
+That last rule forced a real correction. "Close enough to put it up" was a
+**circle**, so a squirrel a metre and a half above the path was startled by
+you simply walking underneath — a dropper could never drop. It is a **box**
+now: sideways is what crowds a critter, and being a body-length below it is
+not. The same predicate decides whether one will come back, or a critter gets
+locked out of a perch you were never close enough to move it from.
 
 ### Two kinds, two answers
 
@@ -750,8 +780,15 @@ is the safe play and standing your ground is the brave one, and the score says
 which you took: a catch with the other dog still breathing down her neck is
 worth an extra point.
 
-**The length.** Five throws, and a run of three or more earns another, up to
-eight. A good round lasts longer than a poor one, which is the cheapest
+**What he brought her.** Kibble was a number on a results screen and nothing
+else, which made losing one to a squirrel free. It buys **throws** now — four
+kibble to the throw, up to three — so the point of the level pays out in more
+fetch rather than a bigger number, and a squirrel that took one has taken
+something you can feel. He wants to please her; what he arrives with is the
+measure of it.
+
+**The length.** Five throws, plus what he brought, and a run of three or more
+earns another, up to two. A good round lasts longer than a poor one, which is the cheapest
 possible reason to keep playing well — and it stays short enough to be a
 coda rather than a second level.
 
@@ -793,7 +830,7 @@ could be.
 
 | | |
 | --- | --- |
-| Throws | 5, up to 8 |
+| Throws | 5, plus up to 3 bought with kibble, plus up to 2 earned |
 | Hang time | 1.20 s (flick), 1.80 s (lob), 2.00 s (high) |
 | Peak | 4.45 units above her feet, on the high one |
 | Her speed | 4.6 units/s |
