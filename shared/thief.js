@@ -145,6 +145,18 @@
       return s;
     };
 
+    /**
+     * It drops him and heads home. Needed when something else moves him
+     * mid-carry: a carry that outlives the grab yanks him straight back out
+     * of wherever he ended up.
+     */
+    s.letGo = function () {
+      s.carrying = false;
+      s.cool = cfg.cooldown;
+      s.phase = 'returning';
+      return s;
+    };
+
     return s;
   }
 
