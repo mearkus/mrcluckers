@@ -43,7 +43,13 @@
 
   var CFG = {
     throws: 5,          // the round you are promised
-    extra: 3,           // and the most a good run can add to it
+    extra: 2,           // and the most a good run can add to it
+    /* And what he brings her. The kibble was a number on a results screen and
+     * nothing else, which made losing one to a squirrel free. It buys throws
+     * now: the whole point of the level is to please her, so the reward for
+     * arriving with your pockets full is more fetch, not a bigger number. */
+    perKibble: 4,       // kibble to the throw
+    kibbleCap: 3,       // however full his pockets are
     gravity: 7.0,       // gentle: he hangs, which is what makes it readable
     mouth: 0.95,        // where he leaves from, and where he can be caught
     windUp: 0.85,       // her wind-up, and your look at where he is going
@@ -150,6 +156,8 @@
       throwsLeft: cfg.throws,
       throwIndex: 0,
       earned: 0,            // throws a run has added to the promised five
+      brought: 0,           // kibble he arrived with
+      fromKibble: 0,        // and the throws it bought
       caught: 0,
       lost: 0,              // taken off her by the other dog
       streak: 0,
@@ -176,8 +184,11 @@
      * wall that put her, the toy and the other dog out past the end of the
      * floor. With it the patch keeps its full width and slides inside.
      */
-    s.start = function (dogX, dogY, bounds) {
+    s.start = function (dogX, dogY, bounds, kibble) {
       s.home = dogX;
+      s.brought = kibble || 0;
+      s.fromKibble = Math.min(cfg.kibbleCap,
+                              Math.floor(s.brought / cfg.perKibble));
       var half = cfg.range;
       s.bounds = bounds || null;
       s.lo = dogX - half; s.hi = dogX + half;
@@ -194,7 +205,7 @@
       s.lo = Math.min(s.lo, dogX); s.hi = Math.max(s.hi, dogX);
       s.dog.x = dogX; s.dog.y = dogY; s.dog.vx = 0; s.dog.dir = -1;
       s.phase = 'wind'; s.t = 0;
-      s.throwsLeft = cfg.throws; s.throwIndex = 0; s.earned = 0;
+      s.throwsLeft = cfg.throws + s.fromKibble; s.throwIndex = 0; s.earned = 0;
       s.caught = 0; s.lost = 0; s.streak = 0; s.best = 0; s.score = 0;
       s.toy.held = true;
       s.toy.x = dogX; s.toy.y = dogY + cfg.mouth;
@@ -416,8 +427,8 @@
       return s;
     };
 
-    /** Throws in this round as it stands -- the promised five plus earned. */
-    s.total = function () { return cfg.throws + s.earned; };
+    /** Throws in this round: the promised five, what he brought, what he earned. */
+    s.total = function () { return cfg.throws + s.fromKibble + s.earned; };
 
     s.drain = function () { var e = s.events; s.events = []; return e; };
 

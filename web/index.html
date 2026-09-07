@@ -633,6 +633,27 @@ distraction = window.Distraction
       dog: LEVEL.goal ? { x: LEVEL.goal.x, y: LEVEL.goal.y } : null,
       pickups: LEVEL.pickups })
   : null;
+// A handful of acorns, reused: a squirrel never has many in the air at once,
+// and a pool keeps the scene graph from growing while you stand under one.
+const acornGeo = new THREE.SphereGeometry(0.11, 10, 8);
+const acornMat = new THREE.MeshStandardMaterial({ color: '#8a6a3c', roughness: .8 });
+const capMat = new THREE.MeshStandardMaterial({ color: '#5d4527', roughness: .9 });
+const acornPool = [];
+function acornMesh() {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(acornGeo, acornMat);
+  body.scale.set(1, 1.25, 1);
+  g.add(body);
+  const cap = new THREE.Mesh(acornGeo, capMat);
+  cap.scale.set(0.9, 0.45, 0.9);
+  cap.position.y = 0.1;
+  g.add(cap);
+  g.visible = false;
+  scene.add(g);
+  acornPool.push(g);
+  return g;
+}
+
 // One mesh per perch, plus the kibble it makes off with.
 const critterMeshes = distraction ? distraction.critters.map((c) => {
   const g = c.kind === 'bird' ? makeBird() : makeSquirrel();
@@ -887,13 +908,16 @@ function startBonus() {
   // The floor she is standing on, not the level's full width: three of the
   // five levels have a water gap before their last ledge, and the round would
   // lay its patch straight across it.
+  // And what he arrived with: kibble buys throws, so the level's whole point
+  // -- please her -- pays out in more fetch rather than a number.
   bonus.start(LEVEL.goal.x, LEVEL.goal.y,
-              window.Level.footing(LEVEL, LEVEL.goal));
+              window.Level.footing(LEVEL, LEVEL.goal), collected.size);
   // The level's own kibble would read as treats, so it steps out of the way.
   for (const k of kibbles) k.visible = false;
   // The wildlife stops when she has him back, but the update loop that hides
   // its meshes does not run during the round -- so they would hang there.
   for (const g of critterMeshes) g.visible = false;
+  for (const g of acornPool) g.visible = false;
   measureBonus();
   onResize();
 
@@ -998,8 +1022,11 @@ function updateBonus(dt) {
     prompt.querySelector('b').textContent =
       first ? 'Fetch! \u25C0 \u25B6 run Ginger' : 'Here comes the other dog';
     prompt.querySelector('span').textContent =
-      first ? 'catch him in the ring before he lands'
-            : 'beat it to the ring, or crow to stop it';
+      !first ? 'beat it to the ring, or crow to stop it'
+        : (bonus.fromKibble
+            ? bonus.brought + ' kibble for her \u2014 ' + bonus.fromKibble +
+              ' extra throw' + (bonus.fromKibble > 1 ? 's' : '')
+            : 'catch him in the ring before he lands');
   }
 
   pressed = {};
@@ -1212,6 +1239,18 @@ function update(dt) {
     distraction.update(dt, { x: P.x, y: P.y + 0.45,
                              taken: (i) => collected.has(i) });
     if (distraction.stolen.length > stolenBefore) snd('bump');
+
+    // A bird going up in his face, or something a squirrel knocked down.
+    for (const bw of distraction.knocks()) {
+      if (P.hitCool > 0) break;
+      P.vx = bw.vx; P.vy = bw.vy;
+      P.onGround = false;
+      P.stun = bw.stun;
+      P.hitCool = window.Distraction.CFG.immune;
+      P.action = 'tumble'; P.actionTime = 0;
+      snd('bump');
+      bird.play('tumble', { restart: true });
+    }
     for (let i = 0; i < critterMeshes.length; i++) {
       const c = distraction.critters[i], g = critterMeshes[i];
       g.visible = c.here;
@@ -1227,6 +1266,17 @@ function update(dt) {
         wings[1].rotation.x = flap;
       }
     }
+    // Whatever is falling, drawn from the pool and spun on the way down.
+    for (let i = 0; i < distraction.acorns.length; i++) {
+      const n = distraction.acorns[i];
+      const g = acornPool[i] || acornMesh();
+      g.visible = true;
+      g.position.set(n.x, n.y, 0);
+      g.rotation.z = (n.from - n.y) * 2.2;
+    }
+    for (let i = distraction.acorns.length; i < acornPool.length; i++)
+      acornPool[i].visible = false;
+
     // Anything carried off is gone: take it out of the level for good.
     for (const i of distraction.stolen) {
       if (kibbles[i]) kibbles[i].visible = false;
@@ -1361,6 +1411,7 @@ window.__distraction = () => distraction;
 // The meshes and the kibble, so a test can tell that what the shared module
 // says and what is actually on screen are the same thing.
 window.__critterMeshes = critterMeshes;
+window.__acornPool = acornPool;
 window.__kibbles = kibbles;
 window.__thieves = () => thieves.map((t) => t.state);
 // Used by the automated tests, and handy for looking at act two without

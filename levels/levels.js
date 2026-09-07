@@ -14,18 +14,18 @@ window.MRCLUCKERS_LEVELS = {
     },
     "critters": [
       {
-        "x": 7.0,
-        "y": 3.75,
+        "x": 7,
+        "y": 1.55,
         "kind": "bird",
-        "linger": 7.0,
-        "period": 9.0
+        "linger": 7,
+        "period": 9
       },
       {
         "x": 33.6,
-        "y": 4.55,
+        "y": 2.4,
         "kind": "bird",
-        "linger": 7.0,
-        "period": 9.0
+        "linger": 7,
+        "period": 9
       },
       {
         "x": 40.35,
@@ -42,7 +42,7 @@ window.MRCLUCKERS_LEVELS = {
         "ground": true
       },
       {
-        "x": 9.0,
+        "x": 9,
         "y": 0,
         "w": 6.6,
         "h": 1,
@@ -84,7 +84,7 @@ window.MRCLUCKERS_LEVELS = {
         "kind": "slab"
       },
       {
-        "x": 13.0,
+        "x": 13,
         "y": 1.6,
         "w": 1.7,
         "h": 1.6,
@@ -146,55 +146,55 @@ window.MRCLUCKERS_LEVELS = {
     ],
     "props": [
       {
-        "x": 1.0,
-        "y": 0.0,
+        "x": 1,
+        "y": 0,
         "kind": "plant"
       },
       {
         "x": 5.2,
-        "y": 0.0,
+        "y": 0,
         "kind": "lamp"
       },
       {
         "x": 8.2,
-        "y": 0.0,
+        "y": 0,
         "kind": "ball",
         "scale": 0.9
       },
       {
         "x": 16.4,
-        "y": 0.0,
+        "y": 0,
         "kind": "bowl"
       },
       {
         "x": 20.4,
-        "y": 0.0,
+        "y": 0,
         "kind": "plant",
         "scale": 0.8,
         "flip": true
       },
       {
-        "x": 25.0,
-        "y": 0.0,
+        "x": 25,
+        "y": 0,
         "kind": "post",
         "scale": 0.7
       },
       {
         "x": 29.9,
-        "y": 0.0,
+        "y": 0,
         "kind": "ball",
         "scale": 0.8,
         "flip": true
       },
       {
         "x": 34.9,
-        "y": 0.0,
+        "y": 0,
         "kind": "plant",
         "scale": 1.1
       },
       {
         "x": 41.2,
-        "y": 0.0,
+        "y": 0,
         "kind": "lamp",
         "scale": 0.9,
         "flip": true
@@ -238,16 +238,16 @@ window.MRCLUCKERS_LEVELS = {
     "patrols": [
       {
         "x": 18.8,
-        "y": 0.0,
+        "y": 0,
         "w": 3.6,
         "speed": 1.55,
         "pause": 0.7,
-        "phase": 0.0,
+        "phase": 0,
         "kind": "vacuum"
       },
       {
         "x": 27.1,
-        "y": 0.0,
+        "y": 0,
         "w": 5.4,
         "speed": 1.25,
         "pause": 0.9,
@@ -273,17 +273,17 @@ window.MRCLUCKERS_LEVELS = {
     "critters": [
       {
         "x": 14.6,
-        "y": 5.25,
+        "y": 3,
         "kind": "bird",
-        "linger": 7.0,
-        "period": 9.0
+        "linger": 7,
+        "period": 9
       },
       {
         "x": 33.6,
-        "y": 4.75,
+        "y": 2.3,
         "kind": "bird",
-        "linger": 7.0,
-        "period": 9.0
+        "linger": 7,
+        "period": 9
       },
       {
         "x": 38.55,
@@ -300,7 +300,7 @@ window.MRCLUCKERS_LEVELS = {
         "ground": true
       },
       {
-        "x": 10.0,
+        "x": 10,
         "y": 0,
         "w": 7.4,
         "h": 1,
@@ -321,7 +321,7 @@ window.MRCLUCKERS_LEVELS = {
         "ground": true
       },
       {
-        "x": 3.0,
+        "x": 3,
         "y": 1.1,
         "w": 1.6,
         "h": 1.1,
@@ -329,7 +329,7 @@ window.MRCLUCKERS_LEVELS = {
       },
       {
         "x": 5.4,
-        "y": 2.0,
+        "y": 2,
         "w": 1.5,
         "h": 0.4
       },
@@ -341,21 +341,21 @@ window.MRCLUCKERS_LEVELS = {
       },
       {
         "x": 10.4,
-        "y": 3.0,
+        "y": 3,
         "w": 4.6,
         "h": 1.1,
         "kind": "slab"
       },
       {
         "x": 16.2,
-        "y": 3.0,
+        "y": 3,
         "w": 3.4,
         "h": 1.1,
         "kind": "slab"
       },
       {
         "x": 21.4,
-        "y": 3.0,
+        "y": 3,
         "w": 4.2,
         "h": 1.1,
         "kind": "slab"
@@ -368,14 +368,14 @@ window.MRCLUCKERS_LEVELS = {
         "kind": "pipe"
       },
       {
-        "x": 20.0,
+        "x": 20,
         "y": 1.75,
         "w": 1.2,
         "h": 0.4,
         "kind": "pipe"
       },
       {
-        "x": 26.0,
+        "x": 26,
         "y": 1.9,
         "w": 1.4,
         "h": 0.4,
@@ -396,71 +396,71 @@ window.MRCLUCKERS_LEVELS = {
         "kind": "soft"
       },
       {
-        "x": 32.0,
+        "x": 32,
         "y": 2.3,
-        "w": 3.0,
+        "w": 3,
         "h": 1.1,
         "kind": "slab"
       },
       {
         "x": 36.2,
-        "y": 1.0,
+        "y": 1,
         "w": 1.6,
-        "h": 1.0,
+        "h": 1,
         "kind": "crate"
       }
     ],
     "props": [
       {
-        "x": 2.0,
-        "y": 0.0,
+        "x": 2,
+        "y": 0,
         "kind": "bowl"
       },
       {
         "x": 6.6,
-        "y": 0.0,
+        "y": 0,
         "kind": "plant",
         "scale": 0.8
       },
       {
         "x": 9.2,
-        "y": 0.0,
+        "y": 0,
         "kind": "bin",
         "scale": 0.9
       },
       {
         "x": 18.2,
-        "y": 0.0,
+        "y": 0,
         "kind": "bowl",
         "flip": true
       },
       {
         "x": 23.2,
-        "y": 0.0,
+        "y": 0,
         "kind": "plant",
         "scale": 0.75
       },
       {
         "x": 26.9,
-        "y": 0.0,
+        "y": 0,
         "kind": "bin"
       },
       {
         "x": 31.2,
-        "y": 0.0,
+        "y": 0,
         "kind": "ball",
         "scale": 0.85
       },
       {
         "x": 35.4,
-        "y": 0.0,
+        "y": 0,
         "kind": "plant",
         "scale": 0.9,
         "flip": true
       },
       {
         "x": 39.2,
-        "y": 0.0,
+        "y": 0,
         "kind": "post",
         "scale": 0.8
       }
@@ -487,7 +487,7 @@ window.MRCLUCKERS_LEVELS = {
         "y": 4.4
       },
       {
-        "x": 23.0,
+        "x": 23,
         "y": 4.4
       },
       {
@@ -525,7 +525,7 @@ window.MRCLUCKERS_LEVELS = {
     "patrols": [
       {
         "x": 11.6,
-        "y": 0.0,
+        "y": 0,
         "w": 4.2,
         "speed": 1.6,
         "pause": 0.7,
@@ -534,7 +534,7 @@ window.MRCLUCKERS_LEVELS = {
       },
       {
         "x": 28.9,
-        "y": 0.0,
+        "y": 0,
         "w": 6.4,
         "speed": 1.35,
         "pause": 0.8,
@@ -560,41 +560,43 @@ window.MRCLUCKERS_LEVELS = {
     "critters": [
       {
         "x": 16.9,
-        "y": 2.1,
+        "y": 2.15,
         "kind": "squirrel",
-        "linger": 7.0,
-        "period": 9.0
+        "linger": 7,
+        "period": 9,
+        "drops": 1.6
       },
       {
         "x": 31.3,
-        "y": 3.0,
+        "y": 3,
         "kind": "squirrel",
-        "linger": 7.0,
-        "period": 9.0
+        "linger": 7,
+        "period": 9,
+        "drops": 1.6
       },
       {
         "x": 40.8,
-        "y": 4.05,
+        "y": 1.7,
         "kind": "bird",
-        "linger": 7.0,
-        "period": 9.0
+        "linger": 7,
+        "period": 9
       },
       {
         "x": 46.35,
         "kind": "squirrel",
-        "y": 0.0
+        "y": 0
       }
     ],
     "platforms": [
       {
         "x": 0,
         "y": 0,
-        "w": 9.0,
+        "w": 9,
         "h": 1,
         "ground": true
       },
       {
-        "x": 11.0,
+        "x": 11,
         "y": 0,
         "w": 7.6,
         "h": 1,
@@ -603,7 +605,7 @@ window.MRCLUCKERS_LEVELS = {
       {
         "x": 24.6,
         "y": 0,
-        "w": 8.0,
+        "w": 8,
         "h": 1,
         "ground": true
       },
@@ -618,13 +620,13 @@ window.MRCLUCKERS_LEVELS = {
         "x": 2.6,
         "y": 1.1,
         "w": 2.8,
-        "h": 1.0,
+        "h": 1,
         "kind": "soft"
       },
       {
         "x": 6.4,
         "y": 1.6,
-        "w": 2.0,
+        "w": 2,
         "h": 1.6,
         "kind": "slab"
       },
@@ -683,12 +685,12 @@ window.MRCLUCKERS_LEVELS = {
       },
       {
         "x": 30.2,
-        "y": 3.0,
+        "y": 3,
         "w": 2.2,
         "h": 0.4
       },
       {
-        "x": 33.0,
+        "x": 33,
         "y": 1.35,
         "w": 1.3,
         "h": 1.35,
@@ -697,7 +699,7 @@ window.MRCLUCKERS_LEVELS = {
       {
         "x": 35.4,
         "y": 1.2,
-        "w": 3.0,
+        "w": 3,
         "h": 1.1,
         "kind": "soft"
       },
@@ -718,60 +720,60 @@ window.MRCLUCKERS_LEVELS = {
     ],
     "props": [
       {
-        "x": 1.0,
-        "y": 0.0,
+        "x": 1,
+        "y": 0,
         "kind": "flowers"
       },
       {
         "x": 5.6,
-        "y": 0.0,
+        "y": 0,
         "kind": "tree",
         "scale": 0.85
       },
       {
         "x": 9.6,
-        "y": 0.0,
+        "y": 0,
         "kind": "post"
       },
       {
         "x": 10.4,
-        "y": 0.0,
+        "y": 0,
         "kind": "flowers",
         "scale": 0.9
       },
       {
         "x": 18.6,
-        "y": 0.0,
+        "y": 0,
         "kind": "post",
         "scale": 0.8
       },
       {
-        "x": 24.0,
-        "y": 0.0,
+        "x": 24,
+        "y": 0,
         "kind": "flowers",
         "flip": true
       },
       {
-        "x": 29.0,
-        "y": 0.0,
+        "x": 29,
+        "y": 0,
         "kind": "tree",
         "scale": 0.7
       },
       {
-        "x": 34.0,
-        "y": 0.0,
+        "x": 34,
+        "y": 0,
         "kind": "post",
         "scale": 0.9
       },
       {
         "x": 38.8,
-        "y": 0.0,
+        "y": 0,
         "kind": "flowers",
         "scale": 1.1
       },
       {
         "x": 46.6,
-        "y": 0.0,
+        "y": 0,
         "kind": "tree",
         "scale": 0.9,
         "flip": true
@@ -779,7 +781,7 @@ window.MRCLUCKERS_LEVELS = {
     ],
     "pickups": [
       {
-        "x": 4.0,
+        "x": 4,
         "y": 2.5
       },
       {
@@ -787,7 +789,7 @@ window.MRCLUCKERS_LEVELS = {
         "y": 3.1
       },
       {
-        "x": 13.0,
+        "x": 13,
         "y": 2.7
       },
       {
@@ -799,7 +801,7 @@ window.MRCLUCKERS_LEVELS = {
         "y": 3.4
       },
       {
-        "x": 21.0,
+        "x": 21,
         "y": 2.1
       },
       {
@@ -819,21 +821,21 @@ window.MRCLUCKERS_LEVELS = {
       {
         "x": 18.6,
         "y": -0.15,
-        "w": 6.0,
+        "w": 6,
         "h": 0.55,
         "kind": "water"
       },
       {
-        "x": 9.0,
+        "x": 9,
         "y": -0.15,
-        "w": 2.0,
+        "w": 2,
         "h": 0.55,
         "kind": "water"
       },
       {
         "x": 32.6,
         "y": -0.15,
-        "w": 2.0,
+        "w": 2,
         "h": 0.55,
         "kind": "water"
       }
@@ -841,8 +843,8 @@ window.MRCLUCKERS_LEVELS = {
     "patrols": [
       {
         "x": 36.2,
-        "y": 0.0,
-        "w": 6.0,
+        "y": 0,
+        "w": 6,
         "speed": 1.4,
         "pause": 0.8,
         "phase": 1.1,
@@ -851,7 +853,7 @@ window.MRCLUCKERS_LEVELS = {
     ],
     "thieves": [
       {
-        "x": 27.0,
+        "x": 27,
         "y": 0
       }
     ]
@@ -874,22 +876,23 @@ window.MRCLUCKERS_LEVELS = {
         "x": 16.8,
         "y": 2.2,
         "kind": "squirrel",
-        "linger": 7.0,
-        "period": 9.0
+        "linger": 7,
+        "period": 9,
+        "drops": 1.6
       },
       {
         "x": 29.3,
         "y": 1.2,
         "kind": "squirrel",
-        "linger": 7.0,
-        "period": 9.0
+        "linger": 7,
+        "period": 9
       },
       {
         "x": 44.6,
-        "y": 5.35,
+        "y": 3.15,
         "kind": "bird",
-        "linger": 7.0,
-        "period": 9.0
+        "linger": 7,
+        "period": 9
       },
       {
         "x": 56.15,
@@ -913,7 +916,7 @@ window.MRCLUCKERS_LEVELS = {
         "ground": true
       },
       {
-        "x": 24.0,
+        "x": 24,
         "y": 0,
         "w": 10.6,
         "h": 1,
@@ -941,20 +944,20 @@ window.MRCLUCKERS_LEVELS = {
         "kind": "slab"
       },
       {
-        "x": 6.0,
+        "x": 6,
         "y": 1.15,
         "w": 2.6,
         "h": 1.05,
         "kind": "soft"
       },
       {
-        "x": 9.0,
+        "x": 9,
         "y": 2.1,
         "w": 1.4,
         "h": 0.4
       },
       {
-        "x": 13.0,
+        "x": 13,
         "y": 1.2,
         "w": 2.2,
         "h": 1.2,
@@ -963,7 +966,7 @@ window.MRCLUCKERS_LEVELS = {
       {
         "x": 15.8,
         "y": 2.2,
-        "w": 2.0,
+        "w": 2,
         "h": 0.4
       },
       {
@@ -989,7 +992,7 @@ window.MRCLUCKERS_LEVELS = {
       {
         "x": 27.8,
         "y": 1.2,
-        "w": 3.0,
+        "w": 3,
         "h": 1.1,
         "kind": "soft"
       },
@@ -1014,7 +1017,7 @@ window.MRCLUCKERS_LEVELS = {
         "kind": "soft"
       },
       {
-        "x": 41.0,
+        "x": 41,
         "y": 2.3,
         "w": 2.4,
         "h": 0.4
@@ -1028,14 +1031,14 @@ window.MRCLUCKERS_LEVELS = {
       {
         "x": 47.8,
         "y": 1.6,
-        "w": 3.0,
+        "w": 3,
         "h": 1.6,
         "kind": "slab"
       },
       {
         "x": 51.8,
         "y": 2.5,
-        "w": 2.0,
+        "w": 2,
         "h": 0.4
       },
       {
@@ -1048,71 +1051,71 @@ window.MRCLUCKERS_LEVELS = {
     ],
     "props": [
       {
-        "x": 1.0,
-        "y": 0.0,
+        "x": 1,
+        "y": 0,
         "kind": "tree"
       },
       {
-        "x": 5.0,
-        "y": 0.0,
+        "x": 5,
+        "y": 0,
         "kind": "bin",
         "scale": 0.9
       },
       {
         "x": 8.2,
-        "y": 0.0,
+        "y": 0,
         "kind": "flowers"
       },
       {
         "x": 11.6,
-        "y": 0.0,
+        "y": 0,
         "kind": "post"
       },
       {
         "x": 17.6,
-        "y": 0.0,
+        "y": 0,
         "kind": "tree",
         "scale": 0.8,
         "flip": true
       },
       {
         "x": 22.6,
-        "y": 0.0,
+        "y": 0,
         "kind": "post",
         "scale": 0.9
       },
       {
         "x": 26.6,
-        "y": 0.0,
+        "y": 0,
         "kind": "flowers",
         "scale": 1.1
       },
       {
         "x": 35.6,
-        "y": 0.0,
+        "y": 0,
         "kind": "bin"
       },
       {
         "x": 40.2,
-        "y": 0.0,
+        "y": 0,
         "kind": "tree",
         "scale": 0.75
       },
       {
         "x": 46.4,
-        "y": 0.0,
+        "y": 0,
         "kind": "post",
         "scale": 0.85
       },
       {
         "x": 50.8,
-        "y": 0.0,
+        "y": 0,
         "kind": "flowers",
         "flip": true
       },
       {
-        "x": 57.0,
-        "y": 0.0,
+        "x": 57,
+        "y": 0,
         "kind": "tree",
         "scale": 0.95,
         "flip": true
@@ -1197,16 +1200,16 @@ window.MRCLUCKERS_LEVELS = {
     "patrols": [
       {
         "x": 38.4,
-        "y": 0.0,
+        "y": 0,
         "w": 5.2,
         "speed": 1.5,
         "pause": 0.7,
-        "phase": 0.0,
+        "phase": 0,
         "kind": "mower"
       },
       {
         "x": 25.6,
-        "y": 0.0,
+        "y": 0,
         "w": 7.4,
         "speed": 1.3,
         "pause": 0.9,
@@ -1241,36 +1244,39 @@ window.MRCLUCKERS_LEVELS = {
     "critters": [
       {
         "x": 17.4,
-        "y": 2.2,
+        "y": 2.25,
         "kind": "squirrel",
-        "linger": 7.0,
-        "period": 9.0
+        "linger": 7,
+        "period": 9,
+        "drops": 1.6
       },
       {
         "x": 29.2,
-        "y": 5.05,
+        "y": 2.95,
         "kind": "bird",
-        "linger": 7.0,
-        "period": 9.0
+        "linger": 7,
+        "period": 9
       },
       {
         "x": 46.9,
-        "y": 2.4,
+        "y": 2.35,
         "kind": "squirrel",
-        "linger": 7.0,
-        "period": 9.0
+        "linger": 7,
+        "period": 9,
+        "drops": 1.6
       },
       {
         "x": 60.5,
-        "y": 5.15,
+        "y": 3,
         "kind": "bird",
-        "linger": 7.0,
-        "period": 9.0
+        "linger": 7,
+        "period": 9,
+        "notice": 0
       },
       {
         "x": 62.15,
         "kind": "squirrel",
-        "y": 0.0
+        "y": 0
       }
     ],
     "platforms": [
@@ -1298,7 +1304,7 @@ window.MRCLUCKERS_LEVELS = {
       {
         "x": 32.2,
         "y": 0,
-        "w": 9.0,
+        "w": 9,
         "h": 1,
         "ground": true
       },
@@ -1356,7 +1362,7 @@ window.MRCLUCKERS_LEVELS = {
         "h": 0.35
       },
       {
-        "x": 19.0,
+        "x": 19,
         "y": 1.2,
         "w": 1.3,
         "h": 1.2,
@@ -1365,7 +1371,7 @@ window.MRCLUCKERS_LEVELS = {
       {
         "x": 22.8,
         "y": 1.15,
-        "w": 2.0,
+        "w": 2,
         "h": 1.15,
         "kind": "crate"
       },
@@ -1409,7 +1415,7 @@ window.MRCLUCKERS_LEVELS = {
         "kind": "crate"
       },
       {
-        "x": 46.0,
+        "x": 46,
         "y": 2.35,
         "w": 1.9,
         "h": 0.4
@@ -1417,7 +1423,7 @@ window.MRCLUCKERS_LEVELS = {
       {
         "x": 48.6,
         "y": 3.1,
-        "w": 2.0,
+        "w": 2,
         "h": 0.4
       },
       {
@@ -1443,90 +1449,90 @@ window.MRCLUCKERS_LEVELS = {
       },
       {
         "x": 59.6,
-        "y": 3.0,
+        "y": 3,
         "w": 1.6,
         "h": 0.35
       }
     ],
     "props": [
       {
-        "x": 1.0,
-        "y": 0.0,
+        "x": 1,
+        "y": 0,
         "kind": "post"
       },
       {
         "x": 4.6,
-        "y": 0.0,
+        "y": 0,
         "kind": "bin"
       },
       {
         "x": 10.6,
-        "y": 0.0,
+        "y": 0,
         "kind": "bin",
         "scale": 0.9,
         "flip": true
       },
       {
-        "x": 11.0,
-        "y": 0.0,
+        "x": 11,
+        "y": 0,
         "kind": "flowers",
         "scale": 0.8
       },
       {
         "x": 15.4,
-        "y": 0.0,
+        "y": 0,
         "kind": "post",
         "scale": 0.9
       },
       {
         "x": 21.4,
-        "y": 0.0,
+        "y": 0,
         "kind": "bin",
         "scale": 1.05
       },
       {
         "x": 27.4,
-        "y": 0.0,
+        "y": 0,
         "kind": "post",
         "flip": true
       },
       {
         "x": 31.4,
-        "y": 0.0,
+        "y": 0,
         "kind": "flowers"
       },
       {
         "x": 38.4,
-        "y": 0.0,
+        "y": 0,
         "kind": "tree",
         "scale": 0.7
       },
       {
         "x": 42.6,
-        "y": 0.0,
+        "y": 0,
         "kind": "bin",
         "scale": 0.95
       },
       {
         "x": 47.4,
-        "y": 0.0,
+        "y": 0,
         "kind": "post",
         "scale": 0.85
       },
       {
-        "x": 53.0,
-        "y": 0.0,
+        "x": 53,
+        "y": 0,
         "kind": "flowers",
         "scale": 1.1
       },
       {
         "x": 57.6,
-        "y": 0.0,
+        "y": 0,
         "kind": "plant"
       },
       {
-        "x": 63.0,
-        "y": 0.0,
+        "x": 63,
+        "y": 0,
         "kind": "tree",
         "scale": 0.8,
         "flip": true
@@ -1535,11 +1541,11 @@ window.MRCLUCKERS_LEVELS = {
     "pickups": [
       {
         "x": 3.4,
-        "y": 2.0
+        "y": 2
       },
       {
         "x": 6.2,
-        "y": 3.0
+        "y": 3
       },
       {
         "x": 8.4,
@@ -1602,7 +1608,7 @@ window.MRCLUCKERS_LEVELS = {
         "kind": "water"
       },
       {
-        "x": 30.0,
+        "x": 30,
         "y": -0.15,
         "w": 2.2,
         "h": 0.55,
@@ -1626,7 +1632,7 @@ window.MRCLUCKERS_LEVELS = {
     "patrols": [
       {
         "x": 13.45,
-        "y": 0.0,
+        "y": 0,
         "w": 5.15,
         "speed": 1.6,
         "pause": 0.7,
@@ -1634,9 +1640,9 @@ window.MRCLUCKERS_LEVELS = {
         "kind": "mower"
       },
       {
-        "x": 45.0,
-        "y": 0.0,
-        "w": 5.0,
+        "x": 45,
+        "y": 0,
+        "w": 5,
         "speed": 1.45,
         "pause": 0.8,
         "phase": 2.2,
@@ -1644,8 +1650,8 @@ window.MRCLUCKERS_LEVELS = {
       },
       {
         "x": 55.4,
-        "y": 0.0,
-        "w": 6.0,
+        "y": 0,
+        "w": 6,
         "speed": 1.3,
         "pause": 0.9,
         "phase": 3.4,
