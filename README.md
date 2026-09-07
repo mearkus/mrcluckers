@@ -52,9 +52,10 @@ Both work on a phone: on a touch device an on-screen pad appears, and the
 play area reflows for the screen. Landscape gives the wider view a
 side-scroller wants, but portrait is playable.
 
-**`demo/index.html` — sprites on a 2D canvas.** Open it directly in a
-browser, no server needed. `demo/game.js` is meant to be read as much as
-played: `Anim` handles frame timing, `pickState` is the animation state
+**`index.html` — the game, at the site root.** Sprites on a 2D canvas; open it
+directly in a browser, no server needed. Its code is in `demo/`: `shell.js` is
+the title screen and level select, and `game.js` is meant to be read as much
+as played — `Anim` handles frame timing, `pickState` is the animation state
 machine, and the draw call shows how to use the anchor so the sprite's feet
 land on the floor.
 
@@ -221,9 +222,23 @@ you paused is still held when you come back, and he sets off on his own.
 
 ## The game around the levels
 
-`demo/` is the game now, not a demo of one. Opening it gives you a title
-screen; levels open in order as you finish them; finishing one offers the
-next.
+The game is the site root now, not a demo of one parked under `/demo/`. The
+address you hand someone is the title screen; levels open in order as you
+finish them; finishing one offers the next. Everything that is *about* the
+game rather than the game — the model, the sheets, the editor, the assets —
+moved down to `/admin/`, reachable from a line of text at the foot of the
+title screen rather than a fourth button in a menu that is deliberately
+short.
+
+Moving the page up a directory is not just a `git mv`: paths a script builds
+at run time resolve against the **document**, not against the script that
+built them. The key art in `shell.js` and both sprite sheets in `game.js` were
+written `../assets/...`, which from the root points above the site. A test
+that only checked the page loaded would have passed while the title screen had
+no art on it.
+
+`/demo/` itself is now a redirect to the root, so an address someone
+bookmarked on their phone still lands on the game.
 
 **Picking a level navigates.** `?level=slug` is how the game has always chosen
 one, so the flow uses the mechanism that already existed rather than teaching

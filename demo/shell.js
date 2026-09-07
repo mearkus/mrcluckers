@@ -240,7 +240,7 @@
     // so the buttons are always the thing your thumb lands on first.
     var art = el("div", "title-art");
     var img = document.createElement("img");
-    img.src = "../assets/art/keyart.png";
+    img.src = "assets/art/keyart.png";
     img.alt = "Ginger the dog standing beside Mr. Cluckers, her plush rooster";
     // Intrinsic size, so the layout reserves the right box before the render
     // arrives and the menu does not jump down the page when it does.
@@ -293,6 +293,15 @@
       });
       wrap.appendChild(wipe);
     }
+
+    // How it was made, the editor, the model and the sheets: a line of text,
+    // not a fourth button. The menu is capped at what you came here to do.
+    var colophon = el("p", "colophon");
+    var made = document.createElement("a");
+    made.href = "admin/";
+    made.textContent = "How he was made";
+    colophon.appendChild(made);
+    wrap.appendChild(colophon);
 
     var page = el("div", "title-page");
     page.appendChild(art);

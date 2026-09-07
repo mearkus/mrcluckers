@@ -1,2 +1,7 @@
 __pycache__/
 *.pyc
+
+# A screenshot script run without its output directory writes to ./undefined/.
+# One of those was committed and published once; the scripts have a default
+# now, and this is the belt to that pair of braces.
+undefined/
