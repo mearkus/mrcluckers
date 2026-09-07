@@ -35,6 +35,42 @@
   #prompt b { display: block; color: #fffae1; font-size: clamp(15px, 3.2vw, 26px); }
   #prompt span { display: block; margin-top: 6px; color: #d2e6f5;
                  font-size: clamp(11px, 2.2vw, 16px); }
+  /* The two round buttons, top right, above everything. The sprite demo has
+     had these since it grew a shell; this one had no way to stop and no way
+     to shut it up. */
+  #tools { position: fixed; right: 12px; display: flex; gap: 8px; z-index: 4;
+           top: calc(10px + env(safe-area-inset-top, 0px)); }
+  #tools button { width: 40px; height: 40px; border-radius: 999px; padding: 0;
+                  font-size: 17px; line-height: 1; cursor: pointer;
+                  color: #eaf0f4; background: rgba(8, 10, 14, .62);
+                  border: 1px solid rgba(255, 255, 255, .18); }
+  #tools button:hover { background: rgba(8, 10, 14, .82); }
+  #tools button:focus-visible { outline: 2px solid #ffd76a; outline-offset: 2px; }
+  /* Pause and the end of the level share one look. */
+  .panel { position: fixed; inset: 0; z-index: 5; display: grid;
+           place-items: center; background: rgba(10, 14, 20, .72);
+           font-family: system-ui, sans-serif; }
+  /* `display: grid` here outranks the browser's own rule for [hidden], so a
+     hidden panel stays laid out over the whole screen and quietly eats every
+     click. The sprite demo hit this once already. */
+  .panel[hidden] { display: none !important; }
+  /* The on-screen pad steps out of the way, so a panel is the only thing
+     there is to touch. */
+  body.halted .tc { display: none; }
+  .panel-inner { text-align: center; padding: 26px 30px; max-width: min(92vw, 420px);
+                 border-radius: 16px; background: rgba(18, 24, 32, .94);
+                 border: 1px solid rgba(255, 255, 255, .12); }
+  .panel-inner h2 { margin: 0 0 6px; font-size: clamp(19px, 4vw, 27px);
+                    color: #fffae1; }
+  .panel-inner .tag { margin: 0 0 16px; color: #b9cbd8; font-size: 13.5px; }
+  .panel-inner button { display: block; width: 100%; margin: 8px 0 0;
+                        padding: 11px 16px; border-radius: 10px; cursor: pointer;
+                        font: inherit; font-size: 15px; border: 0; }
+  .panel-inner .big { background: #e0333a; color: #fff; font-weight: 700; }
+  .panel-inner .big:hover { background: #c72b32; }
+  .panel-inner .quiet { background: rgba(255, 255, 255, .09); color: #dce6ee; }
+  .panel-inner .quiet:hover { background: rgba(255, 255, 255, .16); }
+  .panel-inner button:focus-visible { outline: 2px solid #ffd76a; outline-offset: 2px; }
 </style>
 <div id="loading">Loading&hellip;</div>
 <div id="hud" hidden>
@@ -49,6 +85,12 @@
   <span>state <b id="state">idle</b></span>
   <span><b id="fps">--</b> fps</span>
 </div>
+<div id="tools" hidden>
+  <button id="pauseBtn" type="button" aria-label="Pause">&#9208;</button>
+  <button id="muteBtn" type="button" aria-label="Sound">&#128266;</button>
+</div>
+<div id="paused" class="panel" hidden></div>
+<div id="done" class="panel" hidden></div>
 <div id="rotate">Turn sideways for a wider view</div>
 <div id="prompt" hidden>
   <b>Fetch! &#9664; &#9654; run Ginger</b>
@@ -63,6 +105,8 @@
 <script src="../shared/distraction.js"></script>
 <script src="../shared/thief.js"></script>
 <script src="../shared/bonus.js"></script>
+<script src="../shared/sound.js"></script>
+<script src="../shared/progress.js"></script>
 <script src="../shared/controls.js"></script>
 
 <script type="importmap">
@@ -668,6 +712,29 @@ const bird = await Cluckers.load('../assets/model/mrcluckers.glb');
 scene.add(bird.root);
 document.getElementById('loading').remove();
 document.getElementById('hud').hidden = false;
+document.getElementById('tools').hidden = false;
+
+// The pause and sound buttons, wired the way the sprite demo's shell wires
+// its pair -- including the bit browsers insist on: no noise until the page
+// has been interacted with.
+(function tools() {
+  document.getElementById('pauseBtn')
+    .addEventListener('click', () => togglePause());
+  const S = window.Sound, btn = document.getElementById('muteBtn');
+  const paint = () => {
+    const on = !S || S.enabled();
+    btn.textContent = on ? '\uD83D\uDD0A' : '\uD83D\uDD07';
+    btn.setAttribute('aria-label', on ? 'Sound on' : 'Sound off');
+  };
+  paint();
+  btn.addEventListener('click', () => {
+    if (S) { S.toggle(); if (S.enabled()) S.play('ui'); }
+    paint();
+  });
+  const wake = () => { if (S) S.unlock(); };
+  addEventListener('keydown', wake, { once: true });
+  addEventListener('pointerdown', wake, { once: true });
+})();
 
 if (window.TouchControls && window.TouchControls.isTouch) {
   window.TouchControls.mount({
@@ -684,10 +751,112 @@ onResize();
 
 // --- input ---------------------------------------------------------------
 const keys = {}; let pressed = {};
+// Sound is the same bed the sprite demo plays, from the same shared voices,
+// so the two demos sound alike as well as behaving alike.
+const snd = (name) => { if (window.Sound) window.Sound.play(name); };
+
+// --- pause, and the end of the level --------------------------------------
+// There was no way out of a level here but the address bar, and on a phone
+// the play view has no address bar. The sprite demo grew this when its shell
+// did; this one never had it.
+let paused = false;
+
+/** Paused, or the level is over: either way, nothing behind the panel plays. */
+function blocked() {
+  const done = document.getElementById('done');
+  return paused || (done && !done.hidden);
+}
+
+function panel(host, title, tag, buttons) {
+  host.hidden = false;
+  host.innerHTML = '';
+  const box = document.createElement('div');
+  box.className = 'panel-inner';
+  const h = document.createElement('h2');
+  h.textContent = title;
+  box.appendChild(h);
+  if (tag) {
+    const p = document.createElement('p');
+    p.className = 'tag';
+    p.textContent = tag;
+    box.appendChild(p);
+  }
+  for (const [cls, text, fn] of buttons) {
+    const b = document.createElement('button');
+    b.className = cls;
+    b.textContent = text;
+    b.addEventListener('click', () => { snd('ui'); fn(); });
+    box.appendChild(b);
+  }
+  host.appendChild(box);
+  document.body.classList.add('halted');
+  box.querySelector('button').focus();
+}
+
+/** How the sprite demo's level select words a finished run. */
+function starLine(stats, total) {
+  const bits = [stats.kibble + '/' + total + ' kibble'];
+  if (stats.bonus) bits.push(stats.bonus + ' at fetch');
+  return bits.join(' \u00b7 ');
+}
+
+function levelFinished(stats) {
+  // Same store, same keys as the sprite demo: finishing The Living Room here
+  // unlocks The Kitchen over there. That is the whole point of recording it.
+  if (window.Progress) window.Progress.complete(SLUG, stats);
+  snd('win');
+  const order = window.MRCLUCKERS_LEVEL_ORDER || [];
+  const next = window.Progress ? window.Progress.next(order, SLUG) : null;
+  const buttons = [];
+  if (next) {
+    const name = (window.MRCLUCKERS_LEVELS[next] || {}).name || next;
+    buttons.push(['big', 'Next: ' + name,
+                  () => { location.href = '?level=' + next; }]);
+  }
+  buttons.push(['quiet', 'Play it again', () => location.reload()]);
+  buttons.push(['quiet', 'Level select', () => { location.href = '../demo/?#levels'; }]);
+  panel(document.getElementById('done'), LEVEL.name + ' \u2014 done',
+        next ? starLine(stats, LEVEL.pickups.length)
+             : starLine(stats, LEVEL.pickups.length) +
+               " \u2014 that's the last one",
+        buttons);
+}
+
+function togglePause(force) {
+  const want = force === undefined ? !paused : !!force;
+  if (want === paused) return;
+  // Finishing the level is not something to pause out of.
+  if (want && !document.getElementById('done').hidden) return;
+  paused = want;
+  // Let go of everything, or a key held at the moment you paused stays held.
+  // `keys` is shared by reference with the input handlers, so it is emptied
+  // in place rather than replaced.
+  for (const k in keys) delete keys[k];
+  pressed = {};
+  const host = document.getElementById('paused');
+  if (!paused) {
+    host.hidden = true; host.innerHTML = '';
+    document.body.classList.remove('halted');
+    return;
+  }
+  snd('ui');
+  panel(host, 'Paused', LEVEL.name, [
+    ['big', 'Resume', () => togglePause(false)],
+    ['quiet', 'Restart level', () => location.reload()],
+    // The level select is the sprite demo's shell; this page is one level and
+    // a URL. Send them there rather than pretending to have a menu.
+    ['quiet', 'Level select', () => { location.href = '../demo/?#levels'; }]
+  ]);
+}
+
 const MAP = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right',
   ArrowDown: 'down', KeyS: 'down', ArrowUp: 'jump', KeyW: 'jump', Space: 'jump',
   KeyX: 'peck', KeyC: 'crow', KeyZ: 'squeak', KeyV: 'tumble' };
 addEventListener('keydown', e => {
+  if (e.code === 'Escape' || e.code === 'KeyP') { togglePause(); e.preventDefault(); return; }
+  // The on-screen pad dispatches real key events, so guarding here covers
+  // touch as well as the keyboard.
+  if (blocked()) return;
   const k = MAP[e.code]; if (!k) return;
   if (!keys[k]) pressed[k] = true; keys[k] = true; e.preventDefault();
 });
@@ -768,9 +937,14 @@ function updateBonus(dt) {
   }
 
   for (const e of bonus.drain()) {
-    if (e === 'catch') { bird.play('squeak', { restart: true });
-                         if (ginger) ginger.play('greet', 0.08); }
-    else if (e === 'miss' || e === 'steal') bird.play('land', { restart: true });
+    if (e === 'throw') snd('throwUp');
+    else if (e === 'catch') { snd('catch'); snd('bark');
+                              bird.play('squeak', { restart: true });
+                              if (ginger) ginger.play('greet', 0.08); }
+    else if (e === 'miss') { snd('miss'); bird.play('land', { restart: true }); }
+    else if (e === 'steal') { snd('miss'); snd('bark');
+                              bird.play('land', { restart: true }); }
+    else if (e === 'flinch') snd('bump');
   }
 
   // The other dog, running for the same spot she is.
@@ -830,6 +1004,13 @@ function updateBonus(dt) {
 
   pressed = {};
   document.getElementById('state').textContent = bird.current.getClip().name;
+  // The round ending is the end of the level.
+  if (bonus.phase === 'done' && !bonus.recorded) {
+    bonus.recorded = true;
+    levelFinished({ kibble: collected.size, pickups: LEVEL.pickups.length,
+                    bonus: bonus.score });
+  }
+
   const total = bonus.total();
   document.getElementById('levelName').textContent =
     (bonus.phase === 'done' ? 'fetch! \u2014 final'
@@ -881,6 +1062,8 @@ function update(dt) {
       if (pressed[a]) {
         P.action = a;
         P.actionTime = 0;
+        if (a === 'squeak') snd('squeak');
+        if (a === 'crow') snd('bark');
         bird.play(a, { restart: true });
         break;
       }
@@ -905,6 +1088,7 @@ function update(dt) {
   P.buffer = pressed.jump ? BUFFER : Math.max(0, P.buffer - dt);
   if (P.buffer > 0 && P.coyote > 0) {
     P.vy = JUMPV; P.onGround = false; P.coyote = 0; P.buffer = 0;
+    snd('jump');
   }
   if (P.vy > 0 && !keys.jump) P.vy -= GRAVITY * 1.6 * dt;
 
@@ -938,7 +1122,7 @@ function update(dt) {
         }
       }
     }
-    if (P.onGround && wasAir) P.landTimer = 0.26;
+    if (P.onGround && wasAir) { P.landTimer = 0.26; snd('land'); }
   }
   // Carried by whatever he is standing on, taken as the deck's own movement
   // over this frame so he keeps station on it through the turnaround pause.
@@ -968,6 +1152,7 @@ function update(dt) {
     P.vx = k.vx; P.vy = k.vy; P.onGround = false; P.stun = k.stun;
     P.hitCool = window.Patrol.CFG.immune;
     P.action = 'tumble'; P.actionTime = 0;
+    snd('bump');
     bird.play('tumble', { restart: true });
   }
 
@@ -988,6 +1173,7 @@ function update(dt) {
     P.x = back.x; P.y = back.y; P.vx = P.vy = 0; P.action = null;
     P.stun = 0;
     P.hitCool = back.grace;         // don't get hit the moment you arrive
+    snd(inHazard ? 'splash' : 'land');
   }
 
   for (const k of kibbles) {
@@ -997,13 +1183,16 @@ function update(dt) {
         Math.abs(k.position.y - (P.y + 0.5)) < 0.55) {
       k.visible = false;
       collected.add(k.userData.index);
+      snd('kibble');
       if (!P.action) { P.action = 'squeak'; P.actionTime = 0;
                        bird.play('squeak', { restart: true }); }
     }
   }
   for (const t of thieves) {
+    const held = t.state.carrying;
     t.state.update(dt, { x: P.x, y: P.y, onGround: P.onGround,
                          safe: P.hitCool > 0 });
+    if (t.state.carrying && !held) snd('grab');   // the moment it gets him
     t.root.position.x = t.state.x;
     t.pivot.rotation.y = t.state.dir > 0 ? -Math.PI / 2 : Math.PI / 2;
     t.play(t.state.clip());
@@ -1019,8 +1208,10 @@ function update(dt) {
   }
 
   if (distraction) {
+    const stolenBefore = distraction.stolen.length;
     distraction.update(dt, { x: P.x, y: P.y + 0.45,
                              taken: (i) => collected.has(i) });
+    if (distraction.stolen.length > stolenBefore) snd('bump');
     for (let i = 0; i < critterMeshes.length; i++) {
       const c = distraction.critters[i], g = critterMeshes[i];
       g.visible = c.here;
@@ -1044,7 +1235,7 @@ function update(dt) {
     if (pressed.squeak && distraction.squeak(P.x) && ginger) ginger.play('greet', 0.08);
     // And a crow puts up every bird within earshot, ending its visit and any
     // theft it was halfway through.
-    if (pressed.crow) distraction.scare(P.x, P.y + 0.45);
+    if (pressed.crow && distraction.scare(P.x, P.y + 0.45).length) snd('bump');
     // She turns to whatever has her attention.
     if (ginger) {
       ginger.root.rotation.y =
@@ -1057,6 +1248,7 @@ function update(dt) {
         Math.abs(LEVEL.goal.y - P.y) < 0.9 &&
         (!distraction || distraction.onYou())) {
       P.reached = true;
+      snd('bark');
       if (distraction) distraction.finish();
       P.action = 'crow';
       P.actionTime = 0;
@@ -1146,7 +1338,7 @@ let last = performance.now(), acc = 0, frames = 0;
 renderer.setAnimationLoop((now) => {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
-  update(dt);
+  if (!paused) update(dt);        // still drawn, so the frozen frame shows
   renderer.render(scene, camera);
   acc += dt; frames++;
   if (acc > 0.5) {
