@@ -96,6 +96,60 @@
   var WORLD = window.Level.normalize(picked.data);
   var checkpoint = window.Checkpoint ? window.Checkpoint.create(WORLD) : null;
   var respawnFlash = 0;
+
+  /* Coming back from a fall.
+   *
+   * The camera is worked out straight from where he is, with no easing, so
+   * moving him moved the whole view in one frame: you went in the water and
+   * arrived somewhere else, mid-stride, with no beat in between. It read as
+   * being teleported rather than as being fished out.
+   *
+   * So the swap happens behind a dip. He goes under first, the screen closes,
+   * he is set down while nothing is visible, and it opens on him back on
+   * solid ground. Same rules, same destination -- it just has a shape now. */
+  var RECOVER = { under: 0.34, dark: 0.16, open: 0.42 };
+  var recover = null;      // { t, from: {x, y}, to: {x, y}, grace, wet }
+
+  function startRecovery(back, wet) {
+    recover = {
+      t: 0, wet: !!wet, grace: back.grace,
+      from: { x: player.x, y: player.y },
+      to: { x: back.x * PX, y: LEVEL.ground - back.y * PX }
+    };
+    player.vx = player.vy = 0;
+    player.action = null;
+    player.stun = 0;
+  }
+
+  /** 0 while you can still see, 1 at the bottom of the dip. */
+  function recoverDim(r) {
+    if (r.t < RECOVER.under) return r.t / RECOVER.under;
+    if (r.t < RECOVER.under + RECOVER.dark) return 1;
+    return Math.max(0, 1 - (r.t - RECOVER.under - RECOVER.dark) / RECOVER.open);
+  }
+
+  function updateRecovery(dt) {
+    var r = recover;
+    var was = r.t;
+    r.t += dt;
+    // Under he goes, while the screen is closing.
+    if (r.t < RECOVER.under) {
+      player.y = r.from.y + (r.wet ? 46 : 90) * (r.t / RECOVER.under);
+      return;
+    }
+    // Set down the moment nothing can be seen, so the camera's jump is not.
+    if (was < RECOVER.under) {
+      player.x = r.to.x;
+      player.y = r.to.y;
+      player.hitCool = Math.max(player.hitCool, r.grace);
+      respawnFlash = 0.45;
+      window.Sound && window.Sound.play("land");
+    }
+    player.x = r.to.x;
+    player.y = r.to.y;
+    player.vx = player.vy = 0;
+    if (r.t >= RECOVER.under + RECOVER.dark + RECOVER.open) recover = null;
+  }
   var bits = [];              // dust and splashes; purely cosmetic
 
   /** A puff of `n` bits at a point, in world pixels. */
@@ -193,6 +247,10 @@
              taken: function (i) { return !!collected[i]; } };
   }
 
+  // Every knock leaves a mark; three marks cost a seam. shared/wear.js keeps
+  // the count so both demos scuff him at the same rate.
+  var wear = window.Wear ? window.Wear.create() : null;
+
   var player = {
     x: LEVEL.spawn.x, y: LEVEL.spawn.y, vx: 0, vy: 0,
     facing: 1, onGround: true, coyote: 0, buffer: 0,
@@ -224,6 +282,31 @@
     measureBonus();
     pops = [];
     return bonus;
+  }
+
+  /**
+   * Book a knock and pay for it. A shove is its own punishment most of the
+   * time; when it takes the last mark he comes apart, and that costs a seam
+   * and the ground back to the last place he stood safely.
+   */
+  function tookAHit() {
+    if (!wear) return;
+    var cost = wear.hit();
+    if (!cost.life) return;
+    window.Sound && window.Sound.play("miss");
+    // If the other dog was what did it, it does not get to keep him: the
+    // recovery moves him, and a carry that outlives it drags him back.
+    for (var ti = 0; ti < thieves.length; ti++) thieves[ti].state.letGo();
+    // A burst of stuffing where the seam went.
+    puff(player.x, player.y - ANCHOR.y * 0.55, 14,
+         "rgba(246, 244, 236, .95)", 1.1, 80);
+    // A seam costs the ground back to the last safe spot; the last seam
+    // costs the level, and the checkpoint goes with it.
+    var fallback = { x: LEVEL.spawn.x / PX,
+                     y: (LEVEL.ground - LEVEL.spawn.y) / PX, grace: 0 };
+    startRecovery(checkpoint
+      ? (cost.out ? checkpoint.reset() : checkpoint.respawn())
+      : fallback, false);
   }
 
   function updateBonus(dt) {
@@ -355,6 +438,7 @@
     player.stun = Math.max(0, player.stun - dt);
     player.hitCool = Math.max(0, player.hitCool - dt);
     respawnFlash = Math.max(0, respawnFlash - dt);
+    if (wear) wear.update(dt);
     for (var bi = bits.length - 1; bi >= 0; bi--) {
       var q = bits[bi];
       q.life += dt;
@@ -363,6 +447,17 @@
       if (q.life >= q.max) bits.splice(bi, 1);
     }
     if (bonus) return updateBonus(dt);
+    if (recover) {
+      // He is not steerable and nothing can reach him: this beat belongs to
+      // the recovery, and the level carries on around it. Read the phase
+      // before the update -- the last frame of it clears `recover`.
+      var going = recover.wet && recover.t < RECOVER.under;
+      updateRecovery(dt);
+      player.anim.set(going ? "tumble" : "idle");
+      player.anim.update(dt);
+      pressed = {};
+      return;
+    }
 
     // The greeting plays out, then a beat, then she picks him up to throw.
     if (player.reached && !bonus) {
@@ -471,7 +566,13 @@
                             safe: player.hitCool > 0 });
       th.anim.set(th.state.clip());
       th.anim.update(dt);
-      if (th.state.carrying && !th.grabbed) { th.grabbed = true; window.Sound && window.Sound.play("grab"); }
+      // One knock per pick-up, on the frame it gets him, using the edge that
+      // was already here for the sound rather than a second flag beside it.
+      if (th.state.carrying && !th.grabbed) {
+        th.grabbed = true;
+        window.Sound && window.Sound.play("grab");
+        tookAHit();
+      }
       if (!th.state.carrying) th.grabbed = false;
       if (th.state.carrying) {
         // He is in its mouth: no steering, and he plays along.
@@ -511,6 +612,7 @@
         player.stun = bw.stun;
         player.hitCool = window.Distraction.CFG.immune;
         window.Sound && window.Sound.play("bump");
+        tookAHit();
         player.action = "tumble";
         player.actionTime = 0;
         player.anim.set("tumble", true);
@@ -634,17 +736,12 @@
     if (fell || inHazard) {
       window.Sound && window.Sound.play(inHazard ? "splash" : "land");
       if (inHazard) puff(player.x, player.y, 12, "rgba(186, 224, 245, .9)", 1.5, 95);
-      // Back to the last place he stood safely, not the start of the level.
-      var back = checkpoint ? checkpoint.respawn()
-                            : { x: LEVEL.spawn.x / PX,
-                                y: (LEVEL.ground - LEVEL.spawn.y) / PX, grace: 0 };
-      player.x = back.x * PX;
-      player.y = LEVEL.ground - back.y * PX;
-      player.vx = player.vy = 0;
-      player.action = null;
-      player.stun = 0;
-      player.hitCool = back.grace;      // don't get hit the moment you arrive
-      respawnFlash = 0.45;
+      // Back to the last place he stood safely, not the start of the level --
+      // and behind a dip, so it reads as being fished out rather than moved.
+      startRecovery(checkpoint ? checkpoint.respawn()
+                               : { x: LEVEL.spawn.x / PX,
+                                   y: (LEVEL.ground - LEVEL.spawn.y) / PX,
+                                   grace: 0 }, inHazard);
     }
 
 
@@ -666,6 +763,7 @@
         player.stun = k.stun;
         player.hitCool = window.Patrol.CFG.immune;
         window.Sound && window.Sound.play("bump");
+        tookAHit();
         player.action = "tumble";
         player.actionTime = 0;
         player.anim.set("tumble", true);
@@ -1111,6 +1209,81 @@
     ctx.restore();
   }
 
+  /* What the knocks have done to him: stuffing out of a seam and a smudge to
+   * go with it, drawn inside his own transform so they ride the sprite. A
+   * plush toy dragged through five levels should look like it, and it is the
+   * only way to know how close the next seam is without reading a number. */
+  // Against *his* height, not the sprite cell: the cell is 96px for a
+  // character 72.73 tall, so cell units put the marks a third too big and
+  // outside his outline, where they read as bubbles rather than as stuffing.
+  var WEAR_MARKS = [
+    { x: -0.05, y: -0.66, a: -0.35, len: 0.085 },  // a seam over the shoulder
+    { x: 0.15, y: -0.46, a: 0.8, len: 0.075 }      // and one at the flank
+  ];
+  function drawWear() {
+    if (!wear || (!wear.wear && wear.mending <= 0)) return;
+    var U = PX;
+    // Freshly mended: a bright stitch that fades, so a lost seam is legible
+    // as a repair rather than as nothing having happened.
+    if (wear.mending > 0) {
+      var m = wear.mending / (wear.cfg.patched || 1);
+      ctx.strokeStyle = "rgba(226, 108, 96, " + (0.85 * m).toFixed(3) + ")";
+      ctx.lineWidth = Math.max(1, U * 0.018);
+      ctx.beginPath();
+      for (var st = 0; st < 4; st++) {
+        var sx = -U * 0.14 + st * U * 0.075;
+        ctx.moveTo(sx, -U * 0.50);
+        ctx.lineTo(sx + U * 0.035, -U * 0.44);
+      }
+      ctx.stroke();
+    }
+    for (var i = 0; i < wear.wear && i < WEAR_MARKS.length; i++) {
+      var w = WEAR_MARKS[i];
+      ctx.save();
+      ctx.translate(w.x * U, w.y * U);
+      ctx.rotate(w.a);
+      var L = w.len * U;                   // how far the seam has given way
+      // A smudge around it first, so the split does not sit on clean fabric.
+      ctx.fillStyle = "rgba(92, 80, 64, .22)";
+      ctx.beginPath();
+      ctx.ellipse(0, 0, L * 1.5, L * 0.9, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // The split: a dark line the stuffing is coming out of. Thin, because a
+      // burst seam is a line, and a fat one would read as a painted stripe.
+      ctx.strokeStyle = "rgba(38, 32, 26, .55)";
+      ctx.lineWidth = Math.max(1, U * 0.012);
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(-L, 0);
+      ctx.lineTo(L, 0);
+      ctx.stroke();
+      // Loose thread ends where the stitching gave: two short ticks.
+      ctx.lineWidth = Math.max(1, U * 0.008);
+      ctx.strokeStyle = "rgba(38, 32, 26, .38)";
+      ctx.beginPath();
+      ctx.moveTo(-L, 0); ctx.lineTo(-L - L * 0.35, -L * 0.3);
+      ctx.moveTo(L, 0); ctx.lineTo(L + L * 0.3, L * 0.3);
+      ctx.stroke();
+      // The stuffing: a couple of small lobes bulging out of the line, not one
+      // oval sitting on top of it -- the lobes are what make it read as filling
+      // rather than as a sticker.
+      ctx.fillStyle = "rgba(250, 248, 242, .95)";
+      var lobes = [[-L * 0.26, -L * 0.15, L * 0.40], [L * 0.16, -L * 0.07, L * 0.28]];
+      for (var b = 0; b < lobes.length; b++) {
+        ctx.beginPath();
+        ctx.ellipse(lobes[b][0], lobes[b][1], lobes[b][2], lobes[b][2] * 0.82,
+                    0.3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // A little shade under the tufts so they sit in the hole.
+      ctx.fillStyle = "rgba(180, 172, 158, .45)";
+      ctx.beginPath();
+      ctx.ellipse(-L * 0.24, L * 0.10, L * 0.34, L * 0.13, 0.3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
   // Whatever a squirrel has knocked off its branch, on its way down. Drawn
   // with a little spin so it reads as falling rather than as placed.
   function drawFalling() {
@@ -1427,6 +1600,7 @@
     }
     ctx.drawImage(sheet, box.x, box.y, box.w, box.h,
                   -ANCHOR.x, -ANCHOR.y, CELL, CELL);
+    drawWear();
     ctx.restore();
     // Scenery marked `front`, then any theme layer marked the same: things
     // he passes behind. One flat backdrop cannot give a scene depth; a
@@ -1436,6 +1610,11 @@
     }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     drawFront(canvas.width, canvas.height);
+    // The dip that the swap happens behind.
+    if (recover) {
+      ctx.fillStyle = "rgba(12, 16, 22, " + (0.96 * recoverDim(recover)).toFixed(3) + ")";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
     ctx.setTransform(SCALE, 0, 0, SCALE, -camX * SCALE, -camY * SCALE);
 
     if (bonus) drawPops();
@@ -1476,8 +1655,17 @@
                    " lost to the wildlife";
           }
         }
+        // Lives as stitched hearts is a different game's furniture. He is a
+        // toy: what he has left is seams.
+        var seams = "";
+        if (wear) {
+          for (var sv = 0; sv < wear.cfg.lives; sv++) {
+            seams += sv < wear.lives ? "\u2b1b" : "\u2b1c";
+          }
+          seams = "  " + seams;
+        }
         title.textContent = LEVEL.name + "  " + got + "/" +
-          LEVEL.pickups.length + note;
+          LEVEL.pickups.length + seams + note;
       }
     }
   }
@@ -1494,6 +1682,10 @@
     // Whether he is stood on a machine rather than on the floor, so a test
     // can tell a ride from a lucky landing beside one.
     get riding() { return !!player.riding; },
+    // Wear and seams, and whether he is mid-recovery: a fall is a beat now,
+    // not a frame, and a test that samples during it sees him underwater.
+    get wear() { return wear; },
+    get recovering() { return !!recover; },
     // World units, for tests -- the player is kept in pixels internally.
     get where() {
       return { x: player.x / PX, y: (LEVEL.ground - player.y) / PX };

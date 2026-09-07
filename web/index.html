@@ -46,6 +46,10 @@
                   border: 1px solid rgba(255, 255, 255, .18); }
   #tools button:hover { background: rgba(8, 10, 14, .82); }
   #tools button:focus-visible { outline: 2px solid #ffd76a; outline-offset: 2px; }
+  /* The screen closing over a fall. Above the view and the HUD so nothing
+     is legible through it, under the panels so pausing still reads. */
+  #dip { position: fixed; inset: 0; z-index: 3; background: #0c1016;
+         opacity: 0; pointer-events: none; }
   /* Pause and the end of the level share one look. */
   .panel { position: fixed; inset: 0; z-index: 5; display: grid;
            place-items: center; background: rgba(10, 14, 20, .72);
@@ -91,6 +95,7 @@
 </div>
 <div id="paused" class="panel" hidden></div>
 <div id="done" class="panel" hidden></div>
+<div id="dip"></div>
 <div id="rotate">Turn sideways for a wider view</div>
 <div id="prompt" hidden>
   <b>Fetch! &#9664; &#9654; run Ginger</b>
@@ -104,6 +109,7 @@
 <script src="../shared/checkpoint.js"></script>
 <script src="../shared/distraction.js"></script>
 <script src="../shared/thief.js"></script>
+<script src="../shared/wear.js"></script>
 <script src="../shared/bonus.js"></script>
 <script src="../shared/sound.js"></script>
 <script src="../shared/progress.js"></script>
@@ -186,6 +192,9 @@ const collected = new Set();
 // Where he comes back to. The level is already in authored units here, so the
 // shared rule can read it directly.
 const checkpoint = window.Checkpoint ? window.Checkpoint.create(LEVEL) : null;
+// What the knocks have cost him. Shared with the sprite demo so a shove is
+// worth the same in both, and so three of them cost a seam in both.
+const wear = window.Wear ? window.Wear.create() : null;
 
 const coarse = matchMedia('(pointer: coarse)').matches;
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -731,6 +740,93 @@ scene.add(shadow);
 document.title = LEVEL.name + ' - Mr. Cluckers';
 const bird = await Cluckers.load('../assets/model/mrcluckers.glb');
 scene.add(bird.root);
+
+/* What the knocks have done to him. He is one solid mesh, so a split seam is
+ * painted rather than modelled: a camera-facing sprite of the same marks the
+ * sprite demo draws, riding his root so it moves with him and stays readable
+ * whichever way he is turned. */
+function scuffTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d');
+  const M = 64, L = 40;                     // centre, and half the split
+  g.fillStyle = 'rgba(92, 80, 64, .22)';    // a smudge, so it is not on clean fabric
+  g.beginPath(); g.ellipse(M, M, L * 1.5, L * 0.9, 0, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = 'rgba(38, 32, 26, .60)';  // the seam that has given way
+  g.lineWidth = 5; g.lineCap = 'round';
+  g.beginPath(); g.moveTo(M - L, M); g.lineTo(M + L, M); g.stroke();
+  g.strokeStyle = 'rgba(38, 32, 26, .40)';  // the loose thread at each end
+  g.lineWidth = 3;
+  g.beginPath();
+  g.moveTo(M - L, M); g.lineTo(M - L * 1.35, M - L * 0.3);
+  g.moveTo(M + L, M); g.lineTo(M + L * 1.3, M + L * 0.3);
+  g.stroke();
+  // The stuffing: two lobes bulging out of the line, because one oval on top
+  // of it reads as a sticker rather than as filling.
+  g.fillStyle = 'rgba(250, 248, 242, .96)';
+  for (const b of [[-L * 0.26, -L * 0.15, L * 0.40], [L * 0.16, -L * 0.07, L * 0.28]]) {
+    g.beginPath();
+    g.ellipse(M + b[0], M + b[1], b[2], b[2] * 0.82, 0.3, 0, Math.PI * 2);
+    g.fill();
+  }
+  g.fillStyle = 'rgba(180, 172, 158, .45)';  // shade, so the tufts sit in the hole
+  g.beginPath();
+  g.ellipse(M - L * 0.24, M + L * 0.10, L * 0.34, L * 0.13, 0.3, 0, Math.PI * 2);
+  g.fill();
+  return new THREE.CanvasTexture(c);
+}
+
+function mendTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d');
+  g.strokeStyle = 'rgba(214, 88, 78, .95)';
+  g.lineWidth = 6; g.lineCap = 'round';
+  g.beginPath();
+  for (let i = 0; i < 4; i++) {
+    const x = 26 + i * 26;
+    g.moveTo(x, 78); g.lineTo(x + 12, 50);
+  }
+  g.stroke();
+  return new THREE.CanvasTexture(c);
+}
+
+// Where the seams give, in his own units: feet at 0, about a unit tall.
+const WEAR_AT = [
+  { x: -0.05, y: 0.66, s: 0.30, a: -0.35 },   // over the shoulder
+  { x: 0.15, y: 0.46, s: 0.26, a: 0.8 }       // and at the flank
+];
+const scuffTex = scuffTexture();
+const scuffs = WEAR_AT.map((w) => {
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: scuffTex, transparent: true, depthWrite: false
+  }));
+  sp.scale.setScalar(w.s);
+  sp.visible = false;
+  bird.root.add(sp);
+  return sp;
+});
+const mended = new THREE.Sprite(new THREE.SpriteMaterial({
+  map: mendTexture(), transparent: true, depthWrite: false, opacity: 0
+}));
+mended.scale.setScalar(0.34);
+mended.position.set(0, 0.55, 0.45);
+mended.visible = false;
+bird.root.add(mended);
+
+/** Show what he has taken. Sprites never turn, so mirror them by hand. */
+function paintWear() {
+  if (!wear) return;
+  const f = bird.facing < 0 ? -1 : 1;
+  for (let i = 0; i < scuffs.length; i++) {
+    scuffs[i].visible = i < wear.wear;
+    if (!scuffs[i].visible) continue;
+    scuffs[i].position.set(WEAR_AT[i].x * f, WEAR_AT[i].y, 0.45);
+    scuffs[i].material.rotation = WEAR_AT[i].a * f;
+  }
+  mended.visible = wear.mending > 0;
+  mended.material.opacity = wear.mending / (wear.cfg.patched || 1);
+}
 document.getElementById('loading').remove();
 document.getElementById('hud').hidden = false;
 document.getElementById('tools').hidden = false;
@@ -1049,11 +1145,108 @@ function updateBonus(dt) {
 
 let levelClock = 0;
 
+/* Coming back from a fall.
+ *
+ * Setting him down moves the whole view, and arriving somewhere else
+ * mid-stride reads as being teleported rather than as being fished out. So
+ * the swap happens behind a dip: he goes under, the screen closes, he is put
+ * back while nothing is visible, and it opens on him on solid ground. Same
+ * rules and same destination as before -- it just has a shape now. */
+const RECOVER = { under: 0.34, dark: 0.16, open: 0.42 };
+const dip = document.getElementById('dip');
+let recover = null;      // { t, wet, grace, from: {y}, to: {x, y} }
+
+function startRecovery(back, wet) {
+  recover = { t: 0, wet: !!wet, grace: back.grace,
+              from: { y: P.y }, to: { x: back.x, y: back.y } };
+  P.vx = P.vy = 0;
+  P.action = null;
+  P.stun = 0;
+  P.riding = null;
+}
+
+/** 0 while you can still see, 1 at the bottom of the dip. */
+function recoverDim(r) {
+  if (r.t < RECOVER.under) return r.t / RECOVER.under;
+  if (r.t < RECOVER.under + RECOVER.dark) return 1;
+  return Math.max(0, 1 - (r.t - RECOVER.under - RECOVER.dark) / RECOVER.open);
+}
+
+function updateRecovery(dt) {
+  const r = recover, was = r.t;
+  r.t += dt;
+  // Under he goes, while the screen is closing. Water swallows him slower
+  // than a pit does, because there is something there to sink through.
+  if (r.t < RECOVER.under) {
+    P.y = r.from.y - (r.wet ? 0.63 : 1.24) * (r.t / RECOVER.under);
+    return;
+  }
+  // Set down the moment nothing can be seen, and take the camera with him:
+  // eased, it would spend the whole opening sliding across the level.
+  if (was < RECOVER.under) {
+    P.hitCool = Math.max(P.hitCool, r.grace);
+    camera.position.x = r.to.x;
+    camera.position.y = r.to.y + 0.9;
+    snd('land');
+  }
+  P.x = r.to.x; P.y = r.to.y;
+  P.vx = P.vy = 0;
+  if (r.t >= RECOVER.under + RECOVER.dark + RECOVER.open) recover = null;
+}
+
+/**
+ * Book a knock and pay for it. A shove is its own punishment most of the
+ * time; when it takes the last mark he comes apart, and that costs a seam
+ * and the ground back to the last place he stood safely.
+ */
+function tookAHit() {
+  if (!wear) return;
+  const cost = wear.hit();
+  if (!cost.life) return;
+  snd('miss');
+  // If the other dog was what did it, it does not get to keep him: the
+  // recovery moves him, and a carry that outlives it drags him back.
+  for (const t of thieves) t.state.letGo();
+  // A seam costs the ground back to the last safe spot; the last seam costs
+  // the level, and the banked checkpoint goes with it.
+  const fallback = { x: LEVEL.spawn.x, y: LEVEL.spawn.y, grace: 0 };
+  startRecovery(checkpoint
+    ? (cost.out ? checkpoint.reset() : checkpoint.respawn())
+    : fallback, false);
+}
+
+/** The contact shadow, under him and fading with height. */
+function placeShadow() {
+  let floor = -6;
+  for (const p of PLATFORMS)
+    if (P.x + 0.22 > p.x && P.x - 0.22 < p.x + p.w && p.y <= P.y + 0.001)
+      floor = Math.max(floor, p.y);
+  const near = Math.max(0, 1 - Math.max(0, P.y - floor) / 2.6);
+  shadow.position.set(P.x, floor + 0.012, 0);
+  shadow.scale.setScalar(0.55 + 0.45 * near);
+  shadow.material.opacity = 0.34 * near;
+}
+
 function update(dt) {
   levelClock += dt;
+  if (wear) wear.update(dt);
   P.stun = Math.max(0, P.stun - dt);
   P.hitCool = Math.max(0, P.hitCool - dt);
   if (bonus) return updateBonus(dt);
+  if (recover) {
+    // He is not steerable and nothing can reach him: this beat belongs to the
+    // recovery. Read the phase before the update -- its last frame clears it.
+    const sinking = recover.wet && recover.t < RECOVER.under;
+    updateRecovery(dt);
+    bird.play(sinking ? 'tumble' : 'idle');
+    bird.root.position.set(P.x, P.y, 0);
+    bird.update(dt);
+    placeShadow();
+    paintWear();
+    dip.style.opacity = recover ? recoverDim(recover).toFixed(3) : 0;
+    pressed = {};
+    return;
+  }
 
   // The greeting plays out, then a beat, then she picks him up to throw.
   if (P.reached) {
@@ -1181,6 +1374,7 @@ function update(dt) {
     P.action = 'tumble'; P.actionTime = 0;
     snd('bump');
     bird.play('tumble', { restart: true });
+    tookAHit();
   }
 
   // He drowns when he is *in* the water, not when he is level with it: a
@@ -1194,13 +1388,13 @@ function update(dt) {
     checkpoint.consider(P.x, P.y, P.onGround && P.stun <= 0, dt);
   }
   if (P.y < -6 || inHazard) {
-    // Back to the last place he stood safely, not the start of the level.
-    const back = checkpoint ? checkpoint.respawn()
-                            : { x: LEVEL.spawn.x, y: LEVEL.spawn.y, grace: 0 };
-    P.x = back.x; P.y = back.y; P.vx = P.vy = 0; P.action = null;
-    P.stun = 0;
-    P.hitCool = back.grace;         // don't get hit the moment you arrive
     snd(inHazard ? 'splash' : 'land');
+    // Back to the last place he stood safely, not the start of the level --
+    // and behind a dip, so it reads as being fished out rather than moved.
+    startRecovery(checkpoint ? checkpoint.respawn()
+                             : { x: LEVEL.spawn.x, y: LEVEL.spawn.y, grace: 0 },
+                  inHazard);
+    return;
   }
 
   for (const k of kibbles) {
@@ -1219,7 +1413,9 @@ function update(dt) {
     const held = t.state.carrying;
     t.state.update(dt, { x: P.x, y: P.y, onGround: P.onGround,
                          safe: P.hitCool > 0 });
-    if (t.state.carrying && !held) snd('grab');   // the moment it gets him
+    // One knock per pick-up, on the frame it gets him, using the edge that
+    // was already here for the sound rather than a second flag beside it.
+    if (t.state.carrying && !held) { snd('grab'); tookAHit(); }
     t.root.position.x = t.state.x;
     t.pivot.rotation.y = t.state.dir > 0 ? -Math.PI / 2 : Math.PI / 2;
     t.play(t.state.clip());
@@ -1250,6 +1446,7 @@ function update(dt) {
       P.action = 'tumble'; P.actionTime = 0;
       snd('bump');
       bird.play('tumble', { restart: true });
+      tookAHit();
     }
     for (let i = 0; i < critterMeshes.length; i++) {
       const c = distraction.critters[i], g = critterMeshes[i];
@@ -1313,15 +1510,8 @@ function update(dt) {
   bird.update(dt);
 
   // Shadow sits on whatever surface is under him and fades with height.
-  let floor = -6;
-  for (const p of PLATFORMS)
-    if (P.x + 0.22 > p.x && P.x - 0.22 < p.x + p.w && p.y <= P.y + 0.001)
-      floor = Math.max(floor, p.y);
-  const gap = Math.max(0, P.y - floor);
-  const t = Math.max(0, 1 - gap / 2.6);
-  shadow.position.set(P.x, floor + 0.012, 0);
-  shadow.scale.setScalar(0.55 + 0.45 * t);
-  shadow.material.opacity = 0.34 * t;
+  placeShadow();
+  paintWear();
 
   // Lean toward her while a squirrel has her, so the thing you are being
   // told about is actually in shot. This camera frames tighter than the
@@ -1372,8 +1562,17 @@ function update(dt) {
       note = '  \u2014 ' + distraction.stolen.length + ' lost to the wildlife';
     }
   }
+  // Lives as stitched hearts is a different game's furniture. He is a toy:
+  // what he has left is seams.
+  let seams = '';
+  if (wear) {
+    for (let i = 0; i < wear.cfg.lives; i++)
+      seams += i < wear.lives ? '\u2b1b' : '\u2b1c';
+    seams = '  ' + seams;
+  }
   document.getElementById('levelName').textContent =
-    LEVEL.name + '  ' + collected.size + '/' + LEVEL.pickups.length + note;
+    LEVEL.name + '  ' + collected.size + '/' + LEVEL.pickups.length +
+    seams + note;
 }
 
 function onResize() {
@@ -1407,6 +1606,11 @@ window.__level = LEVEL; // ditto: the autoplayer needs the route
 window.__camera = camera;            // to check the bird is actually in shot
 window.__clock = () => levelClock;   // to line a jump up against a machine
 window.__checkpoint = () => (checkpoint ? checkpoint.at : null);
+// Wear and seams, and whether he is mid-recovery: a fall is a beat now, not a
+// frame, and a test that samples during it sees him underwater.
+window.__wear = () => wear;
+window.__recovering = () => !!recover;
+window.__scuffs = scuffs;
 window.__distraction = () => distraction;
 // The meshes and the kibble, so a test can tell that what the shared module
 // says and what is actually on screen are the same thing.

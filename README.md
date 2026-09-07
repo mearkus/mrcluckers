@@ -34,6 +34,7 @@ python3 build.py
 | `shared/bonus.js` | The bonus round's rules and physics, with no rendering. |
 | `shared/patrol.js` | Machines that move along a surface — where they are, and what they do to you. |
 | `shared/checkpoint.js` | Where he comes back to after a fall. |
+| `shared/wear.js` | What a knock costs him: marks, seams, and when the level starts over. |
 | `shared/distraction.js` | Wildlife: what it takes, and how you stop it. |
 | `shared/thief.js` | The other dog at the park, and what it does with the toy. |
 | `shared/progress.js` | Which levels are finished, and what that opens up. |
@@ -630,6 +631,57 @@ later. 70 spots, no traps.
 
 Both levels were re-tuned once this landed, so they build to their hardest
 jump instead of peaking in the middle. See *What a jump can do*.
+
+## Wear and seams
+
+Every knock in the game was survivable and forgettable. The vacuum shoved him,
+a bird went up in his face, an acorn came off a branch — and a second later
+there was nothing to show for any of it. Three obstacles, no consequences, and
+a plush toy that came out of five levels as clean as he went in.
+
+`shared/wear.js` counts what they cost. **A hit leaves a mark. Three marks and
+a seam goes**, which costs a life: he is patched up, and he carries on from the
+last place he stood safely. Run out of the three seams and the level starts
+again — with the kibble you have already found still yours, because losing
+your collection to a bad run is exactly what checkpoints exist to prevent.
+
+Nothing in the module draws. It counts, and each demo puts its own stuffing on
+him, so a plush chicken cannot be scruffier in one than in the other:
+
+| | |
+| --- | --- |
+| **Sprite demo** | Painted inside his own transform, so the marks ride the sprite: a split seam, its threads, a smudge, and two lobes of stuffing bulging out of the line. Measured against **his** height, not the sprite cell — the cell is 96 px for a character 72.73 tall, and cell units put the marks a third too big and outside his outline, where they read as bubbles. |
+| **three.js demo** | He is one solid mesh, so the same marks are a camera-facing sprite riding his root. Sprites never turn, so they are mirrored by hand when he does. |
+
+A lost seam is loud on purpose — a burst of stuffing, and a row of bright red
+stitches that fades over the next second or so. Without it, three knocks and a
+respawn read as one bad knock, and you would never learn what the count was.
+
+The HUD carries the count as **seams**, filled and empty. Lives as stitched
+hearts is a different game's furniture; he is a toy, and what he has left is
+seams.
+
+## Falling in is a beat, not a cut
+
+The camera is worked out straight from where he is. So putting him back after
+a fall moved the entire view in one frame: you went in the water and arrived
+somewhere else, mid-stride, with nothing in between. It read as being
+teleported rather than as being fished out — and the destination was right the
+whole time, which is why it took so long to notice the problem was the *cut*.
+
+So the swap happens behind a dip. He goes under first, the screen closes, he
+is set down while nothing can be seen, and it opens on him back on solid
+ground. About nine tenths of a second, in three parts:
+
+| | |
+| --- | --- |
+| **Under** | 0.34 s. He sinks — less far in water than down a gap, because water has something to sink *through* — and the screen closes over him. |
+| **Dark** | 0.16 s. The swap. The camera goes with him, since eased it would spend the whole opening sliding across the level. |
+| **Open** | 0.42 s. Back on solid ground, with the checkpoint's grace already running. |
+
+The recovery owns the frame: he is not steerable, nothing can reach him, and
+the level carries on around it. Same rules and same destination as before — it
+just has a shape now.
 
 ## The robot vacuum
 

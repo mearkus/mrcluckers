@@ -95,6 +95,19 @@
       return { x: s.at.x, y: s.at.y, grace: CFG.grace };
     };
 
+    /**
+     * Back to the spawn, forgetting everything banked. Running out of lives
+     * starts the level again, and without this the next fall would drop him
+     * at the checkpoint he had reached before it -- which is most of the way
+     * to the end of a level he is supposed to be restarting.
+     */
+    s.reset = function () {
+      s.at = { x: level.spawn.x, y: level.spawn.y };
+      s.held = 0;
+      s.moved = false;
+      return s.respawn();
+    };
+
     return s;
   }
 
