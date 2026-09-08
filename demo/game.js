@@ -109,6 +109,11 @@
    * solid ground. Same rules, same destination -- it just has a shape now. */
   var RECOVER = { under: 0.34, dark: 0.16, open: 0.42 };
   var recover = null;      // { t, from: {x, y}, to: {x, y}, grace, wet }
+  // Same bargain the page's cover strikes: reduced motion still wants the
+  // dip, because it is what stops the swap being a cut -- it just does not
+  // want him dragged down the screen on the way into it.
+  var CALM = typeof matchMedia === "function" &&
+             matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   function startRecovery(back, wet) {
     recover = {
@@ -134,7 +139,7 @@
     r.t += dt;
     // Under he goes, while the screen is closing.
     if (r.t < RECOVER.under) {
-      player.y = r.from.y + (r.wet ? 46 : 90) * (r.t / RECOVER.under);
+      if (!CALM) player.y = r.from.y + (r.wet ? 46 : 90) * (r.t / RECOVER.under);
       return;
     }
     // Set down the moment nothing can be seen, so the camera's jump is not.
@@ -309,6 +314,18 @@
       : fallback, false);
   }
 
+  /**
+   * A kibble going into the split. Said out loud, because a seam coming back
+   * is the only thing in the level that undoes a knock -- silently mending
+   * him would look like the knock had never counted.
+   */
+  function mendedByKibble(fixed) {
+    if (!fixed || !fixed.mended) return;
+    window.Sound && window.Sound.play(fixed.seam ? "win" : "ui");
+    puff(player.x, player.y - ANCHOR.y * 0.55, fixed.seam ? 10 : 5,
+         "rgba(226, 108, 96, .9)", 0.7, 55);
+  }
+
   function updateBonus(dt) {
     // The toy is a rooster, and the other dog does not care for it: one crow
     // a throw stops it dead. Same button, same meaning as in the level.
@@ -379,7 +396,11 @@
         window.MrCluckersShell.finished(picked.slug, {
           kibble: Object.keys(collected).length,
           pickups: LEVEL.pickups.length,
-          bonus: bonus.score
+          bonus: bonus.score,
+          // How much of him came through it. Seams *kept*, not seams in hand:
+          // running out patches him back up to three, so the number showing
+          // in the HUD cannot tell a clean run from a disaster.
+          seams: wear ? Math.max(0, wear.cfg.lives - wear.spent) : 0
         });
       }
     }
@@ -556,6 +577,7 @@
         window.Sound && window.Sound.play("kibble");
         if (!player.action) { player.action = "squeak"; player.actionTime = 0;
                               player.anim.set("squeak", true); }
+        mendedByKibble(wear && wear.feed());
       }
     }
     for (var ti = 0; ti < thieves.length; ti++) {

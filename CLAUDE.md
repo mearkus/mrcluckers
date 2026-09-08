@@ -59,7 +59,7 @@ straight from the repository — nothing is built in CI.
 | `editor/` | The level editor |
 | `shared/controls.js` | On-screen controls for touch devices, used by both demos |
 | `shared/bonus.js` | The post-reunion bonus round: rules and physics, no rendering |
-| `shared/wear.js` | What a knock costs him: marks, seams, and when the level starts over |
+| `shared/wear.js` | What a knock costs him: marks, seams, when the level starts over, and what the kibble mends |
 | `shared/distraction.js` | The wildlife: what it takes, what it drops, and how you stop it |
 
 `docs/pipeline.md` explains how the generator fits together and where to
