@@ -34,7 +34,7 @@ python3 build.py
 | `shared/bonus.js` | The bonus round's rules and physics, with no rendering. |
 | `shared/patrol.js` | Machines that move along a surface — where they are, and what they do to you. |
 | `shared/checkpoint.js` | Where he comes back to after a fall. |
-| `shared/wear.js` | What a knock costs him: marks, seams, and when the level starts over. |
+| `shared/wear.js` | What a knock costs him: marks, seams, when the level starts over, and what the kibble mends. |
 | `shared/distraction.js` | Wildlife: what it takes, and how you stop it. |
 | `shared/thief.js` | The other dog at the park, and what it does with the toy. |
 | `shared/progress.js` | Which levels are finished, and what that opens up. |
@@ -661,6 +661,34 @@ The HUD carries the count as **seams**, filled and empty. Lives as stitched
 hearts is a different game's furniture; he is a toy, and what he has left is
 seams.
 
+### The kibble patches him up
+
+Collecting was worth something only after the level: kibble bought throws in
+the fetch round, and until then it was a number going up. Now **every fourth
+kibble goes into the split** — a whole seam back if one has gone, otherwise the
+most recent mark rubbed out. If he is whole there is nothing to fix and it just
+counts for her.
+
+That is the point of it. He wants to please her, and the kibble in the awkward
+corner now pays for the knock it costs to go and get it, *during* the level
+rather than on the results screen. A plush toy full of dog food is the joke the
+game was already making.
+
+Four is deliberate. The levels carry eight to thirteen kibble, so a careful run
+can buy back two seams and no run can buy back more than it can lose.
+
+### What the run was worth
+
+The end-of-level panel used to report kibble and the fetch score. Finishing
+with every seam intact — the thing the wear made you work for — vanished the
+moment the level ended, which left the seams as a cost with nothing to show for
+keeping them. They are now on the results line and on the level card, and
+`shared/progress.js` keeps the best of them like everything else.
+
+It records the seams he **kept**, not the seams in his hand at the end: running
+out patches him back up to three, so the HUD's number cannot tell a clean run
+from a disaster. `lives - spent` can.
+
 ## Falling in is a beat, not a cut
 
 The camera is worked out straight from where he is. So putting him back after
@@ -682,6 +710,11 @@ ground. About nine tenths of a second, in three parts:
 The recovery owns the frame: he is not steerable, nothing can reach him, and
 the level carries on around it. Same rules and same destination as before — it
 just has a shape now.
+
+`prefers-reduced-motion` gets the same bargain the page's cover strikes: it
+still wants the dip, because the dip is what stops the swap being a cut. It
+just doesn't want him dragged down the screen on the way into it, so the
+sinking is dropped and the fade stays.
 
 ## The robot vacuum
 
@@ -837,7 +870,8 @@ else, which made losing one to a squirrel free. It buys **throws** now — four
 kibble to the throw, up to three — so the point of the level pays out in more
 fetch rather than a bigger number, and a squirrel that took one has taken
 something you can feel. He wants to please her; what he arrives with is the
-measure of it.
+measure of it. The same kibble also patches him up on the way — see *Wear and
+seams* — so one pickup pays twice and a squirrel costs you twice.
 
 **The length.** Five throws, plus what he brought, and a run of three or more
 earns another, up to two. A good round lasts longer than a poor one, which is the cheapest

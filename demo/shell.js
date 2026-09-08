@@ -107,6 +107,14 @@
     if (!stats) return "";
     var bits = [stats.kibble + "/" + (total || stats.pickups || 0) + " kibble"];
     if (stats.bonus) bits.push(stats.bonus + " at fetch");
+    // What he had left of himself. A clean run was invisible the moment the
+    // level ended, which made the seams a cost with nothing to show for
+    // keeping them.
+    if (stats.seams) {
+      var whole = window.Wear ? window.Wear.CFG.lives : 3;
+      bits.push(stats.seams >= whole ? "all " + whole + " seams"
+                                     : stats.seams + "/" + whole + " seams");
+    }
     return bits.join("  ·  ");
   }
 

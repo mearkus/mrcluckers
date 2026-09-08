@@ -914,6 +914,14 @@ function panel(host, title, tag, buttons) {
 function starLine(stats, total) {
   const bits = [stats.kibble + '/' + total + ' kibble'];
   if (stats.bonus) bits.push(stats.bonus + ' at fetch');
+  // What he had left of himself. A clean run was invisible the moment the
+  // level ended, which made the seams a cost with nothing to show for
+  // keeping them.
+  if (stats.seams) {
+    const whole = window.Wear ? window.Wear.CFG.lives : 3;
+    bits.push(stats.seams >= whole ? 'all ' + whole + ' seams'
+                                   : stats.seams + '/' + whole + ' seams');
+  }
   return bits.join(' \u00b7 ');
 }
 
@@ -1131,7 +1139,13 @@ function updateBonus(dt) {
   if (bonus.phase === 'done' && !bonus.recorded) {
     bonus.recorded = true;
     levelFinished({ kibble: collected.size, pickups: LEVEL.pickups.length,
-                    bonus: bonus.score });
+                    bonus: bonus.score,
+                    // How much of him came through it. Seams *kept*, not
+                    // seams in hand: running out patches him back up to
+                    // three, so the HUD's number cannot tell a clean run
+                    // from a disaster.
+                    seams: wear
+                      ? Math.max(0, wear.cfg.lives - wear.spent) : 0 });
   }
 
   const total = bonus.total();
@@ -1154,6 +1168,10 @@ let levelClock = 0;
  * rules and same destination as before -- it just has a shape now. */
 const RECOVER = { under: 0.34, dark: 0.16, open: 0.42 };
 const dip = document.getElementById('dip');
+// Same bargain the page's cover strikes: reduced motion still wants the dip,
+// because it is what stops the swap being a cut -- it just does not want him
+// dragged down the screen on the way into it.
+const CALM = matchMedia('(prefers-reduced-motion: reduce)').matches;
 let recover = null;      // { t, wet, grace, from: {y}, to: {x, y} }
 
 function startRecovery(back, wet) {
@@ -1178,7 +1196,7 @@ function updateRecovery(dt) {
   // Under he goes, while the screen is closing. Water swallows him slower
   // than a pit does, because there is something there to sink through.
   if (r.t < RECOVER.under) {
-    P.y = r.from.y - (r.wet ? 0.63 : 1.24) * (r.t / RECOVER.under);
+    if (!CALM) P.y = r.from.y - (r.wet ? 0.63 : 1.24) * (r.t / RECOVER.under);
     return;
   }
   // Set down the moment nothing can be seen, and take the camera with him:
@@ -1192,6 +1210,16 @@ function updateRecovery(dt) {
   P.x = r.to.x; P.y = r.to.y;
   P.vx = P.vy = 0;
   if (r.t >= RECOVER.under + RECOVER.dark + RECOVER.open) recover = null;
+}
+
+/**
+ * A kibble going into the split. Said out loud, because a seam coming back is
+ * the only thing in the level that undoes a knock -- mending him in silence
+ * would look like the knock had never counted.
+ */
+function mendedByKibble(fixed) {
+  if (!fixed || !fixed.mended) return;
+  snd(fixed.seam ? 'win' : 'ui');
 }
 
 /**
@@ -1407,6 +1435,7 @@ function update(dt) {
       snd('kibble');
       if (!P.action) { P.action = 'squeak'; P.actionTime = 0;
                        bird.play('squeak', { restart: true }); }
+      mendedByKibble(wear && wear.feed());
     }
   }
   for (const t of thieves) {

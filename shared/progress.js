@@ -48,7 +48,10 @@
   function complete(slug, stats) {
     var data = load();
     var was = data.done[slug] || {};
-    var now = { kibble: 0, pickups: 0, bonus: 0 };
+    // `seams` is how much of himself he kept -- what he started with, less
+    // what he lost. Best-of, like the rest: a clean run stays on the card
+    // even after a scruffy replay.
+    var now = { kibble: 0, pickups: 0, bonus: 0, seams: 0 };
     for (var k in now) {
       var v = (stats && stats[k]) || 0;
       now[k] = Math.max(was[k] || 0, v);
