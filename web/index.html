@@ -5,7 +5,11 @@
 <style>
   html, body { margin: 0; height: 100%; background: #9cc3dc; overflow: hidden;
                font: 13px/1.5 system-ui, sans-serif; color: #eaf0f4;
-               overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
+               overscroll-behavior: none; -webkit-text-size-adjust: 100%;
+               /* A game, not a document: see the note in the root index.html.
+                  A stray selection on a phone puts a dictionary card over it. */
+               -webkit-user-select: none; user-select: none;
+               -webkit-touch-callout: none; }
   /* 100dvh so the mobile browser's collapsing toolbar doesn't clip the view. */
   body { height: 100dvh; }
   canvas { display: block; width: 100%; height: 100%; touch-action: none; }

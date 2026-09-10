@@ -10,6 +10,15 @@
     font: 14px/1.5 system-ui, sans-serif;
     overscroll-behavior: none; -webkit-text-size-adjust: 100%;
   }
+  /* This is a game, not a document. Every word on screen is a label on a
+     control, so selecting one does nothing you would want -- and on a phone a
+     stray drag or a long press selects it anyway and Android puts a dictionary
+     card over the game. (It defined "home" off the badge on the title screen.)
+     The making-of page and the editor are left selectable on purpose. */
+  html, body {
+    -webkit-user-select: none; user-select: none;
+    -webkit-touch-callout: none;
+  }
   body {
     height: 100dvh; display: flex; flex-direction: column;
     align-items: center; gap: 10px; padding: 14px;
