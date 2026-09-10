@@ -66,6 +66,35 @@
   function isDone(slug) { return !!load().done[slug]; }
   function statsFor(slug) { return load().done[slug] || null; }
 
+  /** Every level finished. The end of the game, such as it is. */
+  function allDone(order) {
+    if (!order || !order.length) return false;
+    var data = load();
+    for (var i = 0; i < order.length; i++) if (!data.done[order[i]]) return false;
+    return true;
+  }
+
+  /**
+   * The whole run added up: what he found, what he brought her, and how much
+   * of himself he kept. Sums the best of each level, which is the same thing
+   * the cards show -- so the total is the one you can point at, not a
+   * separate score kept somewhere else.
+   */
+  function tally(order) {
+    var data = load();
+    var t = { levels: 0, kibble: 0, pickups: 0, bonus: 0, seams: 0 };
+    for (var i = 0; i < order.length; i++) {
+      var d = data.done[order[i]];
+      if (!d) continue;
+      t.levels++;
+      t.kibble += d.kibble || 0;
+      t.pickups += d.pickups || 0;
+      t.bonus += d.bonus || 0;
+      t.seams += d.seams || 0;
+    }
+    return t;
+  }
+
   /**
    * Levels open in order; the first is always playable.
    *
@@ -96,6 +125,7 @@
 
   return {
     KEY: KEY, load: load, complete: complete, isDone: isDone,
-    statsFor: statsFor, unlocked: unlocked, next: next, reset: reset
+    statsFor: statsFor, allDone: allDone, tally: tally,
+    unlocked: unlocked, next: next, reset: reset
   };
 });

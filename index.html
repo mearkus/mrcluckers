@@ -136,6 +136,26 @@
     border-radius: 50%; background: rgba(6,9,14,.5); filter: blur(11px);
   }
 
+  /* Five out of five. A small enamel badge pinned to the corner of the art,
+     in the wordmark's own red-and-cream so it reads as part of the game's
+     furniture rather than as an achievement popped over it. */
+  .title-art .rosette {
+    position: absolute; z-index: 3; left: 5%; top: 7%;
+    display: grid; place-items: center;
+    width: clamp(50px, 7vw, 72px); aspect-ratio: 1; border-radius: 50%;
+    background: radial-gradient(circle at 50% 38%, #fdf3e2, #e9d6b8);
+    border: 3px solid #e0333a; transform: rotate(-9deg);
+    box-shadow: 0 6px 16px rgba(6, 9, 14, .45);
+    font-size: clamp(9px, 1.5vw, 12px); font-weight: 800;
+    letter-spacing: .16em; text-transform: uppercase; color: #b4262c;
+    /* Same trick as the wordmark: tracking leaves a trailing gap that pulls
+       the glyphs off centre in a centred box. */
+    text-indent: .16em;
+  }
+  /* The whole run, added up. Quieter than the tagline it sits under, because
+     it is a footnote to "he made it home" and not the headline. */
+  .run { margin: 0; font-size: 13px; color: #869aad; letter-spacing: .01em; }
+
   .shell-inner, .done-inner {
     width: 100%; max-width: 520px;
     display: flex; flex-direction: column; gap: 10px;
