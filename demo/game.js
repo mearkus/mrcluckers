@@ -863,6 +863,28 @@
     return v < lo ? lo : (v > hi ? hi : v);
   }
 
+  /* How far the camera may rise.
+   *
+   * This was a flat -150, which is a little over two character heights above
+   * the ground and was plenty while every level was a walk to the right with
+   * its highest ledge at 3.3. A level that climbs runs out of it: he jumps off
+   * the top ledge and leaves the screen while the camera sits at its stop.
+   *
+   * So the ceiling comes from the level: high enough to hold the top of it,
+   * plus the apex of a jump from there, plus his own height and a margin. The
+   * `min` keeps it at least as generous as it was, so nothing that stayed near
+   * the ground is framed any differently than before. */
+  var CEILING = (function () {
+    var tallest = 0;
+    for (var i = 0; i < LEVEL.platforms.length; i++) {
+      tallest = Math.max(tallest, (LEVEL.ground - LEVEL.platforms[i].y) / PX);
+    }
+    // The apex comes from the budget rather than a number typed here, so the
+    // two cannot drift apart if a jump is ever retuned.
+    var apex = J.JUMP_VELOCITY * J.JUMP_VELOCITY / (2 * J.GRAVITY);
+    return Math.min(-150, LEVEL.ground - (tallest + apex + 1.6) * PX);
+  })();
+
   function updateCamera() {
     var viewW = canvas.width / SCALE;
     var viewH = canvas.height / SCALE;
@@ -883,8 +905,8 @@
     // Keep him around two thirds down the view, but never show far below the
     // ground -- on a tall portrait screen that clamp is what keeps him framed.
     var lowest = LEVEL.ground + 60 - viewH;
-    camY = clamp(player.y - viewH * 0.64, Math.min(-150, lowest),
-                 Math.max(-150, lowest));
+    camY = clamp(player.y - viewH * 0.64, Math.min(CEILING, lowest),
+                 Math.max(CEILING, lowest));
     // Snap to whole screen pixels so the pixel art doesn't shimmer.
     camX = Math.round(camX * SCALE) / SCALE;
     camY = Math.round(camY * SCALE) / SCALE;

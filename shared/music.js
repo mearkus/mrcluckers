@@ -45,6 +45,13 @@
       bass: [0, null, 4, null, 0, null, null, null],
       drift: 0.14, rest: 0.08
     },
+    shed: {                          // hushed, dusty, and a long way up
+      bpm: 68, root: 130.81, scale: MAJOR, type: 'sine', lift: 2,
+      line: [0, null, null, null, 2, null, null, 4,
+             null, null, 2, null, null, null, 0, null],
+      bass: [0, null, null, null, null, null, 3, null],
+      drift: 0.10, rest: 0.16
+    },
     garden: {                        // open and unhurried
       bpm: 84, root: 164.81, scale: MAJOR, type: 'triangle', lift: 1,
       line: [0, null, 4, null, 5, null, 4, null,
