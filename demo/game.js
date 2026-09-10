@@ -96,6 +96,9 @@
   var WORLD = window.Level.normalize(picked.data);
   var checkpoint = window.Checkpoint ? window.Checkpoint.create(WORLD) : null;
   var respawnFlash = 0;
+  // The room's own tone. It waits for the first keypress on its own -- there
+  // is no audio context before one, and that is a browser rule.
+  if (window.Music) window.Music.start(WORLD.theme);
 
   /* Coming back from a fall.
    *
@@ -391,6 +394,7 @@
     // The bonus round ending is the end of the level.
     if (bonus.phase === "done" && !bonus.recorded) {
       bonus.recorded = true;
+      if (window.Music) window.Music.stop();   // the room is over
       window.Sound && window.Sound.play("win");
       if (window.MrCluckersShell) {
         window.MrCluckersShell.finished(picked.slug, {
@@ -419,6 +423,11 @@
     var want = force === undefined ? !paused : !!force;
     if (want === paused) return;
     paused = want;
+    // The room stops with the game. A bed playing under a pause panel is the
+    // one place it stops reading as the room and starts reading as a track.
+    if (window.Music) {
+      if (paused) window.Music.stop(); else window.Music.start(WORLD.theme);
+    }
     // Let go of everything, or a key held at the moment you paused stays held.
     keys = {}; pressed = {};
     var panel = document.getElementById("paused");
@@ -1676,6 +1685,16 @@
             note = "  \u2014 " + distraction.stolen.length +
                    " lost to the wildlife";
           }
+        }
+        // Nothing said that the kibble patches him up, so the rule could only
+        // be learnt by accident. Said once, while he is carrying damage and
+        // there is still kibble to find, and never again after the first mend
+        // -- by then you have seen it happen.
+        if (!note && wear && wear.mended === 0 &&
+            (wear.wear > 0 || wear.lives < wear.cfg.lives) &&
+            got < LEVEL.pickups.length) {
+          note = "  \u2014 he's fraying. Every " + wear.cfg.perMend +
+                 "th kibble patches him up";
         }
         // Lives as stitched hearts is a different game's furniture. He is a
         // toy: what he has left is seams.

@@ -112,6 +112,7 @@
 <script src="../shared/wear.js"></script>
 <script src="../shared/bonus.js"></script>
 <script src="../shared/sound.js"></script>
+<script src="../shared/music.js"></script>
 <script src="../shared/progress.js"></script>
 <script src="../shared/controls.js"></script>
 
@@ -195,6 +196,9 @@ const checkpoint = window.Checkpoint ? window.Checkpoint.create(LEVEL) : null;
 // What the knocks have cost him. Shared with the sprite demo so a shove is
 // worth the same in both, and so three of them cost a seam in both.
 const wear = window.Wear ? window.Wear.create() : null;
+// The room's own tone. It waits for the first keypress on its own -- there is
+// no audio context before one, and that is a browser rule.
+if (window.Music) window.Music.start(LEVEL.theme);
 
 const coarse = matchMedia('(pointer: coarse)').matches;
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -929,6 +933,7 @@ function levelFinished(stats) {
   // Same store, same keys as the sprite demo: finishing The Living Room here
   // unlocks The Kitchen over there. That is the whole point of recording it.
   if (window.Progress) window.Progress.complete(SLUG, stats);
+  if (window.Music) window.Music.stop();     // the room is over
   snd('win');
   const order = window.MRCLUCKERS_LEVEL_ORDER || [];
   const next = window.Progress ? window.Progress.next(order, SLUG) : null;
@@ -953,6 +958,11 @@ function togglePause(force) {
   // Finishing the level is not something to pause out of.
   if (want && !document.getElementById('done').hidden) return;
   paused = want;
+  // The room stops with the game. A bed playing under a pause panel is the one
+  // place it stops reading as the room and starts reading as a track.
+  if (window.Music) {
+    if (paused) window.Music.stop(); else window.Music.start(LEVEL.theme);
+  }
   // Let go of everything, or a key held at the moment you paused stays held.
   // `keys` is shared by reference with the input handlers, so it is emptied
   // in place rather than replaced.
@@ -1590,6 +1600,16 @@ function update(dt) {
     } else if (distraction.stolen.length) {
       note = '  \u2014 ' + distraction.stolen.length + ' lost to the wildlife';
     }
+  }
+  // Nothing said that the kibble patches him up, so the rule could only be
+  // learnt by accident. Said once, while he is carrying damage and there is
+  // still kibble to find, and never again after the first mend -- by then you
+  // have seen it happen.
+  if (!note && wear && wear.mended === 0 &&
+      (wear.wear > 0 || wear.lives < wear.cfg.lives) &&
+      collected.size < LEVEL.pickups.length) {
+    note = "  \u2014 he's fraying. Every " + wear.cfg.perMend +
+           'th kibble patches him up';
   }
   // Lives as stitched hearts is a different game's furniture. He is a toy:
   // what he has left is seams.
