@@ -66,7 +66,9 @@
                  border: 1px solid rgba(255, 255, 255, .12); }
   .panel-inner h2 { margin: 0 0 6px; font-size: clamp(19px, 4vw, 27px);
                     color: #fffae1; }
-  .panel-inner .tag { margin: 0 0 16px; color: #b9cbd8; font-size: 13.5px; }
+  .panel-inner .tag { margin: 0 0 6px; color: #b9cbd8; font-size: 13.5px; }
+  /* The whole run, under the level's own line and quieter than it. */
+  .panel-inner .run { margin: 0 0 16px; color: #8ea3b3; font-size: 12.5px; }
   .panel-inner button { display: block; width: 100%; margin: 8px 0 0;
                         padding: 11px 16px; border-radius: 10px; cursor: pointer;
                         font: inherit; font-size: 15px; border: 0; }
@@ -888,7 +890,7 @@ function blocked() {
   return paused || (done && !done.hidden);
 }
 
-function panel(host, title, tag, buttons) {
+function panel(host, title, tag, buttons, run) {
   host.hidden = false;
   host.innerHTML = '';
   const box = document.createElement('div');
@@ -902,6 +904,15 @@ function panel(host, title, tag, buttons) {
     p.textContent = tag;
     box.appendChild(p);
   }
+  // A second, quieter line under the first. The end of the game adds the
+  // whole run up, and stapling that onto the level's own line gives you
+  // "kibble" twice in one sentence.
+  if (run) {
+    const r = document.createElement('p');
+    r.className = 'run';
+    r.textContent = run;
+    box.appendChild(r);
+  }
   for (const [cls, text, fn] of buttons) {
     const b = document.createElement('button');
     b.className = cls;
@@ -912,6 +923,22 @@ function panel(host, title, tag, buttons) {
   host.appendChild(box);
   document.body.classList.add('halted');
   box.querySelector('button').focus();
+}
+
+/**
+ * The whole run in one line, worded the way the sprite demo's title screen
+ * words it -- same store, same sums, so finishing here and finishing there
+ * say the same thing.
+ */
+function runLine() {
+  const P = window.Progress;
+  const order = window.MRCLUCKERS_LEVEL_ORDER || [];
+  if (!P || !P.tally) return '';
+  const t = P.tally(order);
+  if (!t.levels) return '';
+  const whole = (window.Wear ? window.Wear.CFG.lives : 3) * t.levels;
+  return t.kibble + '/' + t.pickups + ' kibble \u00b7 ' +
+         t.bonus + ' at fetch \u00b7 ' + t.seams + '/' + whole + ' seams';
 }
 
 /** How the sprite demo's level select words a finished run. */
@@ -942,6 +969,10 @@ function levelFinished(stats) {
     const name = (window.MRCLUCKERS_LEVELS[next] || {}).name || next;
     buttons.push(['big', 'Next: ' + name,
                   () => { location.href = '?level=' + next; }]);
+  } else {
+    // The end of the game rather than the end of a level: somewhere to land,
+    // and the whole run added up on the way out.
+    buttons.push(['big', 'The end', () => { location.href = '../'; }]);
   }
   buttons.push(['quiet', 'Play it again', () => location.reload()]);
   buttons.push(['quiet', 'Level select', () => { location.href = '../?#levels'; }]);
@@ -949,7 +980,7 @@ function levelFinished(stats) {
         next ? starLine(stats, LEVEL.pickups.length)
              : starLine(stats, LEVEL.pickups.length) +
                " \u2014 that's the last one",
-        buttons);
+        buttons, next ? '' : runLine());
 }
 
 function togglePause(force) {

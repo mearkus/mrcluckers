@@ -295,6 +295,30 @@ throw — so a browser that refuses to remember anything still plays, it just
 forgets. Levels unlock in order; a level's best kibble and best fetch score
 are kept.
 
+### The end
+
+Beating all five used to change nothing. The title screen still said *"Ginger's
+favourite toy has a long way to go. Get him home"* — he was home — and the
+button still offered to **Continue** a game with nothing left in it. Five
+levels and no ending is a demo.
+
+So the title screen notices. At 5/5 the tagline says he made it, the primary
+action becomes **Play again** from the Living Room rather than Continue into a
+level already beaten, a wax-seal badge is pinned to the corner of the key art,
+and the whole run is added up underneath in one line — kibble found, points at
+fetch, and seams kept out of the fifteen he started the game with.
+
+`Progress.tally(order)` does the adding, over the same best-of records the
+level cards read, so the total is the one you can point at rather than a
+second score kept somewhere else. The last level's panel gets the same line
+and a way out to the title, because a panel whose only exit is the level list
+reads as a level ending rather than as the game ending.
+
+Both demos, and one wrinkle worth knowing: `location.href = ""` resolves
+against the *current* URL, query string and all, so leaving a level for the
+title with an empty href drops you straight back into the level you just
+finished. The root is `"?"`.
+
 ### Moving between levels
 
 Switching levels is a page load, so the join is covered from both sides: the

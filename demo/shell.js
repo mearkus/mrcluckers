@@ -119,6 +119,20 @@
   }
 
   /**
+   * The whole run in one line. The per-level cards already say how each went;
+   * this is the only place that adds them up, and at 5/5 it is the closest
+   * thing the game has to a score.
+   */
+  function runLine() {
+    if (!P) return "";
+    var t = P.tally(ORDER);
+    if (!t.levels) return "";
+    var whole = (window.Wear ? window.Wear.CFG.lives : 3) * t.levels;
+    return t.kibble + "/" + t.pickups + " kibble  \u00b7  " +
+           t.bonus + " at fetch  \u00b7  " + t.seams + "/" + whole + " seams";
+  }
+
+  /**
    * One level's card: the number, the name, how it went, and a swatch of
    * the level's own sky and ground.
    *
@@ -263,10 +277,19 @@
     art.appendChild(img);
     art.appendChild(el("div", "shadow"));
 
+    // Five levels beaten used to change nothing here: the tagline still said
+    // he had a long way to go, and the button still offered to continue a
+    // game with nothing left in it. Finishing is the one thing the title
+    // screen ought to notice.
+    var home = !!(P && P.allDone(ORDER));
+    if (home) art.appendChild(el("div", "rosette", "Home"));
+
     var wrap = el("div", "shell-inner");
     wrap.appendChild(wordmark());
-    wrap.appendChild(el("p", "tag",
-      "Ginger's favourite toy has a long way to go. Get him home."));
+    wrap.appendChild(el("p", "tag", home
+      ? "He made it home, every last level of it. She has her toy back."
+      : "Ginger's favourite toy has a long way to go. Get him home."));
+    if (home) wrap.appendChild(el("p", "run", runLine()));
 
     var open = P ? P.unlocked(ORDER) : null;
     var furthest = ORDER[0];
@@ -274,13 +297,15 @@
       for (var i = 0; i < ORDER.length; i++) if (open[ORDER[i]]) furthest = ORDER[i];
     }
     var started = !!(P && P.isDone(ORDER[0]));
-    var play = el("button", "big", started ? "Continue" : "Play");
+    var from = home ? ORDER[0] : furthest;
+    var play = el("button", "big",
+                  home ? "Play again" : (started ? "Continue" : "Play"));
     if (started) {
-      play.appendChild(el("small", null, (LEVELS[furthest] || {}).name || ""));
+      play.appendChild(el("small", null, (LEVELS[from] || {}).name || ""));
     }
     play.addEventListener("click", function () {
       if (window.Sound) window.Sound.play("ui");
-      go(furthest);
+      go(from);
     });
     wrap.appendChild(play);
 
@@ -341,7 +366,20 @@
         b.addEventListener("click", function () { go(nxt); });
         box.appendChild(b);
       } else {
-        box.appendChild(el("p", "tag", "That's the last one. She has her toy back."));
+        box.appendChild(el("p", "tag",
+          "That's the last one. She has her toy back."));
+        box.appendChild(el("p", "run", runLine()));
+        // Somewhere to land. The title screen is where the ending lives now,
+        // and a panel whose only exit is the level list reads as a level
+        // ending rather than as the game ending.
+        var end = el("button", "big", "The end");
+        end.appendChild(el("small", null, "back to the title"));
+        end.addEventListener("click", function () {
+          // "" resolves against the current URL, query and all, which lands
+          // straight back in the level you just finished. "?" is the root.
+          leaveTo("?", "Mr. Cluckers");
+        });
+        box.appendChild(end);
       }
       var back = el("button", "quiet", "Level select");
       back.addEventListener("click", function () {
