@@ -39,6 +39,7 @@ python3 build.py
 | `shared/thief.js` | The other dog at the park, and what it does with the toy. |
 | `shared/progress.js` | Which levels are finished, and what that opens up. |
 | `shared/sound.js` | Every sound in the game, synthesised on the spot. |
+| `shared/music.js` | The room tone: a bed per theme, generated, riding the same context. |
 | `shared/theme.js` | What each level looks like: palette, parallax layers, and which section it files under. |
 | `demo/shell.js` | Title screen, the level-select screen, and the end-of-level panel. |
 | `levels/*.json` | The levels themselves. `levels.js` is the generated bundle. |
@@ -80,7 +81,7 @@ than invention:
 
 | | |
 | --- | --- |
-| **Sound** | `shared/sound.js`, the same voices at the same moments — jump, land, splash, kibble, the vacuum's shove, the other dog taking him, both flourishes, and the whole fetch round. Plus the mute button, and the unlock every browser insists on before a page may make noise. |
+| **Sound** | `shared/sound.js`, the same voices at the same moments — jump, land, splash, kibble, the vacuum's shove, the other dog taking him, both flourishes, and the whole fetch round. Plus the mute button, and the unlock every browser insists on before a page may make noise. And `shared/music.js` under it, so both demos sit in the same room. |
 | **Pause** | <kbd>Esc</kbd> or the button: resume, restart, or out to the level select. The loop stops advancing but keeps drawing, so the frozen frame is the one you paused on. |
 | **Progress** | `shared/progress.js`, the same store under the same key — so finishing The Living Room *here* unlocks The Kitchen over *there*. |
 
@@ -210,6 +211,43 @@ Two things browsers make you handle:
 Muting is remembered, and `play()` returns whether it actually made a sound,
 which is how the test proves the voices synthesise rather than silently
 no-op: it counts the audio nodes each one creates.
+
+## The room tone
+
+Every sound in the game was a one-shot: a squeak, a thud, a splash. Between
+them the levels were silent, which made five rooms with five palettes sound
+like one empty room.
+
+`shared/music.js` generates a bed for each, no files and nothing to download.
+A room is a key, a tempo, sixteen eighth-notes of melody and one bar of bass,
+and the line drifts a little on every pass so it never settles into a loop you
+start counting. The notes come out of a **pentatonic** scale, which is the
+trick that makes a wandering line safe: there is no interval in one that can
+clash, so it cannot wander into a wrong note.
+
+| | |
+| --- | --- |
+| **Living Room** | 76 bpm, F major — warm, slow, close to a music box. |
+| **The Kitchen** | 96 bpm, G major, an octave up — tiled, brighter, faintly clockwork. |
+| **The Garden** | 84 bpm, E major — open and unhurried. |
+| **The Park** | 104 bpm, D major — the widest level, so the most going on. |
+| **The Lane** | 72 bpm, D minor — dusk, going home, and a little sad. |
+
+### The floor under it
+
+The first version was the melody alone, and measured it was **silent two
+thirds of the time** — which is a pause, not a place. So the root and its fifth
+hold underneath continuously, low-passed to 340 Hz and detuned a hair against
+each other, with a 0.07 Hz swell on the gain so the pair never sits still
+enough to notice. That is what makes it a room rather than a tune; the notes
+on top are decoration.
+
+It rides `shared/sound.js`'s context and its mute, so there is one volume, one
+switch and one thing browsers have to unlock — and it peaks around 0.02 against
+effects an order of magnitude louder, which is the whole idea. It stops when
+the game does: a bed playing under a pause panel is the one place it stops
+reading as the room and starts reading as a track.
+
 
 ## Pause
 
@@ -673,6 +711,11 @@ That is the point of it. He wants to please her, and the kibble in the awkward
 corner now pays for the knock it costs to go and get it, *during* the level
 rather than on the results screen. A plush toy full of dog food is the joke the
 game was already making.
+
+Nothing said so, though, so the rule could only be learnt by accident. The HUD
+now says it once — while he is carrying damage and there is still kibble to
+find, and never again after the first mend, because by then you have watched it
+happen.
 
 Four is deliberate. The levels carry eight to thirteen kibble, so a careful run
 can buy back two seams and no run can buy back more than it can lose.

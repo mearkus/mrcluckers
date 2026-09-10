@@ -59,6 +59,7 @@ straight from the repository — nothing is built in CI.
 | `editor/` | The level editor |
 | `shared/controls.js` | On-screen controls for touch devices, used by both demos |
 | `shared/bonus.js` | The post-reunion bonus round: rules and physics, no rendering |
+| `shared/music.js` | The room tone: a generated bed per theme, on the same audio bus |
 | `shared/wear.js` | What a knock costs him: marks, seams, when the level starts over, and what the kibble mends |
 | `shared/distraction.js` | The wildlife: what it takes, what it drops, and how you stop it |
 

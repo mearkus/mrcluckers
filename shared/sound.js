@@ -170,6 +170,15 @@
 
   return {
     KEY: KEY,
+    /**
+     * The context and the output node, for anything that wants to make its
+     * own noise on the same wire -- `shared/music.js` does. Null until the
+     * page has been interacted with, because that is a browser rule and not
+     * one this can talk its way out of.
+     */
+    bus: function () {
+      return ready() ? { ctx: ctx, master: master } : null;
+    },
     names: function () { return Object.keys(VOICES).map(function (n) {
       return n === 'catch_' ? 'catch' : n; }); },
     enabled: function () { return on; },
