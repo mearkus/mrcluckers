@@ -544,9 +544,177 @@ window.MRCLUCKERS_LEVELS = {
     ],
     "thieves": []
   },
+  "the-shed": {
+    "name": "The Shed",
+    "order": 3,
+    "theme": "shed",
+    "width": 22,
+    "spawn": {
+      "x": 1.4,
+      "y": 0
+    },
+    "goal": {
+      "x": 17.2,
+      "y": 5.15
+    },
+    "critters": [
+      {
+        "x": 5.9,
+        "y": 3.8,
+        "kind": "bird",
+        "linger": 8,
+        "period": 10
+      },
+      {
+        "x": 9.9,
+        "y": 5.15,
+        "kind": "squirrel",
+        "linger": 9,
+        "period": 11,
+        "drops": 1.7
+      },
+      {
+        "x": 4.2,
+        "y": 1.05,
+        "kind": "squirrel",
+        "linger": 7,
+        "period": 9
+      },
+      {
+        "x": 18.15,
+        "y": 5.15,
+        "kind": "bird",
+        "linger": 8,
+        "period": 10
+      }
+    ],
+    "platforms": [
+      {
+        "x": 0,
+        "y": 0,
+        "w": 22,
+        "h": 1,
+        "ground": true
+      },
+      {
+        "x": 2.6,
+        "y": 1.05,
+        "w": 2.6,
+        "h": 1.05,
+        "kind": "crate"
+      },
+      {
+        "x": 6.6,
+        "y": 2.1,
+        "w": 2.2,
+        "h": 0.4,
+        "kind": "pipe"
+      },
+      {
+        "x": 3.2,
+        "y": 3.1,
+        "w": 2.4,
+        "h": 0.4,
+        "kind": "pipe"
+      },
+      {
+        "x": 6.8,
+        "y": 4.15,
+        "w": 2.2,
+        "h": 0.4,
+        "kind": "pipe"
+      },
+      {
+        "x": 10.5,
+        "y": 5.15,
+        "w": 11.5,
+        "h": 0.6
+      }
+    ],
+    "hazards": [],
+    "pickups": [
+      {
+        "x": 3.9,
+        "y": 1.65
+      },
+      {
+        "x": 7.7,
+        "y": 2.7
+      },
+      {
+        "x": 4.4,
+        "y": 3.7
+      },
+      {
+        "x": 7.9,
+        "y": 4.75
+      },
+      {
+        "x": 12.1,
+        "y": 5.75
+      },
+      {
+        "x": 14.0,
+        "y": 5.75
+      },
+      {
+        "x": 9.4,
+        "y": 0.6
+      },
+      {
+        "x": 16.0,
+        "y": 5.75
+      }
+    ],
+    "patrols": [],
+    "thieves": [],
+    "props": [
+      {
+        "x": 1.2,
+        "y": 0,
+        "kind": "bowl"
+      },
+      {
+        "x": 6.4,
+        "y": 0,
+        "kind": "bin",
+        "scale": 0.9
+      },
+      {
+        "x": 9.9,
+        "y": 0,
+        "kind": "post"
+      },
+      {
+        "x": 13.0,
+        "y": 0,
+        "kind": "plant",
+        "scale": 0.85
+      },
+      {
+        "x": 19.4,
+        "y": 0,
+        "kind": "bin",
+        "scale": 0.8,
+        "flip": true
+      },
+      {
+        "x": 11.6,
+        "y": 5.15,
+        "kind": "bowl",
+        "scale": 0.9
+      },
+      {
+        "x": 20.4,
+        "y": 5.15,
+        "kind": "plant",
+        "scale": 0.8
+      }
+    ]
+  },
   "the-garden": {
     "name": "The Garden",
-    "order": 3,
+    "order": 4,
     "theme": "garden",
     "width": 48,
     "spawn": {
@@ -860,7 +1028,7 @@ window.MRCLUCKERS_LEVELS = {
   },
   "the-park": {
     "name": "The Park",
-    "order": 4,
+    "order": 5,
     "theme": "park",
     "width": 58,
     "spawn": {
@@ -1230,7 +1398,7 @@ window.MRCLUCKERS_LEVELS = {
   },
   "the-lane": {
     "name": "The Lane",
-    "order": 5,
+    "order": 6,
     "theme": "lane",
     "width": 64,
     "spawn": {
@@ -1670,4 +1838,4 @@ window.MRCLUCKERS_LEVELS = {
     ]
   }
 };
-window.MRCLUCKERS_LEVEL_ORDER = ["living-room", "the-kitchen", "the-garden", "the-park", "the-lane"];
+window.MRCLUCKERS_LEVEL_ORDER = ["living-room", "the-kitchen", "the-shed", "the-garden", "the-park", "the-lane"];

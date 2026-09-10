@@ -170,7 +170,7 @@ he is can.
 
 Layers are described in world pixels and drawn in screen space, so `speed` is
 how much of the camera's motion a layer takes: 0 is painted on the far wall, 1
-moves with the floor. The five levels get a room, a kitchen, a garden, a park and a lane at dusk,
+moves with the floor. The six levels get a room, a kitchen, a shed, a garden, a park and a lane at dusk,
 and platforms and water take their colours from the theme too.
 
 Two things worth knowing if you add a theme:
@@ -215,7 +215,7 @@ no-op: it counts the audio nodes each one creates.
 ## The room tone
 
 Every sound in the game was a one-shot: a squeak, a thud, a splash. Between
-them the levels were silent, which made five rooms with five palettes sound
+them the levels were silent, which made six rooms with six palettes sound
 like one empty room.
 
 `shared/music.js` generates a bed for each, no files and nothing to download.
@@ -297,16 +297,17 @@ are kept.
 
 ### The end
 
-Beating all five used to change nothing. The title screen still said *"Ginger's
+Beating every level used to change nothing. The title screen still said *"Ginger's
 favourite toy has a long way to go. Get him home"* — he was home — and the
 button still offered to **Continue** a game with nothing left in it. Five
 levels and no ending is a demo.
 
-So the title screen notices. At 5/5 the tagline says he made it, the primary
-action becomes **Play again** from the Living Room rather than Continue into a
-level already beaten, a wax-seal badge is pinned to the corner of the key art,
-and the whole run is added up underneath in one line — kibble found, points at
-fetch, and seams kept out of the fifteen he started the game with.
+So the title screen notices. With every level finished the tagline says he made
+it, the primary action becomes **Play again** from the Living Room rather than
+Continue into a level already beaten, a wax-seal badge is pinned to the corner
+of the key art, and the whole run is added up underneath in one line — kibble
+found, points at fetch, and seams kept out of the three he starts each level
+with.
 
 `Progress.tally(order)` does the adding, over the same best-of records the
 level cards read, so the total is the one you can point at rather than a
@@ -361,12 +362,62 @@ which quietly made the climax a 0% jump. `route()` reported the level's
 hardest forced jump as 88% instead of 92%, which is exactly the sort of thing
 that number is for.
 
+## The Shed
+
+The five levels asked the same question five times: walk right, time the gaps,
+don't fall in. The Shed asks a different one. It is **22 units wide and five
+high** — every other level is 40 to 64 wide and tops out at 3.3 — and the way
+out is up: a stack of seed crates, three shelf brackets, and a loft with Ginger
+on it.
+
+It sits third, between The Kitchen and The Garden. `route()` puts its hardest
+forced jump at 76%, which drops it neatly into the ladder — 66, 74, **76**, 82,
+87, 92 — and it is where the story wants it too: he goes out of the kitchen
+window, lands in the shed, and has to climb out to reach the garden.
+
+**The wildlife is the level, not a tax on it.** A squirrel sits on the lip of
+the loft with `drops: 1.7`, raining acorns down the shaft onto the two shelves
+below it, and a bird perches in the gap you have to cross at three heights. On
+the flat a shove costs you a stumble; at four heights up it costs you the
+climb, so the same critters that were an irritation elsewhere are the whole
+problem here.
+
+### The camera had a ceiling
+
+The vertical camera was clamped at a flat `-150` — a little over two character
+heights above the ground, which was plenty while the tallest thing in the game
+was 3.3. Measured on the new level, he jumped off the loft and **left the top
+of the screen** while the camera sat at its stop.
+
+So the ceiling comes from the level instead: high enough to hold its tallest
+platform, the apex of a jump from there, his own height and a margin.
+
+```js
+Math.min(-150, LEVEL.ground - (tallest + 1.61 + 1.6) * PX)
+```
+
+The `min` is the important half — it can only ever be *more* generous than the
+old constant, so every level that stays near the ground is framed exactly as it
+was. Existing levels compute a ceiling of -73 and keep -150; The Shed gets
+-208. The three.js camera never had a clamp, so it needed nothing.
+
+The test that found it stands him on every platform in the level and at the
+apex of a jump from each, at three screen sizes, and checks his head and feet
+are both still on the canvas. It also found a bug in itself first: reading the
+camera in the same frame that moved him measures where the camera was for the
+*previous* sample, which fails only on the small canvases, where there is no
+headroom to absorb a frame of lag.
+
 ## Designing levels
 
 Levels live in `levels/*.json`, authored **once** and read by both demos and
 the editor. Coordinates are world units — 1 unit is Mr. Cluckers' height —
 with **Y up** and the ground's top surface at `y = 0`. A platform's `y` is its
 top surface, the edge that matters for landing.
+
+There is no fixed ceiling: the sprite demo's camera derives how far it may rise
+from the tallest platform in the level, so a level can climb as well as run.
+See *The Shed*.
 
 ```json
 {
@@ -468,8 +519,9 @@ the kitchen and the lane before the park, which is not a game.
 Inserting a level in the middle must not re-lock what someone has already
 beaten, so a level stays open if it is finished, or if anything after it is.
 
-The five sit at 87%, 86%, 92%, 92% and 92% of the jump budget at their hardest
-forced jump. The first two:
+In play order the six sit at 66%, 74%, 76%, 82%, 87% and 92% of the jump
+budget at their hardest forced jump — a ladder, rather than six levels that
+all peak in the same place. Two of them in detail:
 
 | | Living Room | The Garden |
 | --- | --- | --- |
@@ -699,7 +751,7 @@ jump instead of peaking in the middle. See *What a jump can do*.
 Every knock in the game was survivable and forgettable. The vacuum shoved him,
 a bird went up in his face, an acorn came off a branch — and a second later
 there was nothing to show for any of it. Three obstacles, no consequences, and
-a plush toy that came out of five levels as clean as he went in.
+a plush toy that came out of the whole game as clean as he went in.
 
 `shared/wear.js` counts what they cost. **A hit leaves a mark. Three marks and
 a seam goes**, which costs a life: he is patched up, and he carries on from the
@@ -951,7 +1003,7 @@ Her patch is up to 12.4 units wide and it used to be centred on her, which in
 a level whose goal is two and a half units from the right-hand wall put her,
 the toy and the other dog out past the end of the floor — standing on nothing,
 at the far edge of a frame that was mostly sky. Sliding it inside the level's
-*width* is not enough either: three of the five levels have a water gap before
+*width* is not enough either: three levels have a water gap before
 their last ledge, so a patch that fits the level still walked her across it.
 
 So `Level.footing(level, at)` answers the actual question — the run of floor

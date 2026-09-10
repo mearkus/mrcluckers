@@ -59,6 +59,42 @@
       hazard: { body: 'rgba(120, 150, 190, .45)', top: 'rgba(190, 215, 240, .8)' },
       dust: 'rgba(196, 176, 148, 0.75)'
     },
+    /* The shed he falls into on the way out of the kitchen. Dim, warm and
+       close: the parallax is shallow because you are inside a small wooden
+       box, and the one bright thing is the window he is climbing towards. */
+    shed: {
+      where: 'Indoors',
+      parts: {
+        slab:  { top: '#a8845c', body: '#7b5f42', leg: '#5f4a34' },   // workbench
+        soft:  { top: '#9c8f6e', body: '#7e7256', tuft: '#b3a785' },  // sacking
+        crate: { top: '#b08a5c', body: '#8a6a45', line: '#6a5033' },  // seed crate
+        pipe:  { top: '#b9a689', body: '#8d7a5c' }                    // a rail
+      },
+      sky: ['#6b5541', '#4b3a2c'],          // the far wall, in shadow
+      layers: [
+        /* Two rows of glass, because one cannot do both jobs: from the floor
+           you only ever see up to about three heights, and from the loft you
+           only ever see down to about three. A window that greets you at the
+           bottom is invisible at the top and vice versa. */
+        { kind: 'panes', color: '#f6e6bb', frame: '#8a6f4e', step: 520,
+          w: 120, h: 96, y: -470, speed: 0.18 },        // the gable light
+        { kind: 'panes', color: '#e8d3a2', frame: '#8a6f4e', step: 340,
+          w: 78, h: 92, y: -215, speed: 0.30 },         // over the bench
+        { kind: 'posts', color: '#7a614a', step: 88, w: 14, h: 300,
+          y: -300, speed: 0.38 },                                     // studs
+        { kind: 'band', color: '#8a6c4c', y: -232, h: 16, speed: 0.5 },
+        { kind: 'band', color: '#6f573d', y: -118, h: 14, speed: 0.5 },
+        { kind: 'panes', color: '#5d4833', frame: '#79603f', step: 210,
+          w: 44, h: 52, y: -96, speed: 0.62 },                        // pegboard
+        { kind: 'band', color: '#3f3125', y: 0, h: 12, speed: 1 },
+        { kind: 'band', color: '#2b2119', y: 44, h: 42, speed: 1.35,
+          front: true, alpha: 0.5 },
+      ],
+      ground: { dirt: '#3b2e24', edge: '#4d3c2e', cap: '#7d6247', lip: '#9a7a58' },
+      hazard: { body: 'rgba(120, 150, 190, .45)', top: 'rgba(190, 215, 240, .8)' },
+      dust: 'rgba(214, 190, 150, 0.8)'
+    },
+
     garden: {
       where: 'Outdoors',
       parts: {
