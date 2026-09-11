@@ -869,6 +869,23 @@ and turns around.
 Being above it is safe, so you time the gap or jump it. Both are verified:
 walking into it gets you hit, jumping past it clears it and lands you beyond.
 
+## Nothing on the game is selectable
+
+A phone found the one flaw in the ending: a stray drag over the **Home** badge
+selected the word, and Android put a dictionary card over the game — *home,
+/hōm/, noun, the place where one lives permanently*.
+
+Every word on the game's screens is a label on a control, so selecting one was
+never going to do anything you wanted. `html, body` on the root page and on the
+three.js demo now carry `user-select: none` and `-webkit-touch-callout: none`,
+which stops the selection, the dictionary sheet and iOS's long-press callout in
+one go.
+
+The making-of page and the editor are deliberately left alone: one is prose you
+might want to quote, the other has a JSON pane you have to be able to copy out
+of. The test checks both directions — that the game selects nothing and that
+those two still do.
+
 ## Touch controls
 
 `shared/controls.js` mounts a d-pad, a jump button and the action buttons on
