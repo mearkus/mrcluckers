@@ -819,6 +819,32 @@ happen.
 Four is deliberate. The levels carry eight to thirteen kibble, so a careful run
 can buy back two seams and no run can buy back more than it can lose.
 
+### What hit him
+
+Three things can knock him — the vacuum, the wildlife, and the other dog — and
+the counter did not care which. It should: *"the wear is too harsh"* and *"the
+birds are relentless"* want different fixes, and nothing in the game could tell
+them apart.
+
+A bot was the obvious way to measure it and the wrong one. The route-walking
+autoplayer wedges within half a minute and then stands still for the rest of the
+clock, so it measures **where it happened to stop**, not what a level costs: the
+two levels with two thieving dogs each scored eight knocks while the shed scored
+zero, which is a fact about where it parked.
+
+So the run reports itself instead. `wear.hit(from)` tallies by source, the
+level's results screen says what it cost, and the title screen adds the whole
+game up once it is done:
+
+> 38/58 kibble · 114 at fetch · 14/18 seams
+> **31 knocks — 17 wildlife, 9 vacuum, 5 other dog**
+
+Worst first, zeros omitted, nothing at all if he came through clean. The
+phrasing lives in `shared/wear.js` next to the tally so the two demos cannot
+word it differently. It is stored **latest**, not best-of like the rest —
+keeping the maximum would report your unluckiest attempt forever, which is the
+opposite of what a measurement is for.
+
 ### What the run was worth
 
 The end-of-level panel used to report kibble and the fetch score. Finishing
