@@ -96,6 +96,9 @@
   var WORLD = window.Level.normalize(picked.data);
   var checkpoint = window.Checkpoint ? window.Checkpoint.create(WORLD) : null;
   var respawnFlash = 0;
+  // Hold down on a ledge and the view slides down so you can see what you
+  // would be dropping onto. shared/look.js owns how far and how long.
+  var look = window.Look ? window.Look.create() : null;
   // The room's own tone. It waits for the first keypress on its own -- there
   // is no audio context before one, and that is a browser rule.
   if (window.Music) window.Music.start(WORLD.theme);
@@ -473,6 +476,13 @@
     player.stun = Math.max(0, player.stun - dt);
     player.hitCool = Math.max(0, player.hitCool - dt);
     respawnFlash = Math.max(0, respawnFlash - dt);
+    // Before the early returns, so the view eases back while he is mid-fall
+    // or mid-fetch rather than staying wherever it was left.
+    if (look) {
+      look.update(dt, { held: !!keys.down, onGround: player.onGround,
+                        vx: player.vx / PX,
+                        y: (LEVEL.ground - player.y) / PX });
+    }
     if (wear) wear.update(dt);
     for (var bi = bits.length - 1; bi >= 0; bi--) {
       var q = bits[bi];
@@ -910,7 +920,11 @@
     // Keep him around two thirds down the view, but never show far below the
     // ground -- on a tall portrait screen that clamp is what keeps him framed.
     var lowest = LEVEL.ground + 60 - viewH;
-    camY = clamp(player.y - viewH * 0.64, Math.min(CEILING, lowest),
+    // The peek is in world pixels and y is down here, so looking down is
+    // adding to camY. The clamp does the rest: on the ground floor there is
+    // nowhere lower to go, which is exactly right.
+    var peek = look ? look.offset * PX : 0;
+    camY = clamp(player.y - viewH * 0.64 + peek, Math.min(CEILING, lowest),
                  Math.max(CEILING, lowest));
     // Snap to whole screen pixels so the pixel art doesn't shimmer.
     camX = Math.round(camX * SCALE) / SCALE;
@@ -1758,6 +1772,7 @@
     // Wear and seams, and whether he is mid-recovery: a fall is a beat now,
     // not a frame, and a test that samples during it sees him underwater.
     get wear() { return wear; },
+    get look() { return look; },
     get recovering() { return !!recover; },
     // World units, for tests -- the player is kept in pixels internally.
     get where() {
