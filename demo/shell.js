@@ -92,8 +92,15 @@
     setTimeout(jump, 520);
   }
 
+  /* Straight to the three.js player: it is the game now, and the sprite one
+   * is what you get when three.js cannot be reached. Going via "?level=" here
+   * would work -- the root redirects -- but it costs a second page load on
+   * the one path everybody takes. */
   function go(slug) {
-    leaveTo("?level=" + slug, (LEVELS[slug] || {}).name || "");
+    var name = (LEVELS[slug] || {}).name || "";
+    var flat = false;
+    try { flat = sessionStorage.getItem("mrcluckers.2d") === "1"; } catch (e) {}
+    leaveTo(flat ? "?level=" + slug + "&2d=1" : "web/?level=" + slug, name);
   }
 
   function el(tag, cls, text) {

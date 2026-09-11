@@ -408,6 +408,60 @@ camera in the same frame that moved him measures where the camera was for the
 *previous* sample, which fails only on the small canvases, where there is no
 headroom to absorb a frame of lag.
 
+## The three.js one is the game
+
+For a long time there were two demos and the sprite one was *the* one: the
+menus sent you to it, and the three.js version sat at `/web/`, reachable only
+from a line of small text at the foot of the title screen into the making-of
+page, labelled "the three.js demo".
+
+It stopped being a demo several changes ago. It has the same six levels from
+the same shared modules, the same kibble, wildlife, seams, thieving dog,
+vacuum, fetch round, sound, room tone, pause, progress and ending, with tests
+keeping the two honest. So it is the game now, and the sprite one is the
+fallback.
+
+### Routing, not merging
+
+Doing this properly would have meant extracting sixteen hundred lines of inline
+module script out of `web/index.html` and reconciling two sets of markup, CSS
+and element IDs — two `#paused`, two `#done`, a HUD each, the renderer's own
+canvas against `#stage`. Clean URLs, and a rewrite of the half of the game that
+already works.
+
+Routing costs a handful of lines instead. The title screen and the level select
+stay where they are, because they are DOM and the renderer has nothing to do
+with them; only a *level* goes elsewhere:
+
+| | |
+| --- | --- |
+| `/` and `/#levels` | the menus, unchanged |
+| `/web/?level=slug` | a level — where the menus send you |
+| `/?level=slug` | redirects there, so old bookmarks get the new default |
+| `/?level=slug&2d=1` | the sprite game |
+
+The redirect runs in the `<head>` before anything else loads, so a level URL
+never starts building a sprite game it is about to leave behind.
+
+### The fallback is the point
+
+This page is the only part of the game that needs the network: three.js comes
+from a CDN, and a blocked or slow one left a black screen with no explanation.
+That was tolerable while it was a curio nobody could find. It is not tolerable
+for the thing the menus send everybody to.
+
+So if the module never gets as far as running, `/web/` sends you to the sprite
+game with the same level and `2d=1` on the end. The flag is doing two jobs: it
+tells the root page to stay put rather than bounce you back, and it is the
+escape hatch if you simply prefer the sprites.
+
+The timer is what actually catches it. A failed import inside a module graph
+does not reliably reach an error handler, but a game that has not booted after
+ten seconds has not booted — so the module sets a flag the moment three.js
+arrives, and a timer that finds the flag missing gives up and redirects. Tested
+with the CDN aborted outright: you land on `/?level=the-garden&2d=1` playing
+sprites.
+
 ## Designing levels
 
 Levels live in `levels/*.json`, authored **once** and read by both demos and

@@ -124,6 +124,35 @@
 <script src="../shared/progress.js"></script>
 <script src="../shared/controls.js"></script>
 
+<script>
+  /* Falling back to the sprite game.
+   *
+   * This page is the game now, and it is the only part of it that needs the
+   * network: three.js comes from a CDN, and a blocked or slow one used to
+   * leave a black screen with no explanation. That was tolerable while this
+   * was a curio reachable only from the making-of page. It is not tolerable
+   * for the thing the menus send everybody to.
+   *
+   * So: if the module never gets as far as running, go to the sprite game
+   * with the same level. `2d=1` tells the root page to stay there rather
+   * than send us back here. The timer is the one that actually catches it --
+   * a failed import inside the module graph does not always reach an error
+   * handler, but a game that has not booted after ten seconds has not booted.
+   */
+  (function () {
+    var q = location.search;
+    var back = '../' + q + (q ? '&' : '?') + '2d=1';
+    addEventListener('error', function (e) {
+      if (e && e.target && e.target.tagName === 'SCRIPT' && !window.__mrcBooted) {
+        location.replace(back);
+      }
+    }, true);
+    setTimeout(function () {
+      if (!window.__mrcBooted) location.replace(back);
+    }, 10000);
+  })();
+</script>
+
 <script type="importmap">
 {
   "imports": {
@@ -137,6 +166,9 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { Cluckers, sideCamera, resizeSideCamera, plushLighting }
   from './mrcluckers.js';
+
+// Three.js arrived, so the fallback timer above has nothing to do.
+window.__mrcBooted = true;
 
 // --- physics, in world units (he is 1.0 unit tall) ------------------------
 // Derived from shared/jump.js so the two demos and the editor agree.
