@@ -13,11 +13,17 @@ one-line fixes and including "this is obviously safe" changes.
 
 ## URLs
 
-The site root **is the game** — `/` is the title screen, `/#levels` the level
-select, `/?level=slug` a level. Everything else sits under it: `/web/` for the
-three.js demo, `/admin/` for the making-of page, `/editor/` for the level
-editor. `/demo/` is a redirect kept for old bookmarks; the directory itself
-still holds the canvas game's code.
+The site root **is the game** — `/` is the title screen and `/#levels` the
+level select. Both are DOM, and the renderer has nothing to do with them.
+
+**A level is the three.js one.** `/web/?level=slug` is where the menus send
+you, and `/?level=slug` redirects there. The sprite game is the fallback and
+lives at `/?level=slug&2d=1` — `2d=1` is what stops the redirect bouncing in a
+loop, and it is where `/web/` sends you if three.js cannot be fetched.
+
+`/admin/` is the making-of page and `/editor/` the level editor. `/demo/` is a
+redirect kept for old bookmarks; the directory itself still holds the sprite
+game's code.
 
 Paths that scripts build at run time (the key art, the sprite sheets) resolve
 against the **document**, which is at the root, not against the script in

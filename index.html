@@ -4,6 +4,32 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Mr. Cluckers</title>
+<script>
+  /* The game is the three.js one now.
+   *
+   * The title screen and the level select stay here -- they are DOM, and the
+   * renderer has nothing to do with them -- but a level goes to `web/`. This
+   * runs before anything else loads so a level URL never starts building the
+   * sprite game it is about to leave.
+   *
+   * `2d=1` is the way back: the fallback lands on it when three.js cannot be
+   * fetched, and it is what stops this bouncing in a loop.
+   */
+  (function () {
+    var q = location.search, KEY = 'mrcluckers.2d';
+    /* Sticky for the session. Without this a blocked CDN costs ten seconds of
+     * black screen at *every* level: the fallback lands here, you finish, and
+     * "Next" sends you straight back to the page that cannot load. Per tab
+     * rather than forever, so a new visit tries three.js again -- and it is
+     * also how "I just prefer the sprites" is remembered. */
+    try {
+      if (/[?&]2d=1/.test(q)) { sessionStorage.setItem(KEY, '1'); return; }
+      if (sessionStorage.getItem(KEY) === '1') return;
+    } catch (e) { if (/[?&]2d=1/.test(q)) return; }
+    if (!/[?&]level=/.test(q)) return;
+    location.replace('web/' + q + location.hash);
+  })();
+</script>
 <style>
   html, body {
     margin: 0; height: 100%; background: #1b1d22; color: #cdd2d8;
