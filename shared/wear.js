@@ -33,7 +33,8 @@
     lives: 3,        // seams he can afford to lose
     perLife: 3,      // knocks each one takes
     perMend: 4,      // kibble that goes into the next split
-    patched: 1.2     // seconds of being obviously freshly mended
+    patched: 1.2,    // seconds of being obviously freshly mended
+    explain: 4.5     // seconds to say what a seam is, the first time one goes
   };
 
   function create(opts) {
@@ -49,7 +50,18 @@
       spent: 0,         // lives lost
       fed: 0,           // kibble since the last mend
       mended: 0,        // mends the kibble has paid for
-      mending: 0        // counts down while the mend is still obvious
+      mending: 0,       // counts down while the mend is still obvious
+      /* Counts down while the first lost seam still wants explaining.
+       *
+       * "Seams" is this game's word for lives, and nothing ever said so: the
+       * only thing that carried it was three blocks in a HUD line and some
+       * stitches on a sprite 73 pixels tall. Somebody who finished the whole
+       * game with one seam of fifteen still had to ask what they were.
+       *
+       * The first one going is the moment it can be explained and the only
+       * moment anyone is looking at him. It lives here rather than in each
+       * demo because both want the same sentence at the same instant. */
+      said: 0
     };
 
     /**
@@ -65,6 +77,7 @@
       s.mending = cfg.patched;
       s.lives--;
       s.spent++;
+      if (s.spent === 1) s.said = cfg.explain;     // the first one, and only that
       if (s.lives > 0) return { mark: true, life: true, out: false };
       s.lives = cfg.lives;          // back to the start of the level, mended
       return { mark: true, life: true, out: true };
@@ -95,7 +108,10 @@
       return { mended: false, seam: false };   // nothing to fix
     };
 
-    s.update = function (dt) { s.mending = Math.max(0, s.mending - dt); };
+    s.update = function (dt) {
+      s.mending = Math.max(0, s.mending - dt);
+      s.said = Math.max(0, s.said - dt);
+    };
 
     return s;
   }
