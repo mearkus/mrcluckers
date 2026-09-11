@@ -71,8 +71,10 @@
   .panel-inner h2 { margin: 0 0 6px; font-size: clamp(19px, 4vw, 27px);
                     color: #fffae1; }
   .panel-inner .tag { margin: 0 0 6px; color: #b9cbd8; font-size: 13.5px; }
-  /* The whole run, under the level's own line and quieter than it. */
+  /* The whole run, under the level's own line and quieter than it, and what
+     hit him quieter again -- that one is a diagnosis, not a score. */
   .panel-inner .run { margin: 0 0 16px; color: #8ea3b3; font-size: 12.5px; }
+  .panel-inner .knocks { margin: 0 0 6px; color: #7d92a3; font-size: 12.5px; }
   .panel-inner button { display: block; width: 100%; margin: 8px 0 0;
                         padding: 11px 16px; border-radius: 10px; cursor: pointer;
                         font: inherit; font-size: 15px; border: 0; }
@@ -908,13 +910,13 @@ function panel(host, title, tag, buttons, run) {
     p.textContent = tag;
     box.appendChild(p);
   }
-  // A second, quieter line under the first. The end of the game adds the
-  // whole run up, and stapling that onto the level's own line gives you
-  // "kibble" twice in one sentence.
-  if (run) {
+  // Quieter lines under the first: what knocked him about, and at the end of
+  // the game the whole run added up. Stapling either onto the level's own line
+  // gives you "kibble" twice in one sentence.
+  for (const [cls, line] of [].concat(run || []).filter((e) => e && e[1])) {
     const r = document.createElement('p');
-    r.className = 'run';
-    r.textContent = run;
+    r.className = cls;
+    r.textContent = line;
     box.appendChild(r);
   }
   for (const [cls, text, fn] of buttons) {
@@ -927,6 +929,17 @@ function panel(host, title, tag, buttons, run) {
   host.appendChild(box);
   document.body.classList.add('halted');
   box.querySelector('button').focus();
+}
+
+/**
+ * What knocked him about in one level, worded the way the sprite demo words
+ * it. Nothing at all if he came through clean.
+ */
+function knockLine(stats) {
+  if (!stats || !stats.knocks) return '';
+  const who = window.Wear ? window.Wear.blame(stats.by) : '';
+  return stats.knocks + ' knock' + (stats.knocks === 1 ? '' : 's') +
+         (who ? ' \u2014 ' + who : '');
 }
 
 /**
@@ -984,7 +997,8 @@ function levelFinished(stats) {
         next ? starLine(stats, LEVEL.pickups.length)
              : starLine(stats, LEVEL.pickups.length) +
                " \u2014 that's the last one",
-        buttons, next ? '' : runLine());
+        buttons, [['knocks', knockLine(stats)],
+                  ['run', next ? '' : runLine()]]);
 }
 
 function togglePause(force) {
@@ -1190,7 +1204,10 @@ function updateBonus(dt) {
                     // three, so the HUD's number cannot tell a clean run
                     // from a disaster.
                     seams: wear
-                      ? Math.max(0, wear.cfg.lives - wear.spent) : 0 });
+                      ? Math.max(0, wear.cfg.lives - wear.spent) : 0,
+                    // And what did the damage: a measurement, not a score.
+                    knocks: wear ? wear.taken : 0,
+                    by: wear ? wear.by : null });
   }
 
   const total = bonus.total();
@@ -1272,9 +1289,9 @@ function mendedByKibble(fixed) {
  * time; when it takes the last mark he comes apart, and that costs a seam
  * and the ground back to the last place he stood safely.
  */
-function tookAHit() {
+function tookAHit(from) {
   if (!wear) return;
-  const cost = wear.hit();
+  const cost = wear.hit(from);
   if (!cost.life) return;
   snd('miss');
   // If the other dog was what did it, it does not get to keep him: the
@@ -1447,7 +1464,7 @@ function update(dt) {
     P.action = 'tumble'; P.actionTime = 0;
     snd('bump');
     bird.play('tumble', { restart: true });
-    tookAHit();
+    tookAHit('vacuum');
   }
 
   // He drowns when he is *in* the water, not when he is level with it: a
@@ -1489,7 +1506,7 @@ function update(dt) {
                          safe: P.hitCool > 0 });
     // One knock per pick-up, on the frame it gets him, using the edge that
     // was already here for the sound rather than a second flag beside it.
-    if (t.state.carrying && !held) { snd('grab'); tookAHit(); }
+    if (t.state.carrying && !held) { snd('grab'); tookAHit('dog'); }
     t.root.position.x = t.state.x;
     t.pivot.rotation.y = t.state.dir > 0 ? -Math.PI / 2 : Math.PI / 2;
     t.play(t.state.clip());
@@ -1520,7 +1537,7 @@ function update(dt) {
       P.action = 'tumble'; P.actionTime = 0;
       snd('bump');
       bird.play('tumble', { restart: true });
-      tookAHit();
+      tookAHit('wildlife');
     }
     for (let i = 0; i < critterMeshes.length; i++) {
       const c = distraction.critters[i], g = critterMeshes[i];

@@ -132,6 +132,22 @@
            t.bonus + " at fetch  \u00b7  " + t.seams + "/" + whole + " seams";
   }
 
+  /** The whole run's knocks, for the title screen once the game is done. */
+  function runKnocks() {
+    return P ? knockLine(P.tally(ORDER)) : "";
+  }
+
+  /**
+   * What knocked him about in one level, or across the whole run. Worst first,
+   * and nothing at all if he came through clean.
+   */
+  function knockLine(stats) {
+    if (!stats || !stats.knocks) return "";
+    var who = window.Wear ? window.Wear.blame(stats.by) : "";
+    return stats.knocks + " knock" + (stats.knocks === 1 ? "" : "s") +
+           (who ? "  \u2014  " + who : "");
+  }
+
   /**
    * One level's card: the number, the name, how it went, and a swatch of
    * the level's own sky and ground.
@@ -289,7 +305,11 @@
     wrap.appendChild(el("p", "tag", home
       ? "He made it home, every last level of it. She has her toy back."
       : "Ginger's favourite toy has a long way to go. Get him home."));
-    if (home) wrap.appendChild(el("p", "run", runLine()));
+    if (home) {
+      wrap.appendChild(el("p", "run", runLine()));
+      var hit = runKnocks();
+      if (hit) wrap.appendChild(el("p", "knocks", hit));
+    }
 
     var open = P ? P.unlocked(ORDER) : null;
     var furthest = ORDER[0];
@@ -360,6 +380,8 @@
       var lv = LEVELS[slug] || {};
       box.appendChild(el("h2", null, (lv.name || slug) + " — done"));
       box.appendChild(el("p", "tag", stars(stats, (lv.pickups || []).length)));
+      var knocks = knockLine(stats);
+      if (knocks) box.appendChild(el("p", "knocks", knocks));
       var nxt = P ? P.next(ORDER, slug) : null;
       if (nxt) {
         var b = el("button", "big", "Next: " + ((LEVELS[nxt] || {}).name || nxt));

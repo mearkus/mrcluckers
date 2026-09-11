@@ -297,9 +297,9 @@
    * time; when it takes the last mark he comes apart, and that costs a seam
    * and the ground back to the last place he stood safely.
    */
-  function tookAHit() {
+  function tookAHit(from) {
     if (!wear) return;
-    var cost = wear.hit();
+    var cost = wear.hit(from);
     if (!cost.life) return;
     window.Sound && window.Sound.play("miss");
     // If the other dog was what did it, it does not get to keep him: the
@@ -404,7 +404,12 @@
           // How much of him came through it. Seams *kept*, not seams in hand:
           // running out patches him back up to three, so the number showing
           // in the HUD cannot tell a clean run from a disaster.
-          seams: wear ? Math.max(0, wear.cfg.lives - wear.spent) : 0
+          seams: wear ? Math.max(0, wear.cfg.lives - wear.spent) : 0,
+          // And what did the damage. A measurement rather than a score: the
+          // only way to tell "the wear is too harsh" from "the birds are
+          // relentless" is a real run saying which.
+          knocks: wear ? wear.taken : 0,
+          by: wear ? wear.by : null
         });
       }
     }
@@ -602,7 +607,7 @@
       if (th.state.carrying && !th.grabbed) {
         th.grabbed = true;
         window.Sound && window.Sound.play("grab");
-        tookAHit();
+        tookAHit("dog");
       }
       if (!th.state.carrying) th.grabbed = false;
       if (th.state.carrying) {
@@ -643,7 +648,7 @@
         player.stun = bw.stun;
         player.hitCool = window.Distraction.CFG.immune;
         window.Sound && window.Sound.play("bump");
-        tookAHit();
+        tookAHit("wildlife");
         player.action = "tumble";
         player.actionTime = 0;
         player.anim.set("tumble", true);
@@ -794,7 +799,7 @@
         player.stun = k.stun;
         player.hitCool = window.Patrol.CFG.immune;
         window.Sound && window.Sound.play("bump");
-        tookAHit();
+        tookAHit("vacuum");
         player.action = "tumble";
         player.actionTime = 0;
         player.anim.set("tumble", true);

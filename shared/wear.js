@@ -18,6 +18,12 @@
  * he wants to please her, and the detour for the kibble in the awkward corner
  * now buys him the knock it costs to get there.
  *
+ * Three things can knock him, and the counter did not care which. It should:
+ * "the wear is too harsh" and "the birds are relentless" want different fixes,
+ * and only a real run can tell them apart -- a bot that walks the route gets
+ * wedged and then stands still, which measures where it happened to stop
+ * rather than what a level costs.
+ *
  * Nothing here draws: it counts. Both demos read the same wear number and
  * each puts its own stuffing and grime on him, so a plush chicken cannot be
  * scruffier in one than in the other.
@@ -29,6 +35,15 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
+  /* The three things that can knock him, plus a bucket for a knock that
+   * arrives without saying where it came from. Nothing in either demo does
+   * that -- but a fourth source added later, by someone who forgets the
+   * argument, would otherwise vanish from the breakdown while still counting
+   * in the total, and a measurement whose parts do not add up to its total is
+   * worse than no measurement. It shows up as "unaccounted", which is a bug
+   * report rather than a score. */
+  var SOURCES = ['wildlife', 'vacuum', 'dog', 'other'];
+
   var CFG = {
     lives: 3,        // seams he can afford to lose
     perLife: 3,      // knocks each one takes
@@ -36,6 +51,30 @@
     patched: 1.2,    // seconds of being obviously freshly mended
     explain: 4.5     // seconds to say what a seam is, the first time one goes
   };
+
+  function blank() {
+    var o = {};
+    for (var i = 0; i < SOURCES.length; i++) o[SOURCES[i]] = 0;
+    return o;
+  }
+
+  /**
+   * What did the damage, worst first, as a phrase. Lives here so the two
+   * demos cannot word it differently, and so a level's results screen and the
+   * end of the game say the same thing.
+   */
+  function blame(by) {
+    if (!by) return '';
+    var parts = SOURCES.slice().filter(function (k) { return by[k] > 0; });
+    parts.sort(function (a, b) { return by[b] - by[a]; });
+    var said = [];
+    for (var i = 0; i < parts.length; i++) {
+      var name = parts[i] === 'dog' ? 'other dog'
+               : parts[i] === 'other' ? 'unaccounted' : parts[i];
+      said.push(by[parts[i]] + ' ' + name);
+    }
+    return said.join(', ');
+  }
 
   function create(opts) {
     opts = opts || {};
@@ -47,6 +86,7 @@
       wear: 0,          // marks showing now: 0 .. perLife - 1
       lives: cfg.lives,
       taken: 0,         // every knock this run, for the results line
+      by: blank(),      // and which of the three did each one
       spent: 0,         // lives lost
       fed: 0,           // kibble since the last mend
       mended: 0,        // mends the kibble has paid for
@@ -68,8 +108,9 @@
      * One knock. Returns what it cost: `mark` always, plus `life` when a seam
      * went and `out` when that was the last one.
      */
-    s.hit = function () {
+    s.hit = function (from) {
       s.taken++;
+      s.by[s.by[from] === undefined ? 'other' : from]++;
       s.wear++;
       if (s.wear < cfg.perLife) return { mark: true, life: false, out: false };
       // Three marks and something gives.
@@ -116,5 +157,5 @@
     return s;
   }
 
-  return { CFG: CFG, create: create };
+  return { CFG: CFG, SOURCES: SOURCES, blame: blame, create: create };
 });

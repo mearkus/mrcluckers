@@ -58,6 +58,16 @@
     }
     // pickups is a total, not a score: take the latest non-zero.
     now.pickups = (stats && stats.pickups) || was.pickups || 0;
+    /* Knocks are a measurement, not a score, so the *latest* run wins rather
+     * than the best or the worst. Keeping the max would report your unluckiest
+     * attempt forever, which is the opposite of what it is for. */
+    if (stats && stats.knocks !== undefined) {
+      now.knocks = stats.knocks;
+      now.by = stats.by || {};
+    } else if (was.knocks !== undefined) {
+      now.knocks = was.knocks;
+      now.by = was.by || {};
+    }
     data.done[slug] = now;
     save(data);
     return data;
@@ -82,7 +92,8 @@
    */
   function tally(order) {
     var data = load();
-    var t = { levels: 0, kibble: 0, pickups: 0, bonus: 0, seams: 0 };
+    var t = { levels: 0, kibble: 0, pickups: 0, bonus: 0, seams: 0,
+              knocks: 0, by: {} };
     for (var i = 0; i < order.length; i++) {
       var d = data.done[order[i]];
       if (!d) continue;
@@ -91,6 +102,8 @@
       t.pickups += d.pickups || 0;
       t.bonus += d.bonus || 0;
       t.seams += d.seams || 0;
+      t.knocks += d.knocks || 0;
+      for (var k in (d.by || {})) t.by[k] = (t.by[k] || 0) + d.by[k];
     }
     return t;
   }
