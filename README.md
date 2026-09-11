@@ -775,6 +775,29 @@ The HUD carries the count as **seams**, filled and empty. Lives as stitched
 hearts is a different game's furniture; he is a toy, and what he has left is
 seams.
 
+### Saying what a seam is
+
+"Seams" is this game's word for lives, and for a long time nothing said so.
+The only things carrying it were three blocks in a HUD line and some stitches
+on a sprite 73 pixels tall — and somebody who finished the whole game, with
+every kibble in it, still had to ask what they were.
+
+So the first one to go explains itself:
+
+> The Garden 0/9 ⬛⬛⬜ — a seam went: that's three knocks. 2 left
+
+Once, on the first seam of a level and never again, and it sits *under* "she's
+watching a bird. Squeak!" — that one is the thing you have to do to finish, and
+this will keep. Four and a half seconds later it hands over to the hint that
+was already there, which says what to do about it: *he's fraying. Every 4th
+kibble patches him up.*
+
+The countdown lives in `shared/wear.js` rather than once in each demo. Both
+want the same sentence at the same instant, and putting it in the counter means
+a test that calls `hit()` directly sees exactly what a real knock produces —
+the first draft kept the timer in the demos, and the test that drove `hit()`
+reported the note never firing when the code was fine.
+
 ### The kibble patches him up
 
 Collecting was worth something only after the level: kibble bought throws in

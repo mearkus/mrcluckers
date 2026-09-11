@@ -1695,6 +1695,11 @@
           note = distraction.watcher.kind === "bird"
             ? "  \u2014 she's watching a bird. Squeak, or crow to put it up!"
             : "  \u2014 she's watching a squirrel. Squeak!";
+        } else if (wear && wear.said > 0) {
+          // Under "squeak at her", which is the thing you have to do to
+          // finish, and over the rest, which will keep.
+          note = "  \u2014 a seam went: that's three knocks. " +
+                 wear.lives + " left";
         } else if (distraction) {
           var thief = distraction.pressing();
           if (thief) {
