@@ -462,6 +462,63 @@ arrives, and a timer that finds the flag missing gives up and redirects. Tested
 with the CDN aborted outright: you land on `/?level=the-garden&2d=1` playing
 sprites.
 
+## Invisible enemies
+
+Reported from a phone, a day after the three.js version became the default:
+*"there are invisible enemies, either birds or squirrels hitting me on
+platforms."*
+
+There were. This camera centres on `P.y + 0.9` and only ever lifted at the
+goal — a fix for exactly one bird, the one perched over Ginger's head, which
+sat above the top of the frame so you could not see the thing the HUD was
+telling you to squeak at. Everywhere else a perch above the top edge was an
+enemy the screen never showed. It still bursts up in his face, still shoves
+him, still costs a third of a seam.
+
+Measured, standing under each perch in each level at three screen shapes:
+**fifteen of sixty-nine checks were off the top**. The top edge sits at 2.78
+units above the floor on a desktop frame, and the kitchen's bird is at 3.0, the
+park's at 3.15, the lane's pair at 2.95 and 3.0. The shed is worse by design —
+its loft squirrel sits at 5.15 and drops things down the shaft.
+
+Note which way round that goes: **the big screen is the bad one.** The frame is
+wider than it is tall, so a desktop window shows less sky than a phone held
+upright. Portrait had two bad checks; desktop had seven.
+
+### Move the camera, not the rules
+
+Refusing to let an off-screen critter land a knock would have been the smaller
+change and the wrong one. The sprite demo frames wider, so the same level would
+be measurably harder in one renderer than the other — and every shared module
+here exists to stop precisely that. So the goal's lift is generalised: frame
+whatever can reach him.
+
+```js
+const REACH = 3.2;                       // wider than the flush box and the drop span
+for (const c of distraction.critters) {
+  if (Math.abs(c.home.x - P.x) > REACH) continue;
+  seeUp = Math.max(seeUp, c.home.y - (P.y + 0.9));
+}
+const room = (camera.top - camera.bottom) / 2 / camera.zoom - 0.6;
+const lift = Math.min(2.6, Math.max(goalLift, Math.max(0, seeUp - room)));
+```
+
+It frames the **perch**, not the critter on it. Waiting for one to arrive
+leaves the window it can hit you in: a bird lands and bursts inside the quarter
+second the eased camera takes to pan, which is exactly the moment that needs to
+be on screen. A perch does not move, so framing it on approach is steady — no
+pop when something drops onto it — and the shot is right before anything
+happens.
+
+`room` comes from the camera's own frustum. The first version took it from
+`viewHeight()`, which is what gets *fed* to `resizeSideCamera` rather than the
+half-height that comes out of it; `room` came out too big and the lift
+evaluated to zero for every perch that was only just too high. That hid the bug
+in the obvious case — the shed's squirrel at 5.15 had enough headroom to clear
+it anyway — and left it in the four marginal ones.
+
+After: **zero of sixty-nine**.
+
 ## Designing levels
 
 Levels live in `levels/*.json`, authored **once** and read by both demos and
