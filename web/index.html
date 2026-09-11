@@ -1642,13 +1642,53 @@ function update(dt) {
   const nearHer = distraction && distraction.watching && LEVEL.goal &&
                   Math.abs(LEVEL.goal.x - P.x) < 4;
   const lean = nearHer ? 1.1 : 0;
-  // A bird perches over her head, and this camera frames tighter than the
-  // sprite demo's -- without a lift it is above the top of the screen, and
-  // you cannot see the thing you are being told to squeak at. How far it sits
-  // above her is authored per perch, so the lift follows it.
-  const lift = nearHer
-    ? Math.max(0, Math.min(1.8, distraction.watcher.home.y - LEVEL.goal.y - 0.5))
-    : 0;
+  /* Lift until whatever can reach him is on screen.
+   *
+   * This started as a fix for one bird: the one perched over Ginger's head,
+   * which sat above the top of the frame so you could not see the thing the
+   * HUD was telling you to squeak at. It only ever applied at the goal.
+   *
+   * Everywhere else a perch above the top edge was an *invisible enemy*. It
+   * still bursts up in his face, still shoves him, still costs a third of a
+   * seam -- from something the screen never showed. Measured at 2.78 units
+   * above the floor on a desktop frame, that was seven perches across four
+   * levels: the kitchen's bird at 3.0, the park's at 3.15, the lane's pair at
+   * 2.95 and 3.0, and three in the shed, whose loft squirrel sits at 5.15 and
+   * drops things down the shaft.
+   *
+   * Gating the knock on whether it happens to be drawn would have been the
+   * smaller change and the wrong one: the sprite demo frames wider, so the
+   * two would disagree about how hard a level is, and everything here is
+   * built on them agreeing. Move the camera, not the rules.
+   */
+  let seeUp = 0;
+  if (distraction) {
+    // Wider than the flush box (2.2) and than how far a squirrel aims what it
+    // drops (2.4), so it rises *before* the thing that is about to hit him.
+    const REACH = 3.2;
+    for (const c of distraction.critters) {
+      /* The *perch*, not the critter on it. Waiting for one to arrive leaves
+       * the window it can hit you in: it lands and bursts inside the quarter
+       * second the eased camera takes to pan, which is exactly the moment
+       * that needs to be on screen. A perch does not move, so framing it on
+       * approach is steady -- no pop when a bird drops onto it -- and the
+       * shot is already right before anything happens. */
+      if (Math.abs(c.home.x - P.x) > REACH) continue;
+      seeUp = Math.max(seeUp, c.home.y - (P.y + 0.9));
+    }
+  }
+  /* How much sky there is above the camera, less a margin so a perch clears
+   * the top edge rather than grazing it. Taken from the camera's own frustum:
+   * `viewHeight()` is what gets *fed* to resizeSideCamera, not the half-height
+   * that comes out of it, and using it here made `room` too big -- the lift
+   * evaluated to zero for every perch that was only just too high, which was
+   * four of the six that needed it. */
+  const room = (camera.top - camera.bottom) / 2 / camera.zoom - 0.6;
+  const lift = Math.min(2.6, Math.max(
+    nearHer
+      ? Math.max(0, Math.min(1.8, distraction.watcher.home.y - LEVEL.goal.y - 0.5))
+      : 0,
+    Math.max(0, seeUp - room)));
   camera.position.x += ((P.x + lean) - camera.position.x) * Math.min(1, dt * 6);
   camera.position.y += (P.y + 0.9 + lift - camera.position.y) * Math.min(1, dt * 4);
 
