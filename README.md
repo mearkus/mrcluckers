@@ -35,6 +35,7 @@ python3 build.py
 | `shared/patrol.js` | Machines that move along a surface — where they are, and what they do to you. |
 | `shared/checkpoint.js` | Where he comes back to after a fall. |
 | `shared/wear.js` | What a knock costs him: marks, seams, when the level starts over, and what the kibble mends. |
+| `shared/look.js` | Hold down on a ledge and the view slides down, so a drop is not a guess. |
 | `shared/distraction.js` | Wildlife: what it takes, and how you stop it. |
 | `shared/thief.js` | The other dog at the park, and what it does with the toy. |
 | `shared/progress.js` | Which levels are finished, and what that opens up. |
@@ -47,7 +48,8 @@ python3 build.py
 ## Two demos
 
 Both play the same way: arrow keys move, <kbd>Space</kbd> jumps,
-<kbd>&darr;</kbd> crouches, <kbd>X</kbd> pecks, <kbd>C</kbd> crows,
+<kbd>&darr;</kbd> crouches — and, held still on a ledge, looks down —
+<kbd>X</kbd> pecks, <kbd>C</kbd> crows,
 <kbd>Z</kbd> squeaks, <kbd>V</kbd> tumbles.
 
 Both work on a phone: on a touch device an on-screen pad appears, and the
@@ -518,6 +520,60 @@ in the obvious case — the shed's squirrel at 5.15 had enough headroom to clear
 it anyway — and left it in the four marginal ones.
 
 After: **zero of sixty-nine**.
+
+## Looking before you drop
+
+The camera frames him. That is the right shot while you are moving and the
+wrong one while you are deciding: standing on a shelf four heights up, what is
+underneath you is off the bottom of the screen. Another shelf, the floor, or
+the water — the game gives you no way to tell, so dropping off a platform is a
+guess, and a wrong guess costs a knock or the checkpoint.
+
+**Hold <kbd>&darr;</kbd> and the view slides down 1.9 heights.** It is the key
+that already crouches, because it is the same intent — stop, look — and because
+the on-screen pad already sends it, so touch gets this for nothing.
+
+```js
+var wants = !!w.held && !!w.onGround &&
+            Math.abs(w.vx || 0) < cfg.still && (w.y || 0) > cfg.floor;
+s.held = wants ? s.held + dt : 0;
+var want = (wants && s.held >= cfg.delay) ? cfg.drop : 0;
+s.offset += (want - s.offset) * Math.min(1, dt * cfg.ease);
+```
+
+Four conditions, and each one is there to stop the camera moving when you did
+not ask it to:
+
+- **On the ground.** In the air <kbd>&darr;</kbd> is a fast-fall, and panning
+  mid-jump moves the frame at the one moment you need it still.
+- **Standing.** Down while walking is the slow walk; panning during it fights
+  the thing you are doing.
+- **Above the floor** (`floor: 0.15`). On the ground storey there is nothing
+  under you but the colour of the floor.
+- **Held for 0.22s** first, so a tap that crouches is not also a camera move.
+
+The demos keep their own cameras — pixels and Y-down in one, world units and
+Y-up in the other — so each adds the offset in its own direction, and the
+clamps they already had still apply:
+
+```js
+var peek = look ? look.offset * PX : 0;                        // demo/game.js
+camY = clamp(player.y - viewH * 0.64 + peek, ...);
+```
+```js
+const peek = look ? look.offset : 0;                           // web/index.html
+camera.position.y += (P.y + 0.9 + lift - peek - camera.position.y) * ...;
+```
+
+What is *not* in either demo is how far, how long, or how fast — those live in
+`shared/look.js`, because a number tuned by feel in two places is a number that
+drifts apart. Measured on the shed's top shelf at y=4.15, the bottom edge of
+the view goes 2.86 → 0.96 in the sprite demo and 3.19 → 1.29 in the three.js
+one: the same 1.9 units in both, and back again on release.
+
+The update runs **before** the early returns for a fall or the fetch round, so
+if you are still holding down when something knocks you off, the view eases
+back on its own instead of staying where you left it.
 
 ## Designing levels
 

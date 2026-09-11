@@ -88,7 +88,7 @@
 <div id="hud" hidden>
   <span class="keyhint"><kbd>&larr;</kbd><kbd>&rarr;</kbd> move</span>
   <span class="keyhint"><kbd>space</kbd> jump</span>
-  <span class="keyhint"><kbd>&darr;</kbd> crouch</span>
+  <span class="keyhint"><kbd>&darr;</kbd> crouch / look</span>
   <span class="keyhint"><kbd>x</kbd> peck</span>
   <span class="keyhint"><kbd>c</kbd> crow</span>
   <span class="keyhint"><kbd>z</kbd> squeak</span>
@@ -118,6 +118,7 @@
 <script src="../shared/distraction.js"></script>
 <script src="../shared/thief.js"></script>
 <script src="../shared/wear.js"></script>
+<script src="../shared/look.js"></script>
 <script src="../shared/bonus.js"></script>
 <script src="../shared/sound.js"></script>
 <script src="../shared/music.js"></script>
@@ -236,6 +237,9 @@ const checkpoint = window.Checkpoint ? window.Checkpoint.create(LEVEL) : null;
 // What the knocks have cost him. Shared with the sprite demo so a shove is
 // worth the same in both, and so three of them cost a seam in both.
 const wear = window.Wear ? window.Wear.create() : null;
+// Hold down on a ledge and the view slides down so you can see what you would
+// be dropping onto. shared/look.js owns how far and how long.
+const look = window.Look ? window.Look.create() : null;
 // The room's own tone. It waits for the first keypress on its own -- there is
 // no audio context before one, and that is a browser rule.
 if (window.Music) window.Music.start(LEVEL.theme);
@@ -1351,6 +1355,12 @@ function placeShadow() {
 
 function update(dt) {
   levelClock += dt;
+  // Before the early returns, so the view eases back while he is mid-fall or
+  // mid-fetch rather than staying wherever it was left.
+  if (look) {
+    look.update(dt, { held: !!keys.down, onGround: P.onGround,
+                      vx: P.vx, y: P.y });
+  }
   if (wear) wear.update(dt);
   P.stun = Math.max(0, P.stun - dt);
   P.hitCool = Math.max(0, P.hitCool - dt);
@@ -1690,7 +1700,10 @@ function update(dt) {
       : 0,
     Math.max(0, seeUp - room)));
   camera.position.x += ((P.x + lean) - camera.position.x) * Math.min(1, dt * 6);
-  camera.position.y += (P.y + 0.9 + lift - camera.position.y) * Math.min(1, dt * 4);
+  // Y is up here, so looking down is subtracting the peek.
+  const peek = look ? look.offset : 0;
+  camera.position.y +=
+    (P.y + 0.9 + lift - peek - camera.position.y) * Math.min(1, dt * 4);
 
   // Drive the backdrop by hand: an orthographic camera gets no parallax from
   // depth, so each layer is slid to `camX * (1 - speed)`. Speed 1 stays put
@@ -1786,6 +1799,7 @@ window.__checkpoint = () => (checkpoint ? checkpoint.at : null);
 // Wear and seams, and whether he is mid-recovery: a fall is a beat now, not a
 // frame, and a test that samples during it sees him underwater.
 window.__wear = () => wear;
+window.__look = look;
 window.__recovering = () => !!recover;
 window.__scuffs = scuffs;
 window.__distraction = () => distraction;

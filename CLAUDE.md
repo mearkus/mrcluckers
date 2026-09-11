@@ -68,6 +68,7 @@ straight from the repository — nothing is built in CI.
 | `shared/music.js` | The room tone: a generated bed per theme, on the same audio bus |
 | `shared/wear.js` | What a knock costs him: marks, seams, when the level starts over, and what the kibble mends |
 | `shared/distraction.js` | The wildlife: what it takes, what it drops, and how you stop it |
+| `shared/look.js` | Hold down on a ledge and the view slides down, so a drop is not a guess |
 
 `docs/pipeline.md` explains how the generator fits together and where to
 change the character's shape, motion or fabric.
