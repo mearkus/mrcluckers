@@ -35,7 +35,14 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  var SOURCES = ['wildlife', 'vacuum', 'dog'];
+  /* The three things that can knock him, plus a bucket for a knock that
+   * arrives without saying where it came from. Nothing in either demo does
+   * that -- but a fourth source added later, by someone who forgets the
+   * argument, would otherwise vanish from the breakdown while still counting
+   * in the total, and a measurement whose parts do not add up to its total is
+   * worse than no measurement. It shows up as "unaccounted", which is a bug
+   * report rather than a score. */
+  var SOURCES = ['wildlife', 'vacuum', 'dog', 'other'];
 
   var CFG = {
     lives: 3,        // seams he can afford to lose
@@ -62,7 +69,9 @@
     parts.sort(function (a, b) { return by[b] - by[a]; });
     var said = [];
     for (var i = 0; i < parts.length; i++) {
-      said.push(by[parts[i]] + ' ' + (parts[i] === 'dog' ? 'other dog' : parts[i]));
+      var name = parts[i] === 'dog' ? 'other dog'
+               : parts[i] === 'other' ? 'unaccounted' : parts[i];
+      said.push(by[parts[i]] + ' ' + name);
     }
     return said.join(', ');
   }
@@ -101,7 +110,7 @@
      */
     s.hit = function (from) {
       s.taken++;
-      if (s.by[from] !== undefined) s.by[from]++;
+      s.by[s.by[from] === undefined ? 'other' : from]++;
       s.wear++;
       if (s.wear < cfg.perLife) return { mark: true, life: false, out: false };
       // Three marks and something gives.

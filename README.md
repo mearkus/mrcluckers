@@ -841,7 +841,14 @@ game up once it is done:
 
 Worst first, zeros omitted, nothing at all if he came through clean. The
 phrasing lives in `shared/wear.js` next to the tally so the two demos cannot
-word it differently. It is stored **latest**, not best-of like the rest —
+word it differently.
+
+A knock that arrives without saying where it came from lands in a fourth
+bucket and prints as **unaccounted**. Nothing in either demo does that — but a
+fifth source added later by somebody who forgets the argument would otherwise
+vanish from the breakdown while still counting in the total, and a measurement
+whose parts do not add up to its total is worse than no measurement. If that
+word ever appears on a results screen it is a bug report, not a score. It is stored **latest**, not best-of like the rest —
 keeping the maximum would report your unluckiest attempt forever, which is the
 opposite of what a measurement is for.
 
