@@ -25,6 +25,7 @@ const Look = require('../shared/look.js');
 const Jump = require('../shared/jump.js');
 const Level = require('../shared/level.js');
 const Progress = require('../shared/progress.js');
+const Distraction = require('../shared/distraction.js');
 
 /* ---- what a knock costs him ------------------------------------------- */
 
@@ -76,6 +77,62 @@ test('the kibble mends him', () => {
   assert.ok(w.wear < 2, `${Wear.CFG.perMend} kibble should take a mark off`);
 });
 
+/* ---- what a run carries ------------------------------------------------ */
+
+test('damage carries between levels but seams do not', () => {
+  const w = Wear.create({ scars: 4 });
+  assert.equal(w.lives, Wear.CFG.lives,
+    'a new level must hand him a full set of seams however worn he is');
+  assert.equal(w.showScars(), 4, 'and he should still look worn');
+});
+
+test('a knock leaves something that does not wash out', () => {
+  const w = Wear.create();
+  w.hit('dog');
+  assert.equal(w.wear, 1, 'it shows as a fresh mark');
+  assert.equal(w.scars, 1, 'and it goes on the run tally');
+  // Fresh marks are drawn separately, so they are not drawn twice.
+  assert.equal(w.showScars(), 0);
+  w.hit('dog'); w.hit('dog');
+  assert.equal(w.wear, 0, 'the seam went, so nothing is fresh');
+  assert.equal(w.showScars(), 3, 'but all three knocks still show');
+});
+
+test('carried damage never costs a seam', () => {
+  // The whole reason it is cosmetic: 65 kibble in a run buy 16 mends against
+  // 63 marks the seams forgive, so charging for carried damage would make the
+  // back half of a run harder than the front by an amount nobody chose.
+  const worn = Wear.create({ scars: 20 });
+  worn.hit('dog'); worn.hit('dog');
+  assert.equal(worn.lives, Wear.CFG.lives,
+    'two knocks must cost the same whether he is fresh or filthy');
+});
+
+test('the marks he can show are capped', () => {
+  const w = Wear.create({ scars: 500 });
+  assert.equal(w.showScars(), Wear.SCARS.length,
+    'there are only so many places to put one');
+});
+
+test('kibble is never wasted once he has a history', () => {
+  const w = Wear.create({ scars: 3 });
+  for (let i = 0; i < Wear.CFG.perMend; i++) w.feed();
+  assert.equal(w.scars, 2,
+    'with nothing fresh to fix, a mend should take an old mark off');
+});
+
+test('both demos are given the same places to draw', () => {
+  // These used to be two copies of the same numbers, one per demo.
+  assert.equal(Wear.MARKS.length, Wear.CFG.perLife - 1,
+    'there is one fresh mark per knock a seam can take, less the one that ' +
+    'spends it');
+  for (const m of [...Wear.MARKS, ...Wear.SCARS]) {
+    for (const k of ['x', 'y', 's', 'a']) {
+      assert.equal(typeof m[k], 'number', `a mark is missing ${k}`);
+    }
+  }
+});
+
 /* ---- looking before you drop ------------------------------------------ */
 
 /* Stepped by hand at a fixed 60fps, so these are the actual eased curve
@@ -111,6 +168,62 @@ test('the camera stays put when you did not ask it to move', () => {
   }
 });
 
+/* ---- who closed the distance ------------------------------------------- */
+
+/* Reported from a real playthrough: "the birds are brutal. Mid jump they will
+ * attack and there is nothing you can do."
+ *
+ * A bird is put up either by being crowded or by being crowed at, and only
+ * the first shoves him. The rule is that the shove needs him to have closed
+ * the distance himself, on his feet -- measured against the critter's
+ * position now, so what is left is his own contribution. */
+const PERCH = { x: 10, y: 3, kind: 'bird' };
+const DT = 1 / 60;
+
+/** Run a bird against a scripted player and count the shoves. */
+function shoves(at, seconds = 6) {
+  const f = Distraction.flock({ critters: [PERCH], pickups: [], dog: null });
+  let n = 0;
+  for (let t = 0; t < seconds; t += DT) {
+    f.update(DT, at(t));
+    n += f.knocks().length;
+  }
+  return n;
+}
+
+test('a bird that flies into him does not shove him', () => {
+  // He stands still. Whatever the bird does, he had no say in it.
+  assert.equal(
+    shoves(() => ({ x: PERCH.x + 0.6, y: PERCH.y - 0.5, onGround: true }), 40),
+    0, 'standing still must never cost a knock');
+});
+
+test('a bird cannot shove him out of a jump', () => {
+  // Sweeping through the box, airborne the whole way.
+  assert.equal(
+    shoves((t) => ({ x: PERCH.x - 1.6 + t * 2, y: PERCH.y, onGround: false })),
+    0, 'an arc cannot be called off once he is on it');
+});
+
+test('walking into a perched bird still costs him', () => {
+  // The counterplay is to crow at it from outside the box first; this is what
+  // happens when you do not. If this ever reads 0 the birds have no teeth.
+  const hit = shoves((t) => ({
+    x: t < 2 ? PERCH.x - 3.2 : PERCH.x + 0.4, y: PERCH.y, onGround: true
+  }));
+  assert.ok(hit > 0, 'a bird you walk into should still put itself up in your face');
+});
+
+test('crowing at one is safe from anywhere', () => {
+  const f = Distraction.flock({ critters: [PERCH], pickups: [], dog: null });
+  for (let t = 0; t < 2; t += DT) f.update(DT, { x: PERCH.x - 5, y: PERCH.y, onGround: true });
+  f.knocks();
+  f.scare(PERCH.x - 5, PERCH.y);
+  assert.equal(f.knocks().length, 0,
+    'shouting at a bird from across the room must never shove him -- that is ' +
+    'the whole reason to own a crow');
+});
+
 /* ---- the movement budget ---------------------------------------------- */
 
 test('the jump budget is what the levels were authored against', () => {
@@ -134,6 +247,17 @@ test('a ledge above the apex is not jumpable', () => {
 });
 
 /* ---- what the run remembers ------------------------------------------- */
+
+test('the run remembers how worn he is, and a reset forgets', () => {
+  Progress.reset();
+  assert.equal(Progress.scars(), 0, 'a fresh run starts unmarked');
+  Progress.complete('the-kitchen', { kibble: 5, scars: 3 });
+  assert.equal(Progress.scars(), 3);
+  Progress.complete('the-shed', { kibble: 2, scars: 6 });
+  assert.equal(Progress.scars(), 6, 'the latest wins -- it is a state, not a score');
+  Progress.reset();
+  assert.equal(Progress.scars(), 0);
+});
 
 test('progress keeps the best of each level, not the latest', () => {
   Progress.reset();

@@ -411,6 +411,69 @@ camera in the same frame that moved him measures where the camera was for the
 *previous* sample, which fails only on the small canvases, where there is no
 headroom to absorb a frame of lag.
 
+## The long way down
+
+The Shed is a climb. This is the same shed travelled the other way: he starts
+on the top shelf and has to get **down** to her, and the floor is mostly a
+water trough with one dry corner.
+
+A descent is not a climb with the sign flipped. Climbing, the thing you are
+aiming at is on screen — it is above you, and the camera is already looking
+there. Dropping, it is under your feet and out of frame, so every step off a
+shelf is a guess unless you hold <kbd>&darr;</kbd> first. That is the whole
+level: not hard jumps (the hardest one it forces is **29%** of the budget) but
+a sequence of small decisions you cannot make blind.
+
+### Falling buys less room than you would think
+
+```
+rise   max run
+  0    2.44
+-1.2   2.89
+-6.0   3.97
+```
+
+Dropping six units only carries him 60% further than a standing jump, so the
+shelves have to zigzag tightly — and missing one means going straight down past
+everything to the water. That is what makes looking down worth a key.
+
+### Three shortcuts, found by measuring rather than playing
+
+The design question is not "can he get down" but "what does a blind step cost".
+So: for every shelf, walk off each edge and see what catches you.
+
+The first draft answered badly. Stepping right off the top shelf dropped **7.2
+units past the entire level** onto the last one. Two more rounds found a 4.5
+and a 3.15, the last of which landed on the floor near the goal — a blind step
+that nearly won the level from the top.
+
+| | longest blind fall that lands on something |
+| --- | --- |
+| first draft | 7.2 |
+| after moving the lower shelves out of the fall line | 3.15 |
+| shipped | **2.10** |
+
+Against a peek of 1.9, that is the property worth having: nothing you can fall
+onto is much further than what holding <kbd>&darr;</kbd> shows you. Every shelf
+now has at least one edge over the water, and one of them cannot be left by
+walking at all — the only way off is a jump.
+
+### Why it is not taller
+
+It was originally a tree, outdoors, nine units tall. It looked wrong, and the
+level was not the problem.
+
+**No theme's backdrop survives a tall level.** The parallax layers are strips
+at fixed heights, laid out for a camera near the ground. Nine units up, the
+park's render as enormous white slabs across the frame; the three interior
+themes do not break but go flat, losing every plank and window.
+
+There is nothing wrong with the level in either case — the art simply runs out.
+The shed's highest detail is the gable window at `y: -470`, about **6.5 units**
+up, which is exactly why the original Shed tops out at 5.15 and looks right
+there. So this one stays inside the painted band, and genuinely tall levels
+wait for the backdrop to learn about height.
+
 ## The three.js one is the game
 
 For a long time there were two demos and the sprite one was *the* one: the
@@ -821,6 +884,54 @@ now: sideways is what crowds a critter, and being a body-length below it is
 not. The same predicate decides whether one will come back, or a critter gets
 locked out of a perch you were never close enough to move it from.
 
+### Who closed the distance
+
+Reported from a real playthrough, which is the only place this was ever going
+to come from:
+
+> *"The birds are brutal. Mid jump they will attack and there is nothing you
+> can do."*
+
+A bird is put up either by being crowded or by being crowed at, and only the
+first shoves him — that difference is the whole reason to own a crow. But a
+crow is not available once he is airborne, and it turned out not to be needed
+for the shove to land at all. Measured over every bird in the game:
+
+| | shoves |
+| --- | --- |
+| standing still beside a perch, 40s each | **15** — one per perch |
+| jumping past a perch, 180 arcs | **144** — four in five |
+
+Neither is difficulty. An arc cannot be called off once he is on it, and
+standing still is not a mistake — in that row the bird flew into *him*.
+
+So the shove now asks who closed the distance, measured against the critter's
+position at that instant, which leaves his own contribution:
+
+```js
+var closed = wasAt !== null && wasAt !== undefined &&
+             Math.abs(wasAt - c.x) - Math.abs(world.x - c.x) > 1e-4;
+putUp(c, world.x, world.onGround !== false && closed);
+```
+
+Walk at a perched bird and the gap shrinks because of him. Stand still while
+one flies in and it does not shrink at all, however close the bird gets.
+
+| | before | after |
+| --- | --- | --- |
+| standing still | 15 | **0** |
+| jumping past | 144 | **0** |
+| **walking into a perched bird** | 80 | **80** |
+
+The last row is the one that matters. Everything still *puts the bird up* — it
+leaves, it drops what it was carrying, you lose the kibble it was after — and
+walking into one on your own two feet still costs you, because that is the
+case you could have crowed at instead. What went is the shove nobody chose.
+
+The test for that row was checked by forcing the shove off and watching it go
+red, because a test that only proves the birds are harmless would have passed
+the whole way through this change.
+
 ### Two kinds, two answers
 
 A **bird** perches above the kibble, out of reach, and the only thing that
@@ -965,6 +1076,48 @@ want the same sentence at the same instant, and putting it in the counter means
 a test that calls `hit()` directly sees exactly what a real knock produces —
 the first draft kept the timer in the demos, and the test that drove `hit()`
 reported the note never firing when the code was fine.
+
+### What a run carries
+
+Seams do not carry between levels. Each one hands him three, and that is what
+keeps the game finishable — the numbers say so plainly:
+
+| | |
+| --- | --- |
+| kibble in a whole run | 65 |
+| mends that buys, at 4 each | **16 marks** |
+| marks the seams currently forgive (7 × 3 × 3) | **63** |
+
+Carrying seams would leave a run 9 marks plus at most 16 mends — 25, collecting
+every kibble in the game — against a measured 31 knocks over six levels of
+automated play. The back half of a run would be harder than the front by an
+amount nobody chose, and the last level would mostly be unreachable.
+
+What carries is how he **looks**. Every knock leaves something lasting, and it
+follows him from the kitchen into the shed and down the long way into the lane.
+Purely cosmetic, deliberately: `Wear.create({ scars })` starts him marked and
+still hands him a full three seams.
+
+Fresh damage and old damage are drawn differently, and in different places. A
+fresh split leaks stuffing and sits in one of two spots; an old one is a closed
+seam with stitches across it, fainter, elsewhere on his body. That separation
+is what keeps the read intact — **two fresh marks still means "one more and a
+seam goes"**, however battered he already is.
+
+Both mark tables live in `shared/wear.js` now. The demos each had their own
+copy of the same numbers with the y sign flipped, which is exactly the drift
+`shared/` exists to stop — and the drift had already happened once by the time
+this was written, because the three.js demo was drawing old scars with the
+fresh-scuff texture while the sprite demo drew them stitched.
+
+The first set of scar positions was fanned out to x ±0.26 and y 0.32–0.86.
+That reads fine as a list of numbers and put half of them in mid-air beside
+him: he is barely a third of a unit wide at the waist. There was no way to find
+that except to render him worn and look at him.
+
+Kibble now mends an old mark when there is nothing fresh to fix, so a late-run
+kibble is never wasted — before this it simply stopped counting once he was
+locally whole.
 
 ### The kibble patches him up
 
