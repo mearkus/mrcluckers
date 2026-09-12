@@ -108,3 +108,59 @@ for (const [kind, spec] of Object.entries(WIRED)) {
     await page.close();
   });
 }
+
+/* The art does not run out above a level's first storey.
+ *
+ * A backdrop layer is one row at a fixed height above the floor. Climb past
+ * the top one and there is nothing above it but the flat sky colour, which is
+ * what a nine-unit level used to look like: brown, in the shed, all the way
+ * up. `tile` carries layers upward, and this is the check that it still does.
+ *
+ * Measured as the spread of colour across the upper half of the frame, which
+ * is near zero for a flat field and not for a wall with studs and joists on
+ * it. Only the three.js demo, because its canvas fills the viewport -- the
+ * sprite demo screenshots its page furniture too, and that has plenty of
+ * contrast all by itself.
+ */
+async function skySpread(page, y) {
+  await page.evaluate((y) => new Promise((done) => {
+    const P = window.__player;
+    let f = 0;
+    (function tick() {
+      P.x = 7.9; P.y = y; P.vx = 0; P.vy = 0; P.onGround = true; P.hitCool = 99;
+      if (++f < 70) return requestAnimationFrame(tick);
+      done();
+    })();
+  }), y);
+  const shot = await page.screenshot();
+  return page.evaluate(async (data) => {
+    const img = await new Promise((ok) => {
+      const i = new Image(); i.onload = () => ok(i); i.src = 'data:image/png;base64,' + data;
+    });
+    const c = document.createElement('canvas');
+    c.width = img.width; c.height = img.height;
+    const g = c.getContext('2d', { willReadFrequently: true });
+    g.drawImage(img, 0, 0);
+    // Skip the HUD along the top and him in the middle.
+    const y0 = Math.floor(c.height * 0.20), y1 = Math.floor(c.height * 0.45);
+    const px = g.getImageData(0, y0, c.width, y1 - y0).data;
+    let n = 0, sum = 0, sq = 0;
+    for (let i = 0; i < px.length; i += 4) {
+      const v = (px[i] + px[i + 1] + px[i + 2]) / 3;
+      n++; sum += v; sq += v * v;
+    }
+    return Math.sqrt(Math.max(0, sq / n - (sum / n) ** 2));
+  }, shot.toString('base64'));
+}
+
+test('the shed is still a shed nine units up', async () => {
+  const page = await open(browser);
+  await page.goto(`${site.origin}/web/index.html?level=the-shed`);
+  await booted(page);
+  const low = await skySpread(page, 1);
+  const high = await skySpread(page, 9);
+  assert.ok(high > 4,
+    `nine units up the frame is flat (spread ${high.toFixed(1)} against ` +
+    `${low.toFixed(1)} down at the floor) -- the backdrop has run out`);
+  await page.close();
+});

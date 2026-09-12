@@ -954,6 +954,30 @@
     if (L.alpha !== undefined) ctx.globalAlpha = L.alpha;
     ctx.fillStyle = L.color;
 
+    /* A layer is one row at a fixed height above the floor, which is all a
+     * level three heights tall ever needed. Go up a tall one and every row is
+     * below you and the screen is the flat sky colour -- the art simply runs
+     * out. `tile` says the row repeats upward every so many world pixels: the
+     * shed's studs become a plank wall that keeps going, and the park's
+     * clouds keep having sky above them.
+     *
+     * Repeats are drawn until one clears the top of the screen, so a level
+     * that never leaves the ground pays for exactly one. */
+    var tile = (L.tile || 0) * SCALE;
+    var rows = 1;
+    if (tile > 0) {
+      // From this row up to the top of the view, plus one to cover the gap.
+      rows = Math.max(1, Math.ceil((y + (L.ry || L.h || 0) * SCALE) / tile) + 1);
+      // A guard: a tiny `tile` on a tall level must not become thousands.
+      rows = Math.min(rows, 60);
+    }
+    for (var r = 0; r < rows; r++) {
+      drawRow(L, w, y - r * tile, step, shift);
+    }
+    ctx.restore();
+  }
+
+  function drawRow(L, w, y, step, shift) {
     if (L.kind === "band") {
       ctx.fillRect(0, y, w, Math.max(1, (L.h || 8) * SCALE));
     } else if (L.kind === "blobs") {
@@ -979,7 +1003,6 @@
         ctx.fillRect(px, y, (L.w || 140) * SCALE, (L.h || 180) * SCALE);
       }
     }
-    ctx.restore();
   }
 
   function drawBackdrop(w, h) {

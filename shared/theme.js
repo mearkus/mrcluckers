@@ -33,6 +33,19 @@
   // posts  -- repeating uprights: fence rails, trunks, wainscot
   // band   -- a flat stripe at a fixed height: skirting, a path, a hedge top
   // panes  -- repeating rectangles with a warm centre: windows, pictures
+  //
+  // Two fields exist because a level can be tall. A layer is one row at a
+  // fixed height above the floor, which is all a level three heights tall
+  // ever needed -- go up a tall one and every row is below you and the screen
+  // is the flat sky colour.
+  //
+  // `tile: n`  repeats the row upward every n world pixels, as far as the
+  //            view reaches: a plank wall that keeps going, sky that keeps
+  //            having clouds in it. Costs nothing on a level that stays down.
+  // `float: true`  marks a blobs layer that hangs in the air rather than
+  //            standing on the ground. Hills are filled from their skyline
+  //            down; clouds must not be, or they paint a wall over
+  //            everything beneath them.
   var THEMES = {
     indoors: {
       where: 'Indoors',
@@ -48,7 +61,10 @@
           w: 62, h: 74, y: -196, speed: 0.34 },
         { kind: 'panes', color: '#cfe3ef', frame: '#b39a79', step: 620,
           w: 150, h: 190, y: -300, speed: 0.25 },
-        { kind: 'band', color: '#c2ab8d', y: -30, h: 34, speed: 0.55 },
+        // The dado, repeated as a picture rail up the wall: a tall room reads
+        // as tall, instead of as one flat colour above the pictures.
+        { kind: 'band', color: '#c2ab8d', y: -30, h: 34, speed: 0.55,
+          tile: 300 },
         { kind: 'posts', color: '#b39a79', step: 96, w: 12, h: 76,
           y: -76, speed: 0.55 },
         { kind: 'band', color: '#8d7355', y: 0, h: 10, speed: 1 },
@@ -80,9 +96,15 @@
           w: 120, h: 96, y: -470, speed: 0.18 },        // the gable light
         { kind: 'panes', color: '#e8d3a2', frame: '#8a6f4e', step: 340,
           w: 78, h: 92, y: -215, speed: 0.30 },         // over the bench
+        // The wall carries on above the gable light rather than stopping at
+        // it: the long way down starts four heights up and the shed has to
+        // still be a shed there.
         { kind: 'posts', color: '#7a614a', step: 88, w: 14, h: 300,
-          y: -300, speed: 0.38 },                                     // studs
-        { kind: 'band', color: '#8a6c4c', y: -232, h: 16, speed: 0.5 },
+          y: -300, speed: 0.38, tile: 300 },                          // studs
+        // A joist every storey, so height reads as height and not as a
+        // texture sliding past.
+        { kind: 'band', color: '#8a6c4c', y: -232, h: 16, speed: 0.5,
+          tile: 300 },
         { kind: 'band', color: '#6f573d', y: -118, h: 14, speed: 0.5 },
         { kind: 'panes', color: '#5d4833', frame: '#79603f', step: 210,
           w: 44, h: 52, y: -96, speed: 0.62 },                        // pegboard
@@ -105,6 +127,10 @@
       },
       sky: ['#8ec5e8', '#dfeff7'],
       layers: [
+        // Something to climb past. Without it a tall level outdoors is one
+        // flat field of colour above the hedges.
+        { kind: 'blobs', color: '#ffffff', step: 470, rx: 84, ry: 30,
+          y: -300, speed: 0.12, alpha: 0.7, float: true, tile: 330 },
         { kind: 'blobs', color: '#9ec98f', step: 520, rx: 190, ry: 96,
           y: -34, speed: 0.2, alpha: 0.7 },
         { kind: 'blobs', color: '#b7d7a8', step: 340, rx: 150, ry: 80,
@@ -134,9 +160,12 @@
         { kind: 'panes', color: '#e6eef0', frame: '#a9b7bb', step: 780,
           w: 96, h: 120, y: -206, speed: 0.16 },
         // Tiles: a grid made of one band per row and uprights for the grout.
-        { kind: 'band', color: '#cddadd', y: -230, h: 200, speed: 0.2 },
+        // Wall tile and its grout: both carry on upward, so a kitchen is
+        // still a kitchen above worktop height.
+        { kind: 'band', color: '#cddadd', y: -230, h: 200, speed: 0.2,
+          tile: 200 },
         { kind: 'posts', color: '#bccacd', step: 130, w: 5, h: 200,
-          y: -230, speed: 0.2 },
+          y: -230, speed: 0.2, tile: 200 },
         { kind: 'band', color: '#b3c2c6', y: -132, h: 5, speed: 0.2 },
         // Cupboard doors under a worktop.
         { kind: 'panes', color: '#8fa2a8', frame: '#7b8d93', step: 260,
@@ -162,6 +191,10 @@
       },
       sky: ['#f0a06a', '#f6d9b0'],          // late afternoon, going home
       layers: [
+        // Evening cloud, lit from underneath -- the same job the park's does,
+        // in the lane's light.
+        { kind: 'blobs', color: '#f3c9a4', step: 500, rx: 96, ry: 28,
+          y: -310, speed: 0.12, alpha: 0.8, float: true, tile: 340 },
         { kind: 'blobs', color: '#d8a77a', step: 640, rx: 210, ry: 104,
           y: -28, speed: 0.18, alpha: 0.6 },
         { kind: 'blobs', color: '#c98a67', step: 380, rx: 170, ry: 78,
@@ -192,8 +225,11 @@
       layers: [
         { kind: 'blobs', color: '#a8cf99', step: 700, rx: 250, ry: 120,
           y: -50, speed: 0.18, alpha: 0.65 },
+        // Hanging in the air, so it is a band of cloud and not a white
+        // curtain over everything below it -- and repeated, so climbing does
+        // not run out of sky.
         { kind: 'blobs', color: '#ffffff', step: 430, rx: 90, ry: 34,
-          y: -300, speed: 0.12, alpha: 0.75 },
+          y: -300, speed: 0.12, alpha: 0.75, float: true, tile: 330 },
         // Trunk first, then the canopy over it -- the other way round puts
         // bark on top of leaves.
         // A treeline rather than individual trees: at this scale a lone

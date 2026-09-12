@@ -409,12 +409,19 @@ for (const d of LEVEL.props) {
  * halved when it draws, so both are converted here rather than in the theme.
  */
 const PXU = window.Jump.C.PX_PER_HEIGHT;      // world pixels per world unit
+/* How far up the backdrop has to reach. A layer is one row at a fixed height
+ * above the floor, which was all a level three heights tall ever needed; go
+ * up a tall one and every row is below you and the screen is the flat sky
+ * colour. Layers with `tile` repeat upward, and this is how far. */
+const BACKDROP_TOP = PLATFORMS.reduce((m, p) => Math.max(m, p.y), 0)
+                     + MAX_VIEW_H + 2;
 const backdrops = [];
 if (THEME && THEME.layers) {
   // Wide enough to cover the widest view plus a step either side. The tiles
   // are wrapped under the camera every frame rather than laid end to end
   // across the level, which was hundreds of instances to show about thirty.
   const span = MIN_WORLD_WIDTH * 2 + 8;
+  let depth = 0;
   for (const L of THEME.layers) {
     /* Phones are fill-rate bound long before they are triangle bound, and a
      * backdrop layer is a screenful of pixels each. The furthest two are also
@@ -423,8 +430,21 @@ if (THEME && THEME.layers) {
     if (coarse && (L.speed || 0.4) < 0.25) continue;
     const g = new THREE.Group();
     const speed = L.speed === undefined ? 0.4 : L.speed;
-    // Nearer layers sit nearer. Anything marked `front` comes past him.
-    g.position.z = L.front ? 1.9 : -2.4 - (1 - Math.min(speed, 1)) * 9;
+    /* Nearer layers sit nearer. Anything marked `front` comes past him.
+     *
+     * Two layers at the same speed land on the same z, and then which one is
+     * in front is up to the depth test rather than up to the theme. The
+     * canvas demo has no such question: it paints them in array order. So
+     * each layer is nudged a hair forward of the one before it, which makes
+     * the array the paint order here too.
+     *
+     * The kitchen is where this showed. Its wall tile and the grout lines on
+     * it are both `speed: 0.2`; the grout simply vanished behind the tile,
+     * and nobody noticed while the pair only covered the wall behind a
+     * worktop. Tiled up a tall level, that one flat band is the whole screen.
+     */
+    g.position.z = (L.front ? 1.9 : -2.4 - (1 - Math.min(speed, 1)) * 9)
+                   + (depth++) * 0.012;
     const y = -(L.y || 0) / PXU;
     // A translucent layer that fills the screen is the worst thing you can
     // hand a phone: it cannot be depth-rejected, so every pixel behind it is
@@ -440,13 +460,26 @@ if (THEME && THEME.layers) {
       // Fills the screen, so it cannot be depth-rejected and every pixel
       // behind it gets shaded anyway. It only ever sits over the sky, so the
       // alpha is mixed into the colour and the layer stays opaque.
+      /* Mixed toward whatever is actually behind it. The canvas demo paints
+       * the sky as a gradient -- sky[0] at the top of the screen, sky[1] at
+       * the bottom -- so a layer sitting near the horizon blends against
+       * sky[1], which is why that is the default here. A cloud does not sit
+       * near the horizon. Against the open sky it has to be mixed toward
+       * sky[0], or it comes out stark white over blue while the sprite demo
+       * draws it soft. */
       hex = '#' + new THREE.Color(L.color)
-        .lerp(new THREE.Color(THEME.sky[1]), 1 - L.alpha).getHexString();
+        .lerp(new THREE.Color(THEME.sky[L.float ? 0 : 1]), 1 - L.alpha)
+        .getHexString();
     }
     const lm = new THREE.MeshBasicMaterial({ color: hex });
     if (L.front && L.alpha !== undefined && L.alpha < 1) {
       lm.transparent = true; lm.opacity = L.alpha;
     }
+
+    // How many times this row repeats upward, and how far apart.
+    const tile = (L.tile || 0) / PXU;
+    const rows = tile > 0
+      ? Math.min(60, Math.max(1, Math.ceil((BACKDROP_TOP - y) / tile) + 1)) : 1;
 
     if (L.kind === 'band') {
       // A band is a flat stripe of colour. In front of him that is a 2D
@@ -454,9 +487,11 @@ if (THEME && THEME.layers) {
       // a slab hanging in mid-air, so only the ones behind him are built.
       if (L.front) continue;
       const h = (L.h || 8) / PXU;
-      const bar = new THREE.Mesh(new THREE.BoxGeometry(span, h, 0.4), lm);
-      bar.position.set(0, y - h / 2, 0);
-      g.add(bar);
+      for (let r = 0; r < rows; r++) {
+        const bar = new THREE.Mesh(new THREE.BoxGeometry(span, h, 0.4), lm);
+        bar.position.set(0, y + r * tile - h / 2, 0);
+        g.add(bar);
+      }
     } else {
       const step = (L.step || 200) / 2 / PXU;
       const n = Math.max(2, Math.ceil(span / step));
@@ -472,25 +507,72 @@ if (THEME && THEME.layers) {
          * Same picture, one draw, and no pixel painted twice. */
         const rx = (L.rx || 120) / PXU, ry = (L.ry || 70) / PXU;
         const half = span / 2;
-        const shape = new THREE.Shape();
-        const STEPS = 160;
-        shape.moveTo(-half, y - 14);
-        for (let i = 0; i <= STEPS; i++) {
-          const px = -half + (span * i) / STEPS;
-          // The tallest ellipse over this x wins; that union is the skyline.
-          let top = y - 14;
-          const first = Math.floor((px - half) / step);
-          for (let k = first; k <= first + Math.ceil(span / step) + 1; k++) {
-            const cx2 = -half + k * step;
-            const d = Math.abs(px - cx2);
-            if (d < rx) top = Math.max(top, y + ry * Math.sqrt(1 - (d / rx) ** 2));
+        /* A hill is a mass standing on the ground: the union of the ellipse
+         * tops is its skyline and everything under that is hill, so the shape
+         * is filled a long way down. A cloud is not. Filling down from a
+         * cloud paints a white wall over every world unit beneath it, which
+         * nothing notices while the hills and the treeline are in front of it
+         * -- and which is the entire screen once you climb above them. That
+         * was what a tall level in the park actually looked like.
+         *
+         * So `float` closes the shape along the ellipse *bottoms* instead,
+         * leaving a band of cloud with sky on both sides. One draw either
+         * way, which is the point of unioning them rather than drawing N
+         * overlapping discs. */
+        /* A hill is a mass standing on the ground: the union of the
+         * ellipse tops is its skyline and everything under it is hill, so
+         * one filled shape is both correct and cheap -- N overlapping discs
+         * would shade the screen several times over.
+         *
+         * A cloud is not a mass. Filling down from one paints a white wall
+         * over every unit beneath it, which nothing notices while the hills
+         * and the treeline stand in front of it, and which is the whole
+         * screen once you climb above them. That was what a tall level in
+         * the park actually looked like.
+         *
+         * Clouds are also sparse and small, so they get what hills cannot
+         * afford: an actual ellipse each, instanced, with sky between them.
+         */
+        if (L.float) {
+          const disc = new THREE.CircleGeometry(1, 24);
+          const inst = new THREE.InstancedMesh(disc, lm, n * rows);
+          const t = new THREE.Object3D();
+          for (let r = 0; r < rows; r++) {
+            for (let i = 0; i < n; i++) {
+              t.position.set(-half + i * step, y + r * tile, 0);
+              t.scale.set(rx, ry, 1);
+              t.updateMatrix();
+              inst.setMatrixAt(r * n + i, t.matrix);
+            }
           }
-          shape.lineTo(px, top);
+          inst.instanceMatrix.needsUpdate = true;
+          inst.computeBoundingSphere();
+          g.add(inst);
+          scene.add(g);
+          backdrops.push({ g, speed, step });
+          continue;
         }
-        shape.lineTo(half, y - 14);
-        shape.closePath();
-        const hill = new THREE.Mesh(new THREE.ShapeGeometry(shape), lm);
-        g.add(hill);
+
+        const STEPS = 160;
+        for (let r = 0; r < rows; r++) {
+          const dy = r * tile;
+          const shape = new THREE.Shape();
+          shape.moveTo(-half, y - 14 + dy);
+          for (let i = 0; i <= STEPS; i++) {
+            const px = -half + (span * i) / STEPS;
+            // The tallest ellipse over this x wins; that union is the skyline.
+            let top = y - 14;
+            const first = Math.floor((px - half) / step);
+            for (let k = first; k <= first + Math.ceil(span / step) + 1; k++) {
+              const d = Math.abs(px - (-half + k * step));
+              if (d < rx) top = Math.max(top, y + ry * Math.sqrt(1 - (d / rx) ** 2));
+            }
+            shape.lineTo(px, top + dy);
+          }
+          shape.lineTo(half, y - 14 + dy);
+          shape.closePath();
+          g.add(new THREE.Mesh(new THREE.ShapeGeometry(shape), lm));
+        }
         scene.add(g);
         backdrops.push({ g, speed, step });
         continue;
@@ -501,31 +583,45 @@ if (THEME && THEME.layers) {
       } else {                                   // posts
         geo = new THREE.BoxGeometry((L.w || 10) / PXU, (L.h || 60) / PXU, 0.3);
       }
-      const inst = new THREE.InstancedMesh(geo, lm, n);
+      const inst = new THREE.InstancedMesh(geo, lm, n * rows);
       const t = new THREE.Object3D();
-      for (let i = 0; i < n; i++) {
-        t.position.set(-span / 2 + i * step, y, 0);
-        t.scale.set(1, 1, 1);
-        // Boxes are authored from their top edge downward.
-        t.position.y = y - ((L.kind === 'panes' ? (L.h || 180) : (L.h || 60)) / PXU) / 2;
-        t.updateMatrix();
-        inst.setMatrixAt(i, t.matrix);
+      const boxH = (L.kind === 'panes' ? (L.h || 180) : (L.h || 60)) / PXU;
+      for (let r = 0; r < rows; r++) {
+        for (let i = 0; i < n; i++) {
+          // Boxes are authored from their top edge downward.
+          t.position.set(-span / 2 + i * step, y + r * tile - boxH / 2, 0);
+          t.scale.set(1, 1, 1);
+          t.updateMatrix();
+          inst.setMatrixAt(r * n + i, t.matrix);
+        }
       }
       inst.instanceMatrix.needsUpdate = true;
+      /* An InstancedMesh keeps the *base* geometry's bounding sphere until it
+       * is told otherwise, so three.js frustum-culls the whole layer on a
+       * volume the size of one post sitting at the origin. On a level three
+       * heights tall the camera never leaves that volume and nothing is
+       * wrong. Climb, and an entire wall of studs blinks out at once.
+       *
+       * Found by painting the grout bright red and seeing no red at all. */
+      inst.computeBoundingSphere();
       g.add(inst);
 
       if (L.kind === 'panes' && L.frame) {
         // A frame just behind each pane, a touch larger on every side.
         const fg = new THREE.BoxGeometry((L.w || 140) / PXU + 0.18,
                                          (L.h || 180) / PXU + 0.18, 0.2);
-        const fi = new THREE.InstancedMesh(fg, mat(L.frame, 1), n);
-        for (let i = 0; i < n; i++) {
-          t.position.set(-span / 2 + i * step, y - ((L.h || 180) / PXU) / 2, -0.16);
-          t.scale.set(1, 1, 1);
-          t.updateMatrix();
-          fi.setMatrixAt(i, t.matrix);
+        const fi = new THREE.InstancedMesh(fg, mat(L.frame, 1), n * rows);
+        for (let r = 0; r < rows; r++) {
+          for (let i = 0; i < n; i++) {
+            t.position.set(-span / 2 + i * step,
+                           y + r * tile - ((L.h || 180) / PXU) / 2, -0.16);
+            t.scale.set(1, 1, 1);
+            t.updateMatrix();
+            fi.setMatrixAt(r * n + i, t.matrix);
+          }
         }
         fi.instanceMatrix.needsUpdate = true;
+        fi.computeBoundingSphere();
         g.add(fi);
       }
     }
@@ -1810,7 +1906,8 @@ renderer.setAnimationLoop((now) => {
 });
 window.__bird = bird;   // handy for poking at it from the console
 window.__player = P;
-window.__backdrops = backdrops;   // for the per-layer cost check
+window.__backdrops = backdrops;
+window.__backdropTop = BACKDROP_TOP;
 window.__renderer = renderer;   // draw calls and triangles, for the perf check
 // For the automated look-at-it checks: how much got built, and in what sky.
 window.__scene = scene;
