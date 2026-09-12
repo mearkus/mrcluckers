@@ -77,6 +77,62 @@ test('the kibble mends him', () => {
   assert.ok(w.wear < 2, `${Wear.CFG.perMend} kibble should take a mark off`);
 });
 
+/* ---- what a run carries ------------------------------------------------ */
+
+test('damage carries between levels but seams do not', () => {
+  const w = Wear.create({ scars: 4 });
+  assert.equal(w.lives, Wear.CFG.lives,
+    'a new level must hand him a full set of seams however worn he is');
+  assert.equal(w.showScars(), 4, 'and he should still look worn');
+});
+
+test('a knock leaves something that does not wash out', () => {
+  const w = Wear.create();
+  w.hit('dog');
+  assert.equal(w.wear, 1, 'it shows as a fresh mark');
+  assert.equal(w.scars, 1, 'and it goes on the run tally');
+  // Fresh marks are drawn separately, so they are not drawn twice.
+  assert.equal(w.showScars(), 0);
+  w.hit('dog'); w.hit('dog');
+  assert.equal(w.wear, 0, 'the seam went, so nothing is fresh');
+  assert.equal(w.showScars(), 3, 'but all three knocks still show');
+});
+
+test('carried damage never costs a seam', () => {
+  // The whole reason it is cosmetic: 65 kibble in a run buy 16 mends against
+  // 63 marks the seams forgive, so charging for carried damage would make the
+  // back half of a run harder than the front by an amount nobody chose.
+  const worn = Wear.create({ scars: 20 });
+  worn.hit('dog'); worn.hit('dog');
+  assert.equal(worn.lives, Wear.CFG.lives,
+    'two knocks must cost the same whether he is fresh or filthy');
+});
+
+test('the marks he can show are capped', () => {
+  const w = Wear.create({ scars: 500 });
+  assert.equal(w.showScars(), Wear.SCARS.length,
+    'there are only so many places to put one');
+});
+
+test('kibble is never wasted once he has a history', () => {
+  const w = Wear.create({ scars: 3 });
+  for (let i = 0; i < Wear.CFG.perMend; i++) w.feed();
+  assert.equal(w.scars, 2,
+    'with nothing fresh to fix, a mend should take an old mark off');
+});
+
+test('both demos are given the same places to draw', () => {
+  // These used to be two copies of the same numbers, one per demo.
+  assert.equal(Wear.MARKS.length, Wear.CFG.perLife - 1,
+    'there is one fresh mark per knock a seam can take, less the one that ' +
+    'spends it');
+  for (const m of [...Wear.MARKS, ...Wear.SCARS]) {
+    for (const k of ['x', 'y', 's', 'a']) {
+      assert.equal(typeof m[k], 'number', `a mark is missing ${k}`);
+    }
+  }
+});
+
 /* ---- looking before you drop ------------------------------------------ */
 
 /* Stepped by hand at a fixed 60fps, so these are the actual eased curve
@@ -191,6 +247,17 @@ test('a ledge above the apex is not jumpable', () => {
 });
 
 /* ---- what the run remembers ------------------------------------------- */
+
+test('the run remembers how worn he is, and a reset forgets', () => {
+  Progress.reset();
+  assert.equal(Progress.scars(), 0, 'a fresh run starts unmarked');
+  Progress.complete('the-kitchen', { kibble: 5, scars: 3 });
+  assert.equal(Progress.scars(), 3);
+  Progress.complete('the-shed', { kibble: 2, scars: 6 });
+  assert.equal(Progress.scars(), 6, 'the latest wins -- it is a state, not a score');
+  Progress.reset();
+  assert.equal(Progress.scars(), 0);
+});
 
 test('progress keeps the best of each level, not the latest', () => {
   Progress.reset();

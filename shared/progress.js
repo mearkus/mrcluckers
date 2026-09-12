@@ -15,7 +15,10 @@
 
   var KEY = 'mrcluckers.progress.v1';
 
-  function blank() { return { done: {} }; }
+  /* `scars` is the one thing here that belongs to the *run* rather than to a
+   * level: how battered he is, carried from one level into the next. Every
+   * other field is per-slug and best-of. */
+  function blank() { return { done: {}, scars: 0 }; }
 
   function load() {
     try {
@@ -69,8 +72,24 @@
       now.by = was.by || {};
     }
     data.done[slug] = now;
+    // Carried out of this level and into the next one.
+    if (stats && stats.scars !== undefined) data.scars = Math.max(0, stats.scars | 0);
     save(data);
     return data;
+  }
+
+  /**
+   * How worn he is right now, to hand to the next level. Best-of is wrong for
+   * this one -- it is a running state, not a score -- so the latest wins, and
+   * it is capped by the caller at however many places there are to draw one.
+   */
+  function scars() { return load().scars || 0; }
+
+  function setScars(n) {
+    var data = load();
+    data.scars = Math.max(0, n | 0);
+    save(data);
+    return data.scars;
   }
 
   function isDone(slug) { return !!load().done[slug]; }
@@ -139,6 +158,7 @@
   return {
     KEY: KEY, load: load, complete: complete, isDone: isDone,
     statsFor: statsFor, allDone: allDone, tally: tally,
-    unlocked: unlocked, next: next, reset: reset
+    unlocked: unlocked, next: next, reset: reset,
+    scars: scars, setScars: setScars
   };
 });

@@ -236,7 +236,9 @@ const collected = new Set();
 const checkpoint = window.Checkpoint ? window.Checkpoint.create(LEVEL) : null;
 // What the knocks have cost him. Shared with the sprite demo so a shove is
 // worth the same in both, and so three of them cost a seam in both.
-const wear = window.Wear ? window.Wear.create() : null;
+const wear = window.Wear
+  ? window.Wear.create({ scars: window.Progress ? window.Progress.scars() : 0 })
+  : null;
 // Hold down on a ledge and the view slides down so you can see what you would
 // be dropping onto. shared/look.js owns how far and how long.
 const look = window.Look ? window.Look.create() : null;
@@ -840,20 +842,30 @@ function mendTexture() {
 }
 
 // Where the seams give, in his own units: feet at 0, about a unit tall.
-const WEAR_AT = [
-  { x: -0.05, y: 0.66, s: 0.30, a: -0.35 },   // over the shoulder
-  { x: 0.15, y: 0.46, s: 0.26, a: 0.8 }       // and at the flank
-];
+// Both tables live in shared/wear.js now -- this demo and the sprite one had
+// their own copies of the same numbers. Y is up here, so they are used as
+// written; the canvas negates them.
+const WEAR_AT = window.Wear ? window.Wear.MARKS : [];
+const SCAR_AT = window.Wear ? window.Wear.SCARS : [];
 const scuffTex = scuffTexture();
-const scuffs = WEAR_AT.map((w) => {
+const sprite = (map, w, opacity) => {
   const sp = new THREE.Sprite(new THREE.SpriteMaterial({
-    map: scuffTex, transparent: true, depthWrite: false
+    map: map, transparent: true, depthWrite: false, opacity: opacity
   }));
   sp.scale.setScalar(w.s);
   sp.visible = false;
   bird.root.add(sp);
   return sp;
-});
+};
+const scuffs = WEAR_AT.map((w) => sprite(scuffTex, w, 1));
+/* The run's history: sewn up, not spilling. The sprite demo already drew the
+ * distinction -- a fresh split leaks stuffing, an old one is a closed seam
+ * with stitches across it -- and reusing the scuff texture here made every
+ * old mark read as a new wound, which is the opposite of the point. Faint,
+ * and in the mend's thread colour, so a battered run never drowns out "one
+ * more knock and a seam goes". */
+const mendTex = mendTexture();
+const scars = SCAR_AT.map((w) => sprite(mendTex, w, 0.5));
 const mended = new THREE.Sprite(new THREE.SpriteMaterial({
   map: mendTexture(), transparent: true, depthWrite: false, opacity: 0
 }));
@@ -871,6 +883,13 @@ function paintWear() {
     if (!scuffs[i].visible) continue;
     scuffs[i].position.set(WEAR_AT[i].x * f, WEAR_AT[i].y, 0.45);
     scuffs[i].material.rotation = WEAR_AT[i].a * f;
+  }
+  const old = wear.showScars();
+  for (let i = 0; i < scars.length; i++) {
+    scars[i].visible = i < old;
+    if (!scars[i].visible) continue;
+    scars[i].position.set(SCAR_AT[i].x * f, SCAR_AT[i].y, 0.44);
+    scars[i].material.rotation = SCAR_AT[i].a * f;
   }
   mended.visible = wear.mending > 0;
   mended.material.opacity = wear.mending / (wear.cfg.patched || 1);
@@ -1243,7 +1262,11 @@ function updateBonus(dt) {
                       ? Math.max(0, wear.cfg.lives - wear.spent) : 0,
                     // And what did the damage: a measurement, not a score.
                     knocks: wear ? wear.taken : 0,
-                    by: wear ? wear.by : null });
+                    by: wear ? wear.by : null,
+                    // What he carries into the next level: how he looks,
+                    // never how many seams he has.
+                    scars: wear ? wear.scars : 0,
+                  });
   }
 
   const total = bonus.total();

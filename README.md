@@ -1077,6 +1077,48 @@ a test that calls `hit()` directly sees exactly what a real knock produces —
 the first draft kept the timer in the demos, and the test that drove `hit()`
 reported the note never firing when the code was fine.
 
+### What a run carries
+
+Seams do not carry between levels. Each one hands him three, and that is what
+keeps the game finishable — the numbers say so plainly:
+
+| | |
+| --- | --- |
+| kibble in a whole run | 65 |
+| mends that buys, at 4 each | **16 marks** |
+| marks the seams currently forgive (7 × 3 × 3) | **63** |
+
+Carrying seams would leave a run 9 marks plus at most 16 mends — 25, collecting
+every kibble in the game — against a measured 31 knocks over six levels of
+automated play. The back half of a run would be harder than the front by an
+amount nobody chose, and the last level would mostly be unreachable.
+
+What carries is how he **looks**. Every knock leaves something lasting, and it
+follows him from the kitchen into the shed and down the long way into the lane.
+Purely cosmetic, deliberately: `Wear.create({ scars })` starts him marked and
+still hands him a full three seams.
+
+Fresh damage and old damage are drawn differently, and in different places. A
+fresh split leaks stuffing and sits in one of two spots; an old one is a closed
+seam with stitches across it, fainter, elsewhere on his body. That separation
+is what keeps the read intact — **two fresh marks still means "one more and a
+seam goes"**, however battered he already is.
+
+Both mark tables live in `shared/wear.js` now. The demos each had their own
+copy of the same numbers with the y sign flipped, which is exactly the drift
+`shared/` exists to stop — and the drift had already happened once by the time
+this was written, because the three.js demo was drawing old scars with the
+fresh-scuff texture while the sprite demo drew them stitched.
+
+The first set of scar positions was fanned out to x ±0.26 and y 0.32–0.86.
+That reads fine as a list of numbers and put half of them in mid-air beside
+him: he is barely a third of a unit wide at the waist. There was no way to find
+that except to render him worn and look at him.
+
+Kibble now mends an old mark when there is nothing fresh to fix, so a late-run
+kibble is never wasted — before this it simply stopped counting once he was
+locally whole.
+
 ### The kibble patches him up
 
 Collecting was worth something only after the level: kibble bought throws in

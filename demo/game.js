@@ -263,7 +263,9 @@
 
   // Every knock leaves a mark; three marks cost a seam. shared/wear.js keeps
   // the count so both demos scuff him at the same rate.
-  var wear = window.Wear ? window.Wear.create() : null;
+  var wear = window.Wear
+    ? window.Wear.create({ scars: window.Progress ? window.Progress.scars() : 0 })
+    : null;
 
   var player = {
     x: LEVEL.spawn.x, y: LEVEL.spawn.y, vx: 0, vy: 0,
@@ -415,7 +417,10 @@
           // only way to tell "the wear is too harsh" from "the birds are
           // relentless" is a real run saying which.
           knocks: wear ? wear.taken : 0,
-          by: wear ? wear.by : null
+          by: wear ? wear.by : null,
+          // What he carries into the next level: how he looks, never how
+          // many seams he has.
+          scars: wear ? wear.scars : 0
         });
       }
     }
@@ -1291,12 +1296,55 @@
   // Against *his* height, not the sprite cell: the cell is 96px for a
   // character 72.73 tall, so cell units put the marks a third too big and
   // outside his outline, where they read as bubbles rather than as stuffing.
-  var WEAR_MARKS = [
-    { x: -0.05, y: -0.66, a: -0.35, len: 0.085 },  // a seam over the shoulder
-    { x: 0.15, y: -0.46, a: 0.8, len: 0.075 }      // and one at the flank
-  ];
+  // The positions live in shared/wear.js -- this demo and the three.js one
+  // had their own copies of the same numbers. That table is written y-up, so
+  // it is flipped here, and the split length comes off the sprite size the
+  // other demo scales by.
+  function marks(table) {
+    return (table || []).map(function (w) {
+      return { x: w.x, y: -w.y, a: w.a, len: w.s * 0.285 };
+    });
+  }
+  var WEAR_MARKS = marks(window.Wear && window.Wear.MARKS);
+  var SCAR_MARKS = marks(window.Wear && window.Wear.SCARS);
+
+  /* An old mark, from a level or two back: the same split, sewn up. Faint,
+   * further round the body, and stitched rather than spilling -- so a run
+   * that has been through four rooms looks it without ever being mistaken
+   * for "one more knock and a seam goes". */
+  function drawScar(w, U) {
+    ctx.save();
+    ctx.translate(w.x * U, w.y * U);
+    ctx.rotate(w.a);
+    var L = w.len * U;
+    ctx.fillStyle = "rgba(92, 80, 64, .13)";
+    ctx.beginPath();
+    ctx.ellipse(0, 0, L * 1.4, L * 0.8, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // The closed seam, and the stitches holding it.
+    ctx.strokeStyle = "rgba(38, 32, 26, .30)";
+    ctx.lineWidth = Math.max(1, U * 0.009);
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(-L, 0);
+    ctx.lineTo(L, 0);
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(226, 108, 96, .34)";
+    ctx.lineWidth = Math.max(1, U * 0.010);
+    ctx.beginPath();
+    for (var st = -2; st <= 2; st++) {
+      var sx = st * L * 0.42;
+      ctx.moveTo(sx - L * 0.10, -L * 0.26);
+      ctx.lineTo(sx + L * 0.10, L * 0.26);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
   function drawWear() {
-    if (!wear || (!wear.wear && wear.mending <= 0)) return;
+    if (!wear) return;
+    var old = wear.showScars ? wear.showScars() : 0;
+    if (!wear.wear && wear.mending <= 0 && !old) return;
     var U = PX;
     // Freshly mended: a bright stitch that fades, so a lost seam is legible
     // as a repair rather than as nothing having happened.
@@ -1356,6 +1404,9 @@
       ctx.ellipse(-L * 0.24, L * 0.10, L * 0.34, L * 0.13, 0.3, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
+    }
+    for (var si = 0; si < old && si < SCAR_MARKS.length; si++) {
+      drawScar(SCAR_MARKS[si], U);
     }
   }
 
