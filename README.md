@@ -411,6 +411,69 @@ camera in the same frame that moved him measures where the camera was for the
 *previous* sample, which fails only on the small canvases, where there is no
 headroom to absorb a frame of lag.
 
+## The long way down
+
+The Shed is a climb. This is the same shed travelled the other way: he starts
+on the top shelf and has to get **down** to her, and the floor is mostly a
+water trough with one dry corner.
+
+A descent is not a climb with the sign flipped. Climbing, the thing you are
+aiming at is on screen — it is above you, and the camera is already looking
+there. Dropping, it is under your feet and out of frame, so every step off a
+shelf is a guess unless you hold <kbd>&darr;</kbd> first. That is the whole
+level: not hard jumps (the hardest one it forces is **29%** of the budget) but
+a sequence of small decisions you cannot make blind.
+
+### Falling buys less room than you would think
+
+```
+rise   max run
+  0    2.44
+-1.2   2.89
+-6.0   3.97
+```
+
+Dropping six units only carries him 60% further than a standing jump, so the
+shelves have to zigzag tightly — and missing one means going straight down past
+everything to the water. That is what makes looking down worth a key.
+
+### Three shortcuts, found by measuring rather than playing
+
+The design question is not "can he get down" but "what does a blind step cost".
+So: for every shelf, walk off each edge and see what catches you.
+
+The first draft answered badly. Stepping right off the top shelf dropped **7.2
+units past the entire level** onto the last one. Two more rounds found a 4.5
+and a 3.15, the last of which landed on the floor near the goal — a blind step
+that nearly won the level from the top.
+
+| | longest blind fall that lands on something |
+| --- | --- |
+| first draft | 7.2 |
+| after moving the lower shelves out of the fall line | 3.15 |
+| shipped | **2.10** |
+
+Against a peek of 1.9, that is the property worth having: nothing you can fall
+onto is much further than what holding <kbd>&darr;</kbd> shows you. Every shelf
+now has at least one edge over the water, and one of them cannot be left by
+walking at all — the only way off is a jump.
+
+### Why it is not taller
+
+It was originally a tree, outdoors, nine units tall. It looked wrong, and the
+level was not the problem.
+
+**No theme's backdrop survives a tall level.** The parallax layers are strips
+at fixed heights, laid out for a camera near the ground. Nine units up, the
+park's render as enormous white slabs across the frame; the three interior
+themes do not break but go flat, losing every plank and window.
+
+There is nothing wrong with the level in either case — the art simply runs out.
+The shed's highest detail is the gable window at `y: -470`, about **6.5 units**
+up, which is exactly why the original Shed tops out at 5.15 and looks right
+there. So this one stays inside the painted band, and genuinely tall levels
+wait for the backdrop to learn about height.
+
 ## The three.js one is the game
 
 For a long time there were two demos and the sprite one was *the* one: the
