@@ -25,6 +25,7 @@ const Look = require('../shared/look.js');
 const Jump = require('../shared/jump.js');
 const Level = require('../shared/level.js');
 const Progress = require('../shared/progress.js');
+const Distraction = require('../shared/distraction.js');
 
 /* ---- what a knock costs him ------------------------------------------- */
 
@@ -109,6 +110,62 @@ test('the camera stays put when you did not ask it to move', () => {
     assert.equal(step(Look.create(), 1.0, world), 0,
       `the view should not slide ${why}`);
   }
+});
+
+/* ---- who closed the distance ------------------------------------------- */
+
+/* Reported from a real playthrough: "the birds are brutal. Mid jump they will
+ * attack and there is nothing you can do."
+ *
+ * A bird is put up either by being crowded or by being crowed at, and only
+ * the first shoves him. The rule is that the shove needs him to have closed
+ * the distance himself, on his feet -- measured against the critter's
+ * position now, so what is left is his own contribution. */
+const PERCH = { x: 10, y: 3, kind: 'bird' };
+const DT = 1 / 60;
+
+/** Run a bird against a scripted player and count the shoves. */
+function shoves(at, seconds = 6) {
+  const f = Distraction.flock({ critters: [PERCH], pickups: [], dog: null });
+  let n = 0;
+  for (let t = 0; t < seconds; t += DT) {
+    f.update(DT, at(t));
+    n += f.knocks().length;
+  }
+  return n;
+}
+
+test('a bird that flies into him does not shove him', () => {
+  // He stands still. Whatever the bird does, he had no say in it.
+  assert.equal(
+    shoves(() => ({ x: PERCH.x + 0.6, y: PERCH.y - 0.5, onGround: true }), 40),
+    0, 'standing still must never cost a knock');
+});
+
+test('a bird cannot shove him out of a jump', () => {
+  // Sweeping through the box, airborne the whole way.
+  assert.equal(
+    shoves((t) => ({ x: PERCH.x - 1.6 + t * 2, y: PERCH.y, onGround: false })),
+    0, 'an arc cannot be called off once he is on it');
+});
+
+test('walking into a perched bird still costs him', () => {
+  // The counterplay is to crow at it from outside the box first; this is what
+  // happens when you do not. If this ever reads 0 the birds have no teeth.
+  const hit = shoves((t) => ({
+    x: t < 2 ? PERCH.x - 3.2 : PERCH.x + 0.4, y: PERCH.y, onGround: true
+  }));
+  assert.ok(hit > 0, 'a bird you walk into should still put itself up in your face');
+});
+
+test('crowing at one is safe from anywhere', () => {
+  const f = Distraction.flock({ critters: [PERCH], pickups: [], dog: null });
+  for (let t = 0; t < 2; t += DT) f.update(DT, { x: PERCH.x - 5, y: PERCH.y, onGround: true });
+  f.knocks();
+  f.scare(PERCH.x - 5, PERCH.y);
+  assert.equal(f.knocks().length, 0,
+    'shouting at a bird from across the room must never shove him -- that is ' +
+    'the whole reason to own a crow');
 });
 
 /* ---- the movement budget ---------------------------------------------- */

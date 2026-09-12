@@ -255,6 +255,9 @@
     : null;
   function playerWorld() {
     return { x: player.x / PX, y: (LEVEL.ground - player.y) / PX + 0.45,
+             // Whether a brush with a critter is his doing depends on it:
+             // an arc cannot be called off once he is on it.
+             onGround: player.onGround,
              taken: function (i) { return !!collected[i]; } };
   }
 

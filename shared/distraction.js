@@ -271,6 +271,10 @@
      */
     s.update = function (dt, world) {
       world = world || {};
+      // Where he was last frame, so a shove can tell his movement from the
+      // critter's. Read before anything moves, written after.
+      var wasAt = s.wasAt;
+      s.wasAt = world.x === undefined ? null : world.x;
       s.settling = Math.max(0, s.settling - dt);
       if (s.done) {
         for (var d = 0; d < critters.length; d++) critters[d].here = false;
@@ -331,11 +335,42 @@
         place(c);
         if (c.bolting) continue;              // already going; leave it to it
 
-        // Close enough to put it up yourself. A bird perches out of reach, so
-        // in practice this is how you move a squirrel and a crow is how you
-        // move a bird.
+        /* Close enough to put it up yourself. A bird perches out of reach,
+         * so in practice this is how you move a squirrel and a crow is how
+         * you move a bird.
+         *
+         * Whether it *shoves* him is a separate question from whether it
+         * goes, and the answer is whether he could still have called it off.
+         * A shove he had no say in is not difficulty, it is a tax:
+         *
+         *   "Mid jump they will attack and there is nothing you can do."
+         *
+         * Two ways that happened. He jumps past a perch -- committed at
+         * take-off, and no amount of skill changes an arc once he is on it;
+         * measured over every bird in the game, 144 of 180 passes ended in a
+         * shove. And he stands somewhere a bird then arrives at, where the
+         * distance was closed by the bird: once per perch, every perch.
+         *
+         * So the shove needs him on his feet, with the critter already
+         * sitting there to be walked into. Everything else still puts it up
+         * -- it leaves, it drops what it was carrying, you lose the kibble it
+         * was after -- it just does not knock him about for something he
+         * could not have done differently.
+         */
         if (crowding(c, world.x, world.y)) {
-          putUp(c, world.x, true);      // close enough to wear the wings
+          /* Whether it shoves him is a different question from whether it
+           * goes, and the answer is who closed the distance.
+           *
+           * Measured against the critter's position *now*, so what is left is
+           * his own contribution: walk at a perched bird and the gap shrinks
+           * because of him. Stand still while one flies in and it does not
+           * shrink at all, however close the bird gets. Neither does it while
+           * he is airborne, which is the other half of it -- an arc cannot be
+           * called off once he is on it.
+           */
+          var closed = wasAt !== null && wasAt !== undefined &&
+                       Math.abs(wasAt - c.x) - Math.abs(world.x - c.x) > 1e-4;
+          putUp(c, world.x, world.onGround !== false && closed);
           continue;
         }
 

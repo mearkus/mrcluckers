@@ -884,6 +884,54 @@ now: sideways is what crowds a critter, and being a body-length below it is
 not. The same predicate decides whether one will come back, or a critter gets
 locked out of a perch you were never close enough to move it from.
 
+### Who closed the distance
+
+Reported from a real playthrough, which is the only place this was ever going
+to come from:
+
+> *"The birds are brutal. Mid jump they will attack and there is nothing you
+> can do."*
+
+A bird is put up either by being crowded or by being crowed at, and only the
+first shoves him — that difference is the whole reason to own a crow. But a
+crow is not available once he is airborne, and it turned out not to be needed
+for the shove to land at all. Measured over every bird in the game:
+
+| | shoves |
+| --- | --- |
+| standing still beside a perch, 40s each | **15** — one per perch |
+| jumping past a perch, 180 arcs | **144** — four in five |
+
+Neither is difficulty. An arc cannot be called off once he is on it, and
+standing still is not a mistake — in that row the bird flew into *him*.
+
+So the shove now asks who closed the distance, measured against the critter's
+position at that instant, which leaves his own contribution:
+
+```js
+var closed = wasAt !== null && wasAt !== undefined &&
+             Math.abs(wasAt - c.x) - Math.abs(world.x - c.x) > 1e-4;
+putUp(c, world.x, world.onGround !== false && closed);
+```
+
+Walk at a perched bird and the gap shrinks because of him. Stand still while
+one flies in and it does not shrink at all, however close the bird gets.
+
+| | before | after |
+| --- | --- | --- |
+| standing still | 15 | **0** |
+| jumping past | 144 | **0** |
+| **walking into a perched bird** | 80 | **80** |
+
+The last row is the one that matters. Everything still *puts the bird up* — it
+leaves, it drops what it was carrying, you lose the kibble it was after — and
+walking into one on your own two feet still costs you, because that is the
+case you could have crowed at instead. What went is the shove nobody chose.
+
+The test for that row was checked by forcing the shove off and watching it go
+red, because a test that only proves the birds are harmless would have passed
+the whole way through this change.
+
 ### Two kinds, two answers
 
 A **bird** perches above the kibble, out of reach, and the only thing that

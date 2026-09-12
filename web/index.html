@@ -1565,7 +1565,7 @@ function update(dt) {
 
   if (distraction) {
     const stolenBefore = distraction.stolen.length;
-    distraction.update(dt, { x: P.x, y: P.y + 0.45,
+    distraction.update(dt, { x: P.x, y: P.y + 0.45, onGround: P.onGround,
                              taken: (i) => collected.has(i) });
     if (distraction.stolen.length > stolenBefore) snd('bump');
 
