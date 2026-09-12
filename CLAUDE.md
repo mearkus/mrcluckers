@@ -87,6 +87,7 @@ straight from the repository — nothing is built in CI.
 | `shared/wear.js` | What a knock costs him: marks, seams, when the level starts over, and what the kibble mends |
 | `shared/distraction.js` | The wildlife: what it takes, what it drops, and how you stop it |
 | `shared/look.js` | Hold down on a ledge and the view slides down, so a drop is not a guess |
+| `shared/theme.js` | What each level looks like. `tile` carries a backdrop layer up a tall level; `float` marks a blobs layer as cloud rather than hill |
 | `tests/` | The checks CI runs on every PR — levels, shared rules, both renderers, routes, assets |
 
 `docs/pipeline.md` explains how the generator fits together and where to

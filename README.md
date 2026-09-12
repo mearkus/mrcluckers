@@ -639,6 +639,79 @@ The update runs **before** the early returns for a fall or the fetch round, so
 if you are still holding down when something knocks you off, the view eases
 back on its own instead of staying where you left it.
 
+## A level can be tall now
+
+The Long Way Down had to stop at five heights because that is where the shed's
+paint ended. Above it the screen was flat brown; the park was worse. Three
+separate things were wrong, and only one of them was the obvious one.
+
+### A layer was one row
+
+Every backdrop layer is a row at a fixed height above the floor — studs at
+four heights, a gable light at six. That is everything a level three heights
+tall could ever ask for. Climb past the top row and there is nothing above it,
+because nothing was ever drawn there.
+
+`tile: n` repeats a row upward every n world pixels, as far as the view
+reaches. The shed's studs become a plank wall that keeps going, its joist
+becomes a joist every storey, the kitchen's wall tile carries on being a
+kitchen. It costs nothing on a level that stays near the ground: the sprite
+demo repeats until a row clears the top of the screen, and the three.js one
+builds up to the level's own height, which for a flat level is one row.
+
+### Clouds were a curtain
+
+The three.js demo draws a `blobs` layer as one filled silhouette rather than N
+overlapping discs, because the overdraw of the discs was halving the frame
+rate. Correct for a hill: the union of the ellipse tops is its skyline and
+everything below it is hill.
+
+The park's clouds are a `blobs` layer. Filling down from them painted a white
+wall over every world unit beneath, and nothing noticed while the treeline and
+the hedges stood in front of it — a band of white sat above the hills at
+ground level and nobody had asked why. Climb, and it is the entire screen.
+
+`float: true` says a blobs layer hangs in the air. Those get an instanced
+ellipse each, with sky between them, which clouds can afford and hills cannot.
+The fix turned out to matter at ground level too: **12% of the park's pixels
+changed**, all of them sky that should never have been white.
+
+### And the thing that was actually invisible
+
+The kitchen's wall tile and the grout lines on it are both `speed: 0.2`, so in
+three.js they landed on the same z and which one won was up to the depth test
+rather than the theme. The sprite demo has no such question — it paints in
+array order. Each layer now sits a hair in front of the one before it, which
+makes the array the paint order in both.
+
+### Two wrong turns worth recording
+
+Neither the depth fix nor a bounding-sphere fix made the kitchen's grout
+appear, and the reason is that it was never missing. Painting it bright red
+and counting red pixels found 128 of them at nine units up: the grout is five
+pixels wide in a colour seventeen values off the wall behind it, and the
+instrument that could not see it was me.
+
+The measurement that sent me there was worse. Comparing "colour spread in the
+top third" between the two demos looked rigorous and compared nothing: the
+sprite demo screenshots its page furniture, dark chrome and all, so it scored
+60 on every theme whatever the backdrop did. The number was real and meant
+nothing.
+
+### What did not change
+
+Every shipped level at ground level, before and against after, with the
+wildlife stopped so a moving squirrel is not mistaken for a finding:
+
+| | pixels changed |
+| --- | --- |
+| living room, kitchen, garden, lane, shed | **under 1%** — the run-to-run noise floor |
+| the park | **12.4%** — the cloud curtain, gone |
+
+The garden and the lane gained a cloud layer of their own, since a tall level
+in either was otherwise a flat field of colour. At ground level it moves 0.2%
+of pixels: the clouds sit above the frame until you climb to them.
+
 ## Designing levels
 
 Levels live in `levels/*.json`, authored **once** and read by both demos and

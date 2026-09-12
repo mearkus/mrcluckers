@@ -26,6 +26,7 @@ const Jump = require('../shared/jump.js');
 const Level = require('../shared/level.js');
 const Progress = require('../shared/progress.js');
 const Distraction = require('../shared/distraction.js');
+const Theme = require('../shared/theme.js');
 
 /* ---- what a knock costs him ------------------------------------------- */
 
@@ -222,6 +223,58 @@ test('crowing at one is safe from anywhere', () => {
   assert.equal(f.knocks().length, 0,
     'shouting at a bird from across the room must never shove him -- that is ' +
     'the whole reason to own a crow');
+});
+
+/* ---- a level can be tall ------------------------------------------------ */
+
+/* A backdrop layer is one row at a fixed height above the floor, which is all
+ * a level three heights tall ever needed. Climb a tall one and every row is
+ * below you and the screen is the flat sky colour -- the art runs out. `tile`
+ * is what carries a layer upward, so every theme needs at least one. */
+
+test('every theme has something above the first storey', () => {
+  for (const name of Theme.names()) {
+    const t = Theme.get(name);
+    const tiled = t.layers.filter((L) => L.tile > 0);
+    assert.ok(tiled.length > 0,
+      `the ${name} theme has no layer that repeats upward, so a tall level ` +
+      `in it is a flat field of ${t.sky[0]} above its top row`);
+  }
+});
+
+test('a repeat is spaced sensibly', () => {
+  // The first version of this asserted that a repeat had to be at least as
+  // tall as its spacing, so that the layer was continuous. That is true of a
+  // plank wall and false of a picture rail, which is supposed to have wall
+  // between the rails -- the test failed on exactly the layer that was
+  // right. What is actually true is narrower.
+  const SCREEN = 510;    // about MAX_VIEW_H, in the world pixels layers use
+  for (const name of Theme.names()) {
+    for (const L of Theme.get(name).layers) {
+      if (!L.tile) continue;
+      const height = L.kind === 'blobs' ? (L.ry || 70) * 2 : (L.h || 60);
+      assert.ok(L.tile >= height,
+        `${name}: a ${L.kind} ${height}px tall repeating every ${L.tile}px ` +
+        `overlaps itself, which is overdraw for no picture`);
+      assert.ok(L.tile <= SCREEN,
+        `${name}: repeats ${L.tile}px apart are further than a screenful, ` +
+        `so there are places between them where the layer is not there`);
+    }
+  }
+});
+
+test('only blobs float, and floating ones are up in the sky', () => {
+  for (const name of Theme.names()) {
+    for (const L of Theme.get(name).layers) {
+      if (!L.float) continue;
+      assert.equal(L.kind, 'blobs',
+        `${name}: float only means anything to a blobs layer`);
+      // Authored in world pixels, negative being up. A "floating" thing at
+      // ground level is a hill that has been mislabelled.
+      assert.ok((L.y || 0) < -100,
+        `${name}: a floating layer at y ${L.y} is not in the sky`);
+    }
+  }
 });
 
 /* ---- the movement budget ---------------------------------------------- */
