@@ -1,0 +1,16 @@
+{
+  "name": "mrcluckers-tests",
+  "private": true,
+  "type": "module",
+  "description": "Checks for the game. Nothing here ships -- the site is static files.",
+  "scripts": {
+    "test": "node --test --test-concurrency=1 *.test.mjs",
+    "rules": "node --test levels.test.mjs rules.test.mjs",
+    "browser": "node --test --test-concurrency=1 render.test.mjs routes.test.mjs",
+    "assets": "node --test assets.check.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.56.1",
+    "three": "0.180.0"
+  }
+}
