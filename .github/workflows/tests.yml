@@ -1,0 +1,67 @@
+name: Tests
+
+# main is the live site and merging a PR is the deploy, so this is the only
+# thing standing between a broken change and production.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # The rules and the levels: plain JavaScript, no browser, a few seconds.
+  # Kept separate so a broken level tells you so immediately rather than
+  # after the browsers have finished booting.
+  rules:
+    name: Rules and levels
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test levels.test.mjs rules.test.mjs
+        working-directory: tests
+
+  # Both renderers, every level, and the routing between them.
+  browser:
+    name: Renderers and routes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: tests/package-lock.json
+      - run: npm ci
+        working-directory: tests
+      # Chromium only: the game is checked for being broken, not for browser
+      # differences, and the other two would triple the install for nothing.
+      - run: npx playwright install --with-deps chromium
+        working-directory: tests
+      - run: node --test --test-concurrency=1 render.test.mjs routes.test.mjs
+        working-directory: tests
+
+  # A minute of rebuilding, so it does not hold up the checks above.
+  assets:
+    name: Assets are freshly built
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'   # the interpreter assets/ was built with; see tests/assets.check.mjs
+      # build.py is standard library only, so there is nothing to install.
+      - run: node --test assets.check.mjs
+        working-directory: tests

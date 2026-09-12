@@ -44,6 +44,7 @@ python3 build.py
 | `shared/theme.js` | What each level looks like: palette, parallax layers, and which section it files under. |
 | `demo/shell.js` | Title screen, the level-select screen, and the end-of-level panel. |
 | `levels/*.json` | The levels themselves. `levels.js` is the generated bundle. |
+| `tests/` | The checks. Run on every pull request; see `tests/README.md`. |
 
 ## Two demos
 
@@ -1349,6 +1350,99 @@ squishes at once.
 
 Dial it with `--flop`: `0` gives stiff keyframes, `1` is the plush default,
 and `2` is cartoonishly loose.
+
+## Checks
+
+For a long time this repository had none, which is a strange thing for a
+project where **merging a pull request is the deploy**. Every check was written
+ad hoc, run once, and thrown away; the only thing between a typo and the live
+site was somebody remembering to look.
+
+```
+cd tests
+npm run rules      # a few seconds, and needs nothing installed
+npm install        # playwright and three, for the rest
+npm test
+```
+
+`npm run rules` having no dependencies is deliberate. `levels.test.mjs` walks
+every level with `Level.route()` and the budget from `shared/jump.js` and
+asserts the goal is reachable, nothing is stranded, no pickup is marooned, and
+the hardest *forced* jump is under 97% of what the budget allows. That is the
+check most worth having and it should work on a clean clone with nothing but
+node.
+
+The shared modules make the rest cheap. `shared/wear.js`, `shared/look.js` and
+the others are plain JavaScript with no canvas and no WebGL in them — which was
+always the point, but it also means the rules can be checked in milliseconds
+and the slow browser tests only have to prove the demos *call* them.
+
+### What would have to break for this to fail?
+
+That is the question worth asking, and the only honest way to answer it is to
+break the thing on purpose. Four breaks were used to build this suite:
+
+| Break | Caught by |
+| --- | --- |
+| A platform moved so the shed's goal is out of reach | `levels.test.mjs` |
+| The camera peek firing instantly, with no hold | `rules.test.mjs` |
+| `2d=1` no longer stopping the redirect, so it loops | `routes.test.mjs` |
+| **A `<script>` tag deleted from the three.js page** | **nothing** |
+
+The fourth is the one that was worth the exercise. Both demos reach for their
+modules defensively — `window.Wear ? window.Wear.create() : null` — so deleting
+`shared/wear.js` from the page did not throw, did not blank the screen, and did
+not fail a single one of the thirteen checks that existed at the time. It just
+turned the wear system off. Knocks stopped costing anything and nothing said
+so.
+
+Defensive loading is still right; the demos should not explode over a module
+one of them does not need. What was missing was anyone asserting the intended
+set, so `render.test.mjs` now pins it: **both pages load all fourteen shared
+modules, and the demo has actually created one from each.** That is the
+guarantee the `shared/` directory exists to make — neither renderer gets to
+quietly play by different rules — and now something fails when it stops being
+true.
+
+### The check that could not be byte-exact
+
+`assets.check.mjs` rebuilds the model and compares it to what is committed,
+which is the only thing standing between a changed generator and a site still
+serving the old rooster. It failed in CI the first time it ran, on seven files,
+having passed locally.
+
+Not staleness. The generator turns joint angles into geometry with `math.sin`
+and `math.cos`, and those are the platform's libm: the standard fixes what they
+mean but not their last bit. Python 3.11 and 3.12 disagree in the final ulp,
+one bad bit becomes a slightly different normal, and by the time it reaches the
+renderer a pixel has rounded the other way.
+
+```
+first differing vert  [1.014146032109518e-17, 0.92, 0.4599999999999999]
+                  vs  [9.407538850489608e-18, 0.92, 0.46]
+```
+
+There is nothing to fix in the generator — you cannot make libm bit-identical
+across builds without shipping your own — so the check compares like with like
+instead. CI installs 3.11, the interpreter `assets/` was built with, and on any
+other one the check falls back to what does not depend on the last bit (the set
+of generated files) and says in its output that it did.
+
+The first attempt at a fix was wrong and worth recording: the visible symptom
+was `0.000000` against `-0.000000` in the OBJ, so signed zero looked like the
+whole story, and it is not — dumping both meshes and diffing the actual floats
+showed ordinary last-bit disagreement that formatting had disguised. Four lines
+of a diff are a symptom, not a cause.
+
+### Not fetching things
+
+The three.js demo imports three from a CDN. A test that fetches it for real is
+a test that fails when the network does, and quietly starts exercising whatever
+jsdelivr is serving today rather than what the site ships. So the CDN URL is
+intercepted and served from `node_modules`, and `render.test.mjs` asserts the
+installed version matches the one `web/index.html` names — bumping one without
+the other is caught rather than ignored. Web fonts are blocked outright for the
+same reason.
 
 ## Useful flags
 

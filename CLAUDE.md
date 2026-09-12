@@ -29,6 +29,18 @@ Paths that scripts build at run time (the key art, the sprite sheets) resolve
 against the **document**, which is at the root, not against the script in
 `demo/`. They are written without a `../`.
 
+## Checks
+
+```
+cd tests && npm run rules          # seconds, needs nothing installed
+npm install && npm test            # both renderers, every level, the routes
+```
+
+They run on every pull request (`.github/workflows/tests.yml`). `tests/README.md`
+says what each file protects. **Before adding a check, break the thing it is
+meant to catch and watch it go red** — a check that cannot fail is worse than
+none, because it reads like cover.
+
 ## Deploying
 
 `main` is the live site. Pushing to it triggers `.github/workflows/pages.yml`,
@@ -45,8 +57,14 @@ python3 build.py
 ```
 
 Regenerates the model, the sprite sheets, the fabric textures and the
-turnaround. Pure standard library, so there is nothing to install, and the
-output is byte-for-byte deterministic.
+turnaround. Pure standard library, so there is nothing to install.
+
+The output is byte-for-byte deterministic **on one interpreter**. The geometry
+comes out of `math.sin` and `math.cos`, which are the platform's libm — the
+standard fixes their meaning but not their last bit — so a different Python
+produces an identical-looking rooster with different bytes. `assets/` was built
+with **3.11**, which is what CI pins; elsewhere the assets check compares what
+does not depend on the last bit and says it is doing so.
 
 Commit the regenerated assets. The demos and the published site load them
 straight from the repository — nothing is built in CI.
@@ -69,6 +87,7 @@ straight from the repository — nothing is built in CI.
 | `shared/wear.js` | What a knock costs him: marks, seams, when the level starts over, and what the kibble mends |
 | `shared/distraction.js` | The wildlife: what it takes, what it drops, and how you stop it |
 | `shared/look.js` | Hold down on a ledge and the view slides down, so a drop is not a guess |
+| `tests/` | The checks CI runs on every PR — levels, shared rules, both renderers, routes, assets |
 
 `docs/pipeline.md` explains how the generator fits together and where to
 change the character's shape, motion or fabric.
