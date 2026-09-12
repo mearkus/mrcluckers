@@ -57,8 +57,14 @@ python3 build.py
 ```
 
 Regenerates the model, the sprite sheets, the fabric textures and the
-turnaround. Pure standard library, so there is nothing to install, and the
-output is byte-for-byte deterministic.
+turnaround. Pure standard library, so there is nothing to install.
+
+The output is byte-for-byte deterministic **on one interpreter**. The geometry
+comes out of `math.sin` and `math.cos`, which are the platform's libm — the
+standard fixes their meaning but not their last bit — so a different Python
+produces an identical-looking rooster with different bytes. `assets/` was built
+with **3.11**, which is what CI pins; elsewhere the assets check compares what
+does not depend on the last bit and says it is doing so.
 
 Commit the regenerated assets. The demos and the published site load them
 straight from the repository — nothing is built in CI.

@@ -25,6 +25,15 @@ nothing else.
 | `routes.test.mjs` | The URLs go where `CLAUDE.md` says, including the fallback when the CDN is blocked |
 | `assets.check.mjs` | The committed `assets/` are what `build.py` produces today |
 
+**`assets.check.mjs` pins Python 3.11.** The generator's geometry comes out of
+`math.sin` and `math.cos`, which are the platform's libm: the standard fixes
+what they mean, not their last bit. 3.11 and 3.12 disagree in the final ulp,
+one bad bit becomes a slightly different normal, and a pixel rounds the other
+way — seven generated files change bytes and the rooster looks identical.
+`assets/` was built with 3.11, so that is what CI installs. On any other
+interpreter the check still compares the set of generated files and tells you
+it skipped the rest.
+
 ## Two things worth knowing
 
 **three.js is served from `node_modules`, not the CDN.** The demo imports it

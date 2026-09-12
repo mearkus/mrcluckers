@@ -61,7 +61,7 @@ jobs:
           node-version: '22'
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.11'   # the interpreter assets/ was built with; see tests/assets.check.mjs
       # build.py is standard library only, so there is nothing to install.
       - run: node --test assets.check.mjs
         working-directory: tests

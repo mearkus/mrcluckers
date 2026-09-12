@@ -1404,6 +1404,36 @@ guarantee the `shared/` directory exists to make — neither renderer gets to
 quietly play by different rules — and now something fails when it stops being
 true.
 
+### The check that could not be byte-exact
+
+`assets.check.mjs` rebuilds the model and compares it to what is committed,
+which is the only thing standing between a changed generator and a site still
+serving the old rooster. It failed in CI the first time it ran, on seven files,
+having passed locally.
+
+Not staleness. The generator turns joint angles into geometry with `math.sin`
+and `math.cos`, and those are the platform's libm: the standard fixes what they
+mean but not their last bit. Python 3.11 and 3.12 disagree in the final ulp,
+one bad bit becomes a slightly different normal, and by the time it reaches the
+renderer a pixel has rounded the other way.
+
+```
+first differing vert  [1.014146032109518e-17, 0.92, 0.4599999999999999]
+                  vs  [9.407538850489608e-18, 0.92, 0.46]
+```
+
+There is nothing to fix in the generator — you cannot make libm bit-identical
+across builds without shipping your own — so the check compares like with like
+instead. CI installs 3.11, the interpreter `assets/` was built with, and on any
+other one the check falls back to what does not depend on the last bit (the set
+of generated files) and says in its output that it did.
+
+The first attempt at a fix was wrong and worth recording: the visible symptom
+was `0.000000` against `-0.000000` in the OBJ, so signed zero looked like the
+whole story, and it is not — dumping both meshes and diffing the actual floats
+showed ordinary last-bit disagreement that formatting had disguised. Four lines
+of a diff are a symptom, not a cause.
+
 ### Not fetching things
 
 The three.js demo imports three from a CDN. A test that fetches it for real is
