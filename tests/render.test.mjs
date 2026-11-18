@@ -213,6 +213,44 @@ for (const slug of LEVELS) {
   });
 }
 
+/* His contact shadow can be seen. It was a disc lying flat on the floor, and
+ * the camera is side-on and orthographic, so it saw it exactly edge-on: with
+ * and without it, not one pixel changed, in any level, from the day the
+ * three.js demo was written. Measured the same way here, so a shadow laid
+ * back down -- or hidden behind the platforms -- fails. */
+test('his contact shadow can be seen', async () => {
+  const page = await open(browser);
+  await page.goto(`${site.origin}/web/index.html?level=the-garden`);
+  await booted(page);
+  const changed = await page.evaluate(() => new Promise((done) => {
+    const P = window.__player;
+    let f = 0;
+    (function tick() {
+      P.x = 8; P.y = 0; P.vx = 0; P.vy = 0; P.onGround = true; P.hitCool = 99;
+      if (++f < 60) return requestAnimationFrame(tick);
+      const r = window.__renderer, gl = r.getContext();
+      const W = gl.drawingBufferWidth, H = gl.drawingBufferHeight;
+      const grab = () => {
+        r.render(window.__scene, window.__camera);
+        const px = new Uint8Array(W * H * 4);
+        gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, px);
+        return px;
+      };
+      const sh = window.__contact;
+      const on = grab(); sh.visible = false; const off = grab(); sh.visible = true;
+      let n = 0;
+      for (let i = 0; i < on.length; i += 4) {
+        if (Math.abs(on[i] - off[i]) + Math.abs(on[i + 1] - off[i + 1]) +
+            Math.abs(on[i + 2] - off[i + 2]) > 12) n++;
+      }
+      done(n);
+    })();
+  }));
+  assert.ok(changed > 500, `his shadow changes ${changed} pixels -- it is not ` +
+    `on screen, or it is lying flat where a side-on camera cannot see it`);
+  await page.close();
+});
+
 /* Every shared module is actually loaded, and actually wired up.
  *
  * Both demos reach for their modules defensively -- `window.Wear ? ... : null`

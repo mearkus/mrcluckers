@@ -767,6 +767,55 @@ if (THEME && THEME.layers) {
   }
 }
 
+/* Contact shadows: his, and Ginger's, as the canvas demo draws them.
+ *
+ * These were discs lying flat on the floor -- and the camera is side-on and
+ * orthographic, so it saw them exactly edge-on. Measured with and without:
+ * zero pixels changed, in every level. Neither dog has had a shadow here
+ * since the three.js demo was written, while the sprite demo always drew one.
+ *
+ * So each is an ellipse facing the camera, straddling the floor line, the
+ * size the canvas demo uses (authored in its world pixels), soft at the rim.
+ * It sits just in front of the platforms -- which stand behind his plane --
+ * and just behind him.
+ *
+ * Real shadow maps were tried first and are not here. The camera sees every
+ * floor edge-on, so a cast shadow that should lie under him cannot be seen;
+ * what can be seen is the same shadow carried on down the face of the ledge
+ * behind him, a rooster-shaped smear in the earth below his feet. */
+const SHADOW_Z = -0.5;
+const shadowTex = (() => {
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const g = c.getContext('2d');
+  const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grad.addColorStop(0, 'rgba(255,255,255,1)');
+  grad.addColorStop(0.62, 'rgba(255,255,255,0.9)');
+  grad.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(c);
+})();
+function contactShadow(rxPx, ryPx, opacity) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(2, 2),
+    new THREE.MeshBasicMaterial({ color: 0x141e14, alphaMap: shadowTex,
+                                  transparent: true, opacity, depthWrite: false }));
+  m.userData.r = [rxPx / PXU, ryPx / PXU];
+  m.userData.opacity = opacity;
+  m.scale.set(m.userData.r[0], m.userData.r[1], 1);
+  m.position.z = SHADOW_Z;
+  scene.add(m);
+  return m;
+}
+/* Where his shadow goes and how big: `gap` is how far above the floor he is.
+ * Shrinks and fades as he rises, by the canvas demo's numbers (220px). */
+function placeContact(sh, x, floor, gap) {
+  const t = Math.max(0, 1 - gap / (220 / PXU));
+  sh.position.set(x, floor + 2 / PXU, SHADOW_Z);
+  sh.scale.set(sh.userData.r[0] * (0.5 + 0.5 * t), sh.userData.r[1] * (0.4 + 0.6 * t), 1);
+  sh.material.opacity = sh.userData.opacity * t;
+}
+
 const kibbleMat = new THREE.MeshStandardMaterial({ color: '#c8892f', roughness: .7 });
 const kibbleGeo = new THREE.SphereGeometry(0.09, 12, 8);
 const kibbles = LEVEL.pickups.map((p, i) => {
@@ -818,7 +867,7 @@ for (const h of LEVEL.hazards) {
 
 // Ginger waits at the goal, facing back down the level so she is looking at
 // him as he arrives.
-let ginger = null, distraction = null;
+let ginger = null, gingerShadow = null, distraction = null;
 if (LEVEL.goal) {
   const gltf = await new GLTFLoader().loadAsync('../assets/model/ginger.glb');
   const pivot = new THREE.Group();
@@ -852,13 +901,8 @@ if (LEVEL.goal) {
   }
   ginger = { root, mixer, play };
 
-  const shadow = new THREE.Mesh(
-    new THREE.CircleGeometry(0.72, 28),
-    new THREE.MeshBasicMaterial({ color: 0x24401c, transparent: true, opacity: 0.24 })
-  );
-  shadow.rotation.x = -Math.PI / 2;
-  shadow.position.set(LEVEL.goal.x, LEVEL.goal.y + 0.012, 0);
-  scene.add(shadow);
+  gingerShadow = contactShadow(52, 10, 0.26);
+  gingerShadow.position.set(LEVEL.goal.x, LEVEL.goal.y + 2 / PXU, SHADOW_Z);
 }
 
 // The wildlife. Each critter has an authored perch somewhere in the level,
@@ -1011,13 +1055,8 @@ for (const spec of (LEVEL.thieves || [])) {
 const rivalDog = LEVEL.goal && window.Bonus ? await loadOtherDog() : null;
 if (rivalDog) rivalDog.root.visible = false;
 
-// A blob shadow costs nothing and suits the toy better than a shadow map.
-const shadow = new THREE.Mesh(
-  new THREE.CircleGeometry(0.34, 24),
-  new THREE.MeshBasicMaterial({ color: 0x24401c, transparent: true, opacity: 0.3 })
-);
-shadow.rotation.x = -Math.PI / 2;
-scene.add(shadow);
+// His contact shadow; see contactShadow() for why it stands up.
+const shadow = contactShadow(30, 7, 0.30);
 
 document.title = LEVEL.name + ' - Mr. Cluckers';
 const bird = await Cluckers.load('../assets/model/mrcluckers.glb');
@@ -1452,11 +1491,9 @@ function updateBonus(dt) {
     ginger.mixer.update(dt);
   }
 
-  shadow.position.set(P.x, LEVEL.goal.y + 0.012, 0);
-  const gap = Math.max(0, P.y - LEVEL.goal.y);
-  const st = Math.max(0, 1 - gap / 3.4);
-  shadow.scale.setScalar(0.55 + 0.45 * st);
-  shadow.material.opacity = 0.34 * st;
+  placeContact(shadow, P.x, LEVEL.goal.y, Math.max(0, P.y - LEVEL.goal.y));
+  // She is the one running in the fetch round, and her shadow goes with her.
+  if (gingerShadow && ginger) gingerShadow.position.x = ginger.root.position.x;
 
   const cx = (bonusBox.left + bonusBox.right) / 2;
   const cy = (bonusBox.top + bonusBox.bottom) / 2;
@@ -1602,10 +1639,7 @@ function placeShadow() {
   for (const p of PLATFORMS)
     if (P.x + 0.22 > p.x && P.x - 0.22 < p.x + p.w && p.y <= P.y + 0.001)
       floor = Math.max(floor, p.y);
-  const near = Math.max(0, 1 - Math.max(0, P.y - floor) / 2.6);
-  shadow.position.set(P.x, floor + 0.012, 0);
-  shadow.scale.setScalar(0.55 + 0.45 * near);
-  shadow.material.opacity = 0.34 * near;
+  placeContact(shadow, P.x, floor, Math.max(0, P.y - floor));
 }
 
 function update(dt) {
@@ -2060,6 +2094,7 @@ window.__renderer = renderer;   // draw calls and triangles, for the perf check
 // For the automated look-at-it checks: how much got built, and in what sky.
 window.__scene = scene;
 window.__platforms = platformGroup;   // to check they never cover him
+window.__contact = shadow;           // to check his shadow can be seen
 window.__missingSurfaces = () => [...missingSurfaces];   // a theme naming no real surface
 window.__sky = THEME ? THEME.sky[0] : null;    // used by the automated input tests
 window.__level = LEVEL; // ditto: the autoplayer needs the route
