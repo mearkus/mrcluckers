@@ -19,6 +19,10 @@
  * stone, grass. The three.js demo draws that surface in the part's own
  * colour; the canvas demo draws the colour flat and ignores it.
  *
+ * `ambient` is what drifts in the air there in the three.js demo -- dust
+ * motes or falling leaves (web/ambient.js). Decoration only: none of it
+ * collides, and the canvas demo ignores it.
+ *
  * `light` is how the three.js demo lights him there: the colours and
  * strengths of a sky/ground bounce, a key and a rim, and where the key and
  * rim come from (x right, y up, z toward the camera). Anything left out is
@@ -88,6 +92,8 @@
       light: { sky: '#f1e9de', ground: '#7d6a58', hemi: 1.95,
                key: '#ffeedb', keyI: 2.3, keyAt: [3, 5, 4],
                rim: '#cfe3ef', rimI: 1.0 },
+      // Dust turning in the window light.
+      ambient: { kind: 'motes', color: '#fff3dc', count: 46 },
       ground: { dirt: '#7a5a3c', edge: '#8f6d4a', cap: '#a97f52', lip: '#c19a68',
                 tex: { dirt: 'boards', cap: 'wood' } },
       hazard: { body: 'rgba(120, 150, 190, .45)', top: 'rgba(190, 215, 240, .8)' },
@@ -136,6 +142,8 @@
       light: { sky: '#e3dccf', ground: '#6b5a48', hemi: 1.75,
                key: '#fff0d8', keyI: 2.3, keyAt: [-1.5, 6, 2.5],
                rim: '#fbecc8', rimI: 1.5, rimAt: [1, 3, -4] },
+      // A lot of dust, and the gable light catching it.
+      ambient: { kind: 'motes', color: '#ffe7b8', count: 90, size: 6, opacity: 0.9 },
       ground: { dirt: '#3b2e24', edge: '#4d3c2e', cap: '#7d6247', lip: '#9a7a58',
                 tex: { dirt: 'boards', cap: 'wood' } },
       hazard: { body: 'rgba(120, 150, 190, .45)', top: 'rgba(190, 215, 240, .8)' },
@@ -172,6 +180,8 @@
       light: { sky: '#d9e9f5', ground: '#6d7a5a', hemi: 2.0,
                key: '#fff2dc', keyI: 2.6, keyAt: [3, 6, 4],
                rim: '#bfd9ee', rimI: 1.0 },
+      // Petals and the odd leaf coming down off the borders.
+      ambient: { kind: 'leaves', colors: ['#f2d4dc', '#fff6e8', '#e8a7bd', '#8fb35e'], count: 16, size: 0.12 },
       ground: { dirt: '#6b4a33', edge: '#7d5940', cap: '#5c9e46', lip: '#7cc55e',
                 tex: { dirt: 'soil', cap: 'grass' } },
       hazard: { body: 'rgba(70, 140, 190, .55)', top: 'rgba(150, 205, 235, .75)' },
@@ -211,6 +221,8 @@
       light: { sky: '#e8f0f2', ground: '#5b666a', hemi: 2.1,
                key: '#f4f8ff', keyI: 2.2, keyAt: [3, 5, 4],
                rim: '#dfe8ea', rimI: 0.9 },
+      // A clean room: a little dust, and cool.
+      ambient: { kind: 'motes', color: '#eef6f8', count: 24, opacity: 0.6 },
       ground: { dirt: '#454f54', edge: '#576165', cap: '#75858b', lip: '#9fb0b5',
                 tex: { dirt: 'tile', cap: 'tile' } },
       hazard: { body: 'rgba(150, 190, 215, .5)', top: 'rgba(210, 232, 245, .85)' },
@@ -250,6 +262,8 @@
       light: { sky: '#f2e2d2', ground: '#6a5a4c', hemi: 1.8,
                key: '#ffe1c2', keyI: 2.4, keyAt: [-5, 2.2, 3.5],
                rim: '#ffc79a', rimI: 1.6, rimAt: [4, 1.2, -4] },
+      // Autumn, going home: rust and amber, and more of them.
+      ambient: { kind: 'leaves', colors: ['#c4652f', '#d99a3e', '#a8492a', '#b8873a'], count: 28 },
       ground: { dirt: '#5a4230', edge: '#6d5140', cap: '#6f8a4a', lip: '#8fac60',
                 tex: { dirt: 'soil', cap: 'grass' } },
       hazard: { body: 'rgba(80, 120, 160, .55)', top: 'rgba(200, 190, 175, .7)' },
@@ -291,6 +305,8 @@
       light: { sky: '#dcebf6', ground: '#66775a', hemi: 2.0,
                key: '#fff6e8', keyI: 2.4, keyAt: [3, 5, 4],
                rim: '#cfe3f5', rimI: 1.1 },
+      // Leaves off the trees, mostly still green.
+      ambient: { kind: 'leaves', colors: ['#7aa04a', '#9bbb55', '#c9b443', '#5f8a3c'], count: 22 },
       ground: { dirt: '#63432c', edge: '#77563b', cap: '#549444', lip: '#77bd5a',
                 tex: { dirt: 'soil', cap: 'grass' } },
       hazard: { body: 'rgba(64, 132, 180, .55)', top: 'rgba(150, 205, 235, .75)' },
