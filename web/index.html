@@ -165,6 +165,8 @@
 <script type="module">
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { surface, grassFringe, worldUV, missing as missingSurfaces } from './surfaces.js';
 import { Cluckers, sideCamera, resizeSideCamera, plushLighting }
   from './mrcluckers.js';
 
@@ -325,6 +327,81 @@ const box = (w, h, d, hex, x, y, z = 0, parent = scene) => {
  * be seen -- only what it covers. Sliding each platform back until its front
  * face clears his wingtips changes nothing in the picture but that. */
 const PLAY_CLEAR = 0.55;      // his wingtips are about half a unit either side
+
+/* What each piece is made of, and how soft its edges are.
+ *
+ * Every platform was a flat-coloured box with knife edges -- the clearest
+ * sign of programmer art on the screen, next to a rooster with fabric and
+ * sheen. Now each piece carries its theme's surface (web/surfaces.js) and
+ * a corner radius that suits it: a sofa or a hedge is pillowy, wood is
+ * eased, a thin trim stays crisp. Seen side-on the radius shows twice --
+ * in the silhouette's corners, and as the light rolling off every edge.
+ *
+ * The walkable top edge is never what gets rounded away: the cap and the
+ * grass on a ledge stay square, so where he can stand is exactly where it
+ * looks like he can. Phones get half-size maps; they are fill-rate bound and
+ * the texels would be smaller than their pixels anyway. */
+const TEX_SIZE = coarse ? 256 : 512;
+const BUMP = 1.4;
+const surfCache = new Map();
+const surfMat = (hex, tex, extra) => {
+  const key = hex + '|' + tex + '|' + (extra ? 'fringe' : '');
+  if (surfCache.has(key)) return surfCache.get(key);
+  const s = extra || (tex ? surface(tex, TEX_SIZE) : null);
+  const m = new THREE.MeshStandardMaterial({ color: hex, roughness: 0.85 });
+  if (s) {
+    m.map = s.map;
+    m.bumpMap = s.map;
+    m.bumpScale = BUMP;
+    // Back up to the palette's brightness on average; see surfaces.js.
+    m.color.multiplyScalar(1 / s.mean);
+  }
+  if (extra) { m.alphaTest = 0.5; }
+  surfCache.set(key, m);
+  return m;
+};
+/* One piece of a platform. `r` is its corner radius, clamped to what fits;
+ * zero is a plain box. */
+const piece = (g, w, h, d, hex, x, y, { r = 0, tex = null, seg = 2 } = {}) => {
+  const geo = r > 0.004 ? new RoundedBoxGeometry(w, h, d, seg, r)
+                        : new THREE.BoxGeometry(w, h, d);
+  const s = tex ? surface(tex, TEX_SIZE) : null;
+  if (s) worldUV(geo, x, y, s.tile);
+  const m = new THREE.Mesh(geo, surfMat(hex, tex));
+  m.position.set(x, y, 0);
+  g.add(m);
+  return m;
+};
+/* A round piece -- a log, a radiator pipe, the roll along a sofa's front. */
+const tube = (g, r, len, hex, x, y, tex) => {
+  const geo = new THREE.CylinderGeometry(r, r, len, 16);
+  geo.rotateZ(Math.PI / 2);
+  const s = tex ? surface(tex, TEX_SIZE) : null;
+  if (s) worldUV(geo, x, y, s.tile);
+  const m = new THREE.Mesh(geo, surfMat(hex, tex));
+  m.position.set(x, y, 0);
+  g.add(m);
+  return m;
+};
+/* The grass along the top of a ledge: turf, and blades hanging over the
+ * earth below it, cut out with an alpha test. Mapped across its own height
+ * so the tips land on its bottom edge wherever the ledge is. */
+const FRINGE = 0.11;
+const grassCap = (g, w, d, hex, x, top) => {
+  const H = GRASS + FRINGE;
+  const f = grassFringe(TEX_SIZE, GRASS / H);
+  const geo = new THREE.BoxGeometry(w, H, d);
+  const pos = geo.attributes.position, uv = geo.attributes.uv;
+  for (let i = 0; i < pos.count; i++) {
+    uv.setXY(i, (pos.getX(i) + x) / f.tile, (pos.getY(i) + H / 2) / H);
+  }
+  const m = new THREE.Mesh(geo, surfMat(hex, 'grass', f));
+  m.position.set(x, top - H / 2, 0);
+  g.add(m);
+  return m;
+};
+
+const GT = (G && G.tex) || {};
 const platformGroup = new THREE.Group();
 scene.add(platformGroup);
 for (const p of PLATFORMS) {
@@ -335,50 +412,58 @@ for (const p of PLATFORMS) {
   // The widest piece of any platform is the depth plus 0.08 (the grass lip).
   g.position.z = -(depth / 2 + 0.04 + PLAY_CLEAR);
   platformGroup.add(g);
-  const piece = (w, h, d, hex, x, y) => box(w, h, d, hex, x, y, 0, g);
+  const T = (C && C.tex) || null;
 
   if (p.kind === 'slab' && C) {
     // A top on legs, with daylight under it: table, worktop, bench.
     const legW = Math.max(0.08, p.w * 0.09), inset = Math.max(0.06, p.w * 0.07);
     const legH = Math.max(0.05, p.h - 0.17);
-    piece(legW, legH, depth * 0.5, C.leg, p.x + inset + legW / 2, p.y - 0.17 - legH / 2);
-    piece(legW, legH, depth * 0.5, C.leg, p.x + p.w - inset - legW / 2, p.y - 0.17 - legH / 2);
-    piece(p.w, 0.12, depth, C.body, cx, p.y - 0.11);
-    piece(p.w + 0.05, 0.06, depth + 0.05, C.top, cx, p.y - 0.03);
+    const leg = { r: 0.025, tex: T };
+    piece(g, legW, legH, depth * 0.5, C.leg, p.x + inset + legW / 2, p.y - 0.17 - legH / 2, leg);
+    piece(g, legW, legH, depth * 0.5, C.leg, p.x + p.w - inset - legW / 2, p.y - 0.17 - legH / 2, leg);
+    piece(g, p.w, 0.12, depth, C.body, cx, p.y - 0.11, { r: 0.03, tex: T });
+    piece(g, p.w + 0.05, 0.06, depth + 0.05, C.top, cx, p.y - 0.03, { r: 0.022, tex: T });
   } else if (p.kind === 'soft' && C) {
-    // Upholstery or foliage: a body with a rounded top and a few tufts.
+    // Upholstery or foliage: a plump body, a roll along the front, tufts.
     const bh = Math.max(0.2, p.h);
-    piece(p.w, bh - 0.1, depth, C.body, cx, p.y - 0.1 - (bh - 0.1) / 2);
-    const roll = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.11, 0.11, p.w, 10), mat(C.top));
-    roll.rotation.z = Math.PI / 2;
+    piece(g, p.w, bh - 0.1, depth, C.body, cx, p.y - 0.1 - (bh - 0.1) / 2,
+          { r: 0.16, tex: T, seg: 4 });
+    // A capsule, so the roll ends round rather than as a flat disc standing
+    // proud of the cushion's corners. End to end it spans the platform: the
+    // roll is the top he stands on, so it has to reach as far as he can.
+    const rollR = 0.11, rollLen = Math.max(0.05, p.w - 2 * rollR - 0.02);
+    const rollGeo = new THREE.CapsuleGeometry(rollR, rollLen, 6, 16);
+    rollGeo.rotateZ(Math.PI / 2);
+    const rs = T ? surface(T, TEX_SIZE) : null;
+    if (rs) worldUV(rollGeo, cx, p.y - 0.05, rs.tile);
+    const roll = new THREE.Mesh(rollGeo, surfMat(C.top, T));
     roll.position.set(cx, p.y - 0.05, 0);
     g.add(roll);
     for (let t = p.x + 0.22; t < p.x + p.w - 0.15; t += 0.42) {
-      const tuft = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 5), mat(C.tuft));
+      const tuft = new THREE.Mesh(new THREE.SphereGeometry(0.09, 14, 9), surfMat(C.tuft, T));
       tuft.scale.set(1, 0.55, 1);
       tuft.position.set(t, p.y + 0.01, depth * 0.22);
       g.add(tuft);
     }
   } else if (p.kind === 'crate' && C) {
-    piece(p.w, p.h, depth, C.body, cx, p.y - p.h / 2);
-    piece(p.w, 0.05, depth + 0.04, C.top, cx, p.y - 0.025);
-    // Plank lines, as thin proud strips rather than a texture.
+    piece(g, p.w, p.h, depth, C.body, cx, p.y - p.h / 2, { r: 0.035, tex: T });
+    piece(g, p.w, 0.05, depth + 0.04, C.top, cx, p.y - 0.025, { r: 0.02, tex: T });
+    // Plank lines, as thin proud strips over the grain.
     for (let b = p.y - 0.22; b > p.y - p.h + 0.06; b -= 0.22)
-      piece(p.w + 0.02, 0.03, depth + 0.03, C.line, cx, b);
+      piece(g, p.w + 0.02, 0.03, depth + 0.03, C.line, cx, b);
   } else if (p.kind === 'pipe' && C) {
     const r = Math.max(0.07, Math.min(0.17, p.h * 0.5));
-    const tube = new THREE.Mesh(
-      new THREE.CylinderGeometry(r, r, p.w, 12), mat(C.body));
-    tube.rotation.z = Math.PI / 2;
-    tube.position.set(cx, p.y - r, 0);
-    g.add(tube);
-    piece(p.w - 0.06, 0.05, r * 1.1, C.top, cx, p.y - 0.02);
+    tube(g, r, p.w, C.body, cx, p.y - r, T);
+    piece(g, p.w - 0.06, 0.05, r * 1.1, C.top, cx, p.y - 0.02, { r: 0.02, tex: T });
   } else {
     // `ledge` -- ground, walls, shelves. What every platform used to be.
-    piece(p.w, p.h, depth, G.dirt, cx, p.y - p.h / 2);
-    piece(p.w, GRASS, depth + 0.06, G.cap, cx, p.y - GRASS / 2);
-    piece(p.w, 0.04, depth + 0.08, G.lip, cx, p.y - 0.02);
+    piece(g, p.w, p.h, depth, G.dirt, cx, p.y - p.h / 2, { r: 0.06, tex: GT.dirt });
+    if (GT.cap === 'grass') {
+      grassCap(g, p.w, depth + 0.06, G.cap, cx, p.y);
+    } else {
+      piece(g, p.w, GRASS, depth + 0.06, G.cap, cx, p.y - GRASS / 2, { tex: GT.cap });
+    }
+    piece(g, p.w, 0.04, depth + 0.08, G.lip, cx, p.y - 0.02);
   }
 }
 
@@ -1975,6 +2060,7 @@ window.__renderer = renderer;   // draw calls and triangles, for the perf check
 // For the automated look-at-it checks: how much got built, and in what sky.
 window.__scene = scene;
 window.__platforms = platformGroup;   // to check they never cover him
+window.__missingSurfaces = () => [...missingSurfaces];   // a theme naming no real surface
 window.__sky = THEME ? THEME.sky[0] : null;    // used by the automated input tests
 window.__level = LEVEL; // ditto: the autoplayer needs the route
 window.__camera = camera;            // to check the bird is actually in shot

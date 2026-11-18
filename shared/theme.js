@@ -14,6 +14,11 @@
  * him: grass he wades through, a table edge he passes behind. Depth is what
  * a single flat backdrop cannot give you.
  *
+ * `tex` on a part, and `ground.tex`, say what it is made of -- a name from
+ * web/surfaces.js: wood, boards, fabric, leaves, bark, metal, soil, tile,
+ * stone, grass. The three.js demo draws that surface in the part's own
+ * colour; the canvas demo draws the colour flat and ignores it.
+ *
  * `light` is how the three.js demo lights him there: the colours and
  * strengths of a sky/ground bounce, a key and a rim, and where the key and
  * rim come from (x right, y up, z toward the camera). Anything left out is
@@ -57,10 +62,10 @@
     indoors: {
       where: 'Indoors',
       parts: {
-        slab:  { top: '#a9835a', body: '#7a5a3c', leg: '#664a30' },   // table, sideboard
-        soft:  { top: '#9a7f92', body: '#7c6274', tuft: '#b199a9' },  // sofa, cushion
-        crate: { top: '#b08a5c', body: '#8a6a45', line: '#6a5033' },  // toy box
-        pipe:  { top: '#c2ab8d', body: '#96805f' }                    // radiator, rail
+        slab:  { top: '#a9835a', body: '#7a5a3c', leg: '#664a30', tex: 'wood' },   // table, sideboard
+        soft:  { top: '#9a7f92', body: '#7c6274', tuft: '#b199a9', tex: 'fabric' },  // sofa, cushion
+        crate: { top: '#b08a5c', body: '#8a6a45', line: '#6a5033', tex: 'wood' },  // toy box
+        pipe:  { top: '#c2ab8d', body: '#96805f', tex: 'metal' }                    // radiator, rail
       },
       sky: ['#e8d9c3', '#d9c6ab'],          // a warm wall, not a sky
       layers: [
@@ -83,7 +88,8 @@
       light: { sky: '#f1e9de', ground: '#7d6a58', hemi: 1.95,
                key: '#ffeedb', keyI: 2.3, keyAt: [3, 5, 4],
                rim: '#cfe3ef', rimI: 1.0 },
-      ground: { dirt: '#7a5a3c', edge: '#8f6d4a', cap: '#a97f52', lip: '#c19a68' },
+      ground: { dirt: '#7a5a3c', edge: '#8f6d4a', cap: '#a97f52', lip: '#c19a68',
+                tex: { dirt: 'boards', cap: 'wood' } },
       hazard: { body: 'rgba(120, 150, 190, .45)', top: 'rgba(190, 215, 240, .8)' },
       dust: 'rgba(196, 176, 148, 0.75)'
     },
@@ -93,10 +99,10 @@
     shed: {
       where: 'Indoors',
       parts: {
-        slab:  { top: '#a8845c', body: '#7b5f42', leg: '#5f4a34' },   // workbench
-        soft:  { top: '#9c8f6e', body: '#7e7256', tuft: '#b3a785' },  // sacking
-        crate: { top: '#b08a5c', body: '#8a6a45', line: '#6a5033' },  // seed crate
-        pipe:  { top: '#b9a689', body: '#8d7a5c' }                    // a rail
+        slab:  { top: '#a8845c', body: '#7b5f42', leg: '#5f4a34', tex: 'wood' },   // workbench
+        soft:  { top: '#9c8f6e', body: '#7e7256', tuft: '#b3a785', tex: 'fabric' },  // sacking
+        crate: { top: '#b08a5c', body: '#8a6a45', line: '#6a5033', tex: 'wood' },  // seed crate
+        pipe:  { top: '#b9a689', body: '#8d7a5c', tex: 'wood' }                    // a rail
       },
       sky: ['#6b5541', '#4b3a2c'],          // the far wall, in shadow
       layers: [
@@ -130,7 +136,8 @@
       light: { sky: '#e3dccf', ground: '#6b5a48', hemi: 1.75,
                key: '#fff0d8', keyI: 2.3, keyAt: [-1.5, 6, 2.5],
                rim: '#fbecc8', rimI: 1.5, rimAt: [1, 3, -4] },
-      ground: { dirt: '#3b2e24', edge: '#4d3c2e', cap: '#7d6247', lip: '#9a7a58' },
+      ground: { dirt: '#3b2e24', edge: '#4d3c2e', cap: '#7d6247', lip: '#9a7a58',
+                tex: { dirt: 'boards', cap: 'wood' } },
       hazard: { body: 'rgba(120, 150, 190, .45)', top: 'rgba(190, 215, 240, .8)' },
       dust: 'rgba(214, 190, 150, 0.8)'
     },
@@ -138,10 +145,10 @@
     garden: {
       where: 'Outdoors',
       parts: {
-        slab:  { top: '#9c8a6e', body: '#7b6b52', leg: '#5f5240' },   // bench, table
-        soft:  { top: '#6f9c55', body: '#54793f', tuft: '#8dbb6e' },  // shrub, compost
-        crate: { top: '#a98356', body: '#84643f', line: '#63492c' },  // seed tray
-        pipe:  { top: '#8a6c48', body: '#6b5236' }                    // log, hose reel
+        slab:  { top: '#9c8a6e', body: '#7b6b52', leg: '#5f5240', tex: 'wood' },   // bench, table
+        soft:  { top: '#6f9c55', body: '#54793f', tuft: '#8dbb6e', tex: 'leaves' },  // shrub, compost
+        crate: { top: '#a98356', body: '#84643f', line: '#63492c', tex: 'wood' },  // seed tray
+        pipe:  { top: '#8a6c48', body: '#6b5236', tex: 'bark' }                    // log, hose reel
       },
       sky: ['#8ec5e8', '#dfeff7'],
       layers: [
@@ -165,17 +172,18 @@
       light: { sky: '#d9e9f5', ground: '#6d7a5a', hemi: 2.0,
                key: '#fff2dc', keyI: 2.6, keyAt: [3, 6, 4],
                rim: '#bfd9ee', rimI: 1.0 },
-      ground: { dirt: '#6b4a33', edge: '#7d5940', cap: '#5c9e46', lip: '#7cc55e' },
+      ground: { dirt: '#6b4a33', edge: '#7d5940', cap: '#5c9e46', lip: '#7cc55e',
+                tex: { dirt: 'soil', cap: 'grass' } },
       hazard: { body: 'rgba(70, 140, 190, .55)', top: 'rgba(150, 205, 235, .75)' },
       dust: 'rgba(150, 130, 100, 0.7)'
     },
     kitchen: {
       where: 'Indoors',
       parts: {
-        slab:  { top: '#c9a06a', body: '#a07a4e', leg: '#7c5c3a' },   // worktop
-        soft:  { top: '#9aa9ad', body: '#7b8a8f', tuft: '#b6c3c6' },  // laundry pile
-        crate: { top: '#b7a483', body: '#93805f', line: '#6f5f45' },  // crate of veg
-        pipe:  { top: '#dfe7ea', body: '#8e9ca1' }                    // rail, pipe
+        slab:  { top: '#c9a06a', body: '#a07a4e', leg: '#7c5c3a', tex: 'wood' },   // worktop
+        soft:  { top: '#9aa9ad', body: '#7b8a8f', tuft: '#b6c3c6', tex: 'fabric' },  // laundry pile
+        crate: { top: '#b7a483', body: '#93805f', line: '#6f5f45', tex: 'wood' },  // crate of veg
+        pipe:  { top: '#dfe7ea', body: '#8e9ca1', tex: 'metal' }                    // rail, pipe
       },
       sky: ['#dfe8ea', '#c8d5d8'],          // cool tiled wall
       layers: [
@@ -203,17 +211,18 @@
       light: { sky: '#e8f0f2', ground: '#5b666a', hemi: 2.1,
                key: '#f4f8ff', keyI: 2.2, keyAt: [3, 5, 4],
                rim: '#dfe8ea', rimI: 0.9 },
-      ground: { dirt: '#454f54', edge: '#576165', cap: '#75858b', lip: '#9fb0b5' },
+      ground: { dirt: '#454f54', edge: '#576165', cap: '#75858b', lip: '#9fb0b5',
+                tex: { dirt: 'tile', cap: 'tile' } },
       hazard: { body: 'rgba(150, 190, 215, .5)', top: 'rgba(210, 232, 245, .85)' },
       dust: 'rgba(200, 210, 214, 0.75)'
     },
     lane: {
       where: 'Outdoors',
       parts: {
-        slab:  { top: '#9d8f7a', body: '#7a6e5c', leg: '#5c5344' },   // wall cap, step
-        soft:  { top: '#7f9457', body: '#617442', tuft: '#9cb072' },  // hedge
-        crate: { top: '#a5824f', body: '#7f6339', line: '#5e4828' },  // pallet
-        pipe:  { top: '#8d8375', body: '#6d6558' }                    // kerb, drainpipe
+        slab:  { top: '#9d8f7a', body: '#7a6e5c', leg: '#5c5344', tex: 'stone' },   // wall cap, step
+        soft:  { top: '#7f9457', body: '#617442', tuft: '#9cb072', tex: 'leaves' },  // hedge
+        crate: { top: '#a5824f', body: '#7f6339', line: '#5e4828', tex: 'wood' },  // pallet
+        pipe:  { top: '#8d8375', body: '#6d6558', tex: 'stone' }                    // kerb, drainpipe
       },
       sky: ['#f0a06a', '#f6d9b0'],          // late afternoon, going home
       layers: [
@@ -241,17 +250,18 @@
       light: { sky: '#f2e2d2', ground: '#6a5a4c', hemi: 1.8,
                key: '#ffe1c2', keyI: 2.4, keyAt: [-5, 2.2, 3.5],
                rim: '#ffc79a', rimI: 1.6, rimAt: [4, 1.2, -4] },
-      ground: { dirt: '#5a4230', edge: '#6d5140', cap: '#6f8a4a', lip: '#8fac60' },
+      ground: { dirt: '#5a4230', edge: '#6d5140', cap: '#6f8a4a', lip: '#8fac60',
+                tex: { dirt: 'soil', cap: 'grass' } },
       hazard: { body: 'rgba(80, 120, 160, .55)', top: 'rgba(200, 190, 175, .7)' },
       dust: 'rgba(180, 150, 118, 0.75)'
     },
     park: {
       where: 'Outdoors',
       parts: {
-        slab:  { top: '#a08b63', body: '#7d6b4a', leg: '#5e5138' },   // park bench
-        soft:  { top: '#68a04e', body: '#4e7c3a', tuft: '#87c069' },  // bush
-        crate: { top: '#a3814f', body: '#7e633b', line: '#5d4927' },  // crate
-        pipe:  { top: '#8b7150', body: '#6a563c' }                    // fallen log
+        slab:  { top: '#a08b63', body: '#7d6b4a', leg: '#5e5138', tex: 'wood' },   // park bench
+        soft:  { top: '#68a04e', body: '#4e7c3a', tuft: '#87c069', tex: 'leaves' },  // bush
+        crate: { top: '#a3814f', body: '#7e633b', line: '#5d4927', tex: 'wood' },  // crate
+        pipe:  { top: '#8b7150', body: '#6a563c', tex: 'bark' }                    // fallen log
       },
       sky: ['#7fb9e4', '#e6f2f8'],
       layers: [
@@ -281,7 +291,8 @@
       light: { sky: '#dcebf6', ground: '#66775a', hemi: 2.0,
                key: '#fff6e8', keyI: 2.4, keyAt: [3, 5, 4],
                rim: '#cfe3f5', rimI: 1.1 },
-      ground: { dirt: '#63432c', edge: '#77563b', cap: '#549444', lip: '#77bd5a' },
+      ground: { dirt: '#63432c', edge: '#77563b', cap: '#549444', lip: '#77bd5a',
+                tex: { dirt: 'soil', cap: 'grass' } },
       hazard: { body: 'rgba(64, 132, 180, .55)', top: 'rgba(150, 205, 235, .75)' },
       dust: 'rgba(150, 130, 100, 0.7)'
     }
