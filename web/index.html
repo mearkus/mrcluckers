@@ -306,12 +306,6 @@ const mat = (hex, rough = 0.85) => {
     new THREE.MeshStandardMaterial({ color: hex, roughness: rough }));
   return matCache.get(hex);
 };
-const box = (w, h, d, hex, x, y, z = 0, parent = scene) => {
-  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(hex));
-  m.position.set(x, y, z);
-  parent.add(m);
-  return m;
-};
 
 /* A platform's `kind` says what shape it is; the theme says what it is made
  * of here. The canvas demo draws these five in 2D -- these are the same five
@@ -471,62 +465,37 @@ for (const p of PLATFORMS) {
 }
 
 /* Scenery. Never collided with, never scored -- it exists so a level reads
- * as a room or a lane instead of a row of ledges. Props carry their own
- * colours, because a pot plant is a pot plant wherever it stands.
+ * as a room or a lane instead of a row of ledges.
+ *
+ * Built by the generator now (tools/mc/props.py -> assets/model/props.glb),
+ * like the characters: the same fabric maps, sheen and baked creases. These
+ * were nine-segment three.js spheres and cylinders in flat colour, a world of
+ * primitives around a felt rooster. Each kind is one node in the file, with
+ * its origin at the middle of its base, cloned here -- clones share geometry
+ * and materials, so twenty trees cost one tree's memory.
  *
  * Depth is the one thing this demo can do that the canvas cannot: a prop sits
  * behind or in front of the play plane rather than merely being drawn in a
  * different order, so it parallaxes for free as the camera tracks. */
-const cyl = (rt, rb, h, hex, x, y, z, seg = 10) => {
-  const m = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg), mat(hex));
-  m.position.set(x, y, z);
-  scene.add(m);
-  return m;
-};
-const ball = (r, hex, x, y, z, sy = 1) => {
-  const m = new THREE.Mesh(new THREE.SphereGeometry(r, 9, 6), mat(hex));
-  m.scale.y = sy;
-  m.position.set(x, y, z);
-  scene.add(m);
-  return m;
-};
-
+const PROPS = (await new GLTFLoader().loadAsync('../assets/model/props.glb')).scene;
+/** A fresh copy of one prop from the file, ready to place. */
+function prop(name) {
+  const src = PROPS.getObjectByName(name);
+  if (!src) throw new Error(`props.glb has no ${name}`);
+  const c = src.clone();
+  c.position.set(0, 0, 0);
+  return c;
+}
+// A kind the file does not have is skipped rather than fatal -- and noted,
+// so the checks can say so instead of a level quietly losing its scenery.
+const missingProps = new Set();
 for (const d of LEVEL.props) {
+  if (!PROPS.getObjectByName(d.kind)) { missingProps.add(d.kind); continue; }
+  const g = prop(d.kind);
   const s = d.scale || 1;
-  const x = d.x, y = d.y;
-  const z = d.front ? 1.5 : -1.35;      // nearer than him, or behind him
-  if (d.kind === 'plant') {
-    cyl(0.17 * s, 0.13 * s, 0.32 * s, '#a9603c', x, y + 0.16 * s, z);
-    ball(0.13 * s, '#4e8a45', x - 0.14 * s, y + 0.52 * s, z);
-    ball(0.15 * s, '#4e8a45', x + 0.02 * s, y + 0.66 * s, z);
-    ball(0.12 * s, '#4e8a45', x + 0.15 * s, y + 0.53 * s, z);
-  } else if (d.kind === 'lamp') {
-    cyl(0.035 * s, 0.035 * s, 1.0 * s, '#5c5148', x, y + 0.5 * s, z);
-    cyl(0.02 * s, 0.16 * s, 0.06 * s, '#5c5148', x, y + 0.03 * s, z);
-    cyl(0.17 * s, 0.26 * s, 0.34 * s, '#e8cf9a', x, y + 1.17 * s, z);
-  } else if (d.kind === 'bowl') {
-    cyl(0.24 * s, 0.17 * s, 0.19 * s, '#3f6f96', x, y + 0.09 * s, z);
-    cyl(0.15 * s, 0.15 * s, 0.04 * s, '#c9913f', x, y + 0.18 * s, z);
-  } else if (d.kind === 'ball') {
-    ball(0.15 * s, '#d34a3f', x, y + 0.15 * s, z);
-  } else if (d.kind === 'tree') {
-    cyl(0.09 * s, 0.12 * s, 1.0 * s, '#6b4a2f', x, y + 0.5 * s, z);
-    ball(0.46 * s, '#4f8a3f', x, y + 1.32 * s, z, 0.8);
-    ball(0.3 * s, '#4f8a3f', x - 0.32 * s, y + 1.1 * s, z, 0.8);
-    ball(0.28 * s, '#63a44f', x + 0.3 * s, y + 1.16 * s, z, 0.8);
-  } else if (d.kind === 'flowers') {
-    const cols = ['#e8d24a', '#e07ba8', '#f2f2f2', '#e8d24a'];
-    [-0.16, -0.04, 0.09, 0.2].forEach((o, i) => {
-      cyl(0.015 * s, 0.015 * s, 0.26 * s, '#4e8a45', x + o * s, y + 0.13 * s, z, 6);
-      ball(0.06 * s, cols[i], x + o * s, y + 0.29 * s, z);
-    });
-  } else if (d.kind === 'bin') {
-    cyl(0.19 * s, 0.23 * s, 0.52 * s, '#4a5560', x, y + 0.26 * s, z);
-    cyl(0.22 * s, 0.22 * s, 0.06 * s, '#5d6b78', x, y + 0.55 * s, z);
-  } else if (d.kind === 'post') {
-    box(0.11 * s, 0.78 * s, 0.11 * s, '#6d5945', x, y + 0.39 * s, z);
-    box(0.26 * s, 0.07 * s, 0.16 * s, '#8a7359', x, y + 0.81 * s, z);
-  }
+  g.scale.set(d.flip ? -s : s, s, s);
+  g.position.set(d.x, d.y, d.front ? 1.5 : -1.35);  // nearer than him, or behind
+  scene.add(g);
 }
 
 /* The parallax backdrop, from the same theme the canvas demo paints.
@@ -820,10 +789,8 @@ function placeContact(sh, x, floor, gap) {
   sh.material.opacity = sh.userData.opacity * t;
 }
 
-const kibbleMat = new THREE.MeshStandardMaterial({ color: '#c8892f', roughness: .7 });
-const kibbleGeo = new THREE.SphereGeometry(0.09, 12, 8);
 const kibbles = LEVEL.pickups.map((p, i) => {
-  const m = new THREE.Mesh(kibbleGeo, kibbleMat);
+  const m = prop('kibble');
   m.position.set(p.x, p.y + 0.18, 0);
   m.userData.index = i;
   scene.add(m);
@@ -907,56 +874,18 @@ if (LEVEL.goal) {
 // The wildlife. Each critter has an authored perch somewhere in the level,
 // and where it sits is what it does: one near Ginger takes her attention,
 // one near a kibble takes the kibble.
+/* The wildlife, from props.glb like the scenery. Both face +X, which is how
+ * they are turned below; the bird's wings are nodes of their own so they can
+ * still be flapped while it is in the air. */
 function makeBird() {
-  // Rounder and smaller than the squirrel, and it perches out of reach, so
-  // it is drawn without a tail worth the name.
-  const feather = new THREE.MeshStandardMaterial({ color: '#5b788d', roughness: .8 });
-  const wingMat = new THREE.MeshStandardMaterial({ color: '#6d8ba1', roughness: .8 });
-  const g = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.SphereGeometry(0.13, 12, 10), feather);
-  body.scale.set(1.15, 1, 1); body.position.y = 0.13;
-  g.add(body);
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.085, 12, 10), feather);
-  head.position.set(0.12, 0.25, 0);
-  g.add(head);
-  const beak = new THREE.Mesh(new THREE.ConeGeometry(0.032, 0.09, 7),
-    new THREE.MeshStandardMaterial({ color: '#e0a33c', roughness: .6 }));
-  beak.rotation.z = -Math.PI / 2;
-  beak.position.set(0.21, 0.24, 0);
-  g.add(beak);
-  const tail = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), feather);
-  tail.scale.set(1.5, 0.4, 0.6); tail.position.set(-0.17, 0.13, 0);
-  g.add(tail);
-  // Kept on the group so the wings can be flapped while it is in the air.
-  const wings = [];
-  for (const z of [0.07, -0.07]) {
-    const w = new THREE.Mesh(new THREE.SphereGeometry(0.1, 10, 8), wingMat);
-    w.scale.set(1.1, 0.28, 0.6);
-    w.position.set(-0.01, 0.16, z);
-    g.add(w); wings.push(w);
-  }
-  g.userData.wings = wings;
+  const g = prop('bird');
+  g.userData.wings = [g.getObjectByName('bird_wing_l'), g.getObjectByName('bird_wing_r')];
   g.userData.carryAt = [0.26, 0.2];
   return g;
 }
 
 function makeSquirrel() {
-  const fur = new THREE.MeshStandardMaterial({ color: '#8d6440', roughness: .85 });
-  const dark = new THREE.MeshStandardMaterial({ color: '#7a5334', roughness: .9 });
-  const g = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.SphereGeometry(0.15, 14, 12), fur);
-  body.scale.set(1, 1.2, 1); body.position.y = 0.17;
-  g.add(body);
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.10, 14, 12), fur);
-  head.position.set(0.10, 0.36, 0);
-  g.add(head);
-  const ear = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.09, 8), fur);
-  ear.position.set(0.07, 0.46, 0.03);
-  g.add(ear);
-  const tail = new THREE.Mesh(new THREE.SphereGeometry(0.13, 14, 12), dark);
-  tail.scale.set(0.55, 1.5, 0.8); tail.position.set(-0.20, 0.28, 0);
-  tail.rotation.z = 0.4;
-  g.add(tail);
+  const g = prop('squirrel');
   g.userData.carryAt = [0.20, 0.33];
   return g;
 }
@@ -969,19 +898,9 @@ distraction = window.Distraction
   : null;
 // A handful of acorns, reused: a squirrel never has many in the air at once,
 // and a pool keeps the scene graph from growing while you stand under one.
-const acornGeo = new THREE.SphereGeometry(0.11, 10, 8);
-const acornMat = new THREE.MeshStandardMaterial({ color: '#8a6a3c', roughness: .8 });
-const capMat = new THREE.MeshStandardMaterial({ color: '#5d4527', roughness: .9 });
 const acornPool = [];
 function acornMesh() {
-  const g = new THREE.Group();
-  const body = new THREE.Mesh(acornGeo, acornMat);
-  body.scale.set(1, 1.25, 1);
-  g.add(body);
-  const cap = new THREE.Mesh(acornGeo, capMat);
-  cap.scale.set(0.9, 0.45, 0.9);
-  cap.position.y = 0.1;
-  g.add(cap);
+  const g = prop('acorn');
   g.visible = false;
   scene.add(g);
   acornPool.push(g);
@@ -991,7 +910,7 @@ function acornMesh() {
 // One mesh per perch, plus the kibble it makes off with.
 const critterMeshes = distraction ? distraction.critters.map((c) => {
   const g = c.kind === 'bird' ? makeBird() : makeSquirrel();
-  const carried = new THREE.Mesh(kibbleGeo, kibbleMat);
+  const carried = prop('kibble');
   carried.position.set(g.userData.carryAt[0], g.userData.carryAt[1], 0);
   carried.visible = false;
   g.add(carried);
@@ -2106,6 +2025,7 @@ window.__scene = scene;
 window.__platforms = platformGroup;   // to check they never cover him
 window.__contact = shadow;           // to check his shadow can be seen
 window.__ambient = () => ({ count: ambient.count, missing: [...missingAmbient] });
+window.__missingProps = () => [...missingProps];   // prop kinds props.glb lacks
 window.__missingSurfaces = () => [...missingSurfaces];   // a theme naming no real surface
 window.__sky = THEME ? THEME.sky[0] : null;    // used by the automated input tests
 window.__level = LEVEL; // ditto: the autoplayer needs the route

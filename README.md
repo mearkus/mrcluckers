@@ -19,6 +19,8 @@ python3 build.py
 | --- | --- |
 | `assets/model/mrcluckers.glb` | The 3D model with all 12 animation clips. Drop into Blender, Godot, Unity or three.js. |
 | `assets/model/ginger.glb` | Ginger, the dog he is trying to reach, with five clips. |
+| `assets/model/props.glb` | Everything else in a level: scenery, the bird and the squirrel, kibble and acorns -- built from the same fabric maps. |
+| `assets/reference/props.png` | Every prop in a row, for looking at. |
 | `assets/model/mrcluckers.gltf` | Same thing as text-plus-data-URI, if you want to read it. |
 | `assets/model/mrcluckers.obj` + `.mtl` | Static rest pose for tools that prefer OBJ. |
 | `assets/sprites/mrcluckers_side.png` | The sprite sheet: one row per animation. |

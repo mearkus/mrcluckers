@@ -114,6 +114,10 @@ for (const slug of LEVELS) {
     const amb = await page.evaluate(() => window.__ambient());
     assert.deepEqual(amb.missing, [], `${slug}'s theme names an ambient kind that does not exist`);
     assert.ok(amb.count > 0, `${slug}'s theme asks for ambient life and none was made`);
+    // And the scenery: a prop kind assets/model/props.glb does not have is
+    // skipped, which a screenshot would never point out.
+    assert.deepEqual(await page.evaluate(() => window.__missingProps()), [],
+      `${slug} places props that assets/model/props.glb does not have`);
     await page.close();
   });
 
