@@ -319,39 +319,70 @@ def ear(side):
     return m
 
 
+def joint(center, radii, material="coat", segments=16, rings=12):
+    """A rounded joint: an ellipsoid at a pivot, filling the bend.
+
+    Each limb is rigid pieces turning about pivots, and where one tube simply
+    overlapped the next the change in thickness showed as a step and the
+    inside of a bend opened a crease. An ellipsoid centred on the pivot, and
+    carried by the piece below it, turns in place as that piece rotates -- so
+    from every angle and in every pose the joint reads as a round knuckle of
+    the same size as the leg either side of it.
+    """
+    m = ms.sphere(1.0, material, segments=segments, rings=rings)
+    m.scale(radii)
+    m.translate(center)
+    return m
+
+
 def foreleg(side):
     """Upper and lower, split at the elbow so the joint can bend.
 
     Each piece overlaps the next by a station so a bend never opens a gap.
+    The top of the upper leg is tucked in under the ribcage's surface and
+    domed: it stood 0.04 proud of the body with an open end, a flat-topped
+    column that read as a leg glued on rather than a shoulder. The elbow and
+    everything below it are where they were, so the animation is unchanged.
     """
-    upper = tube([(0.108 * side, 0.960, 0.345), (0.118 * side, 0.760, 0.328),
+    upper = tube([(0.068 * side, 0.960, 0.345), (0.098 * side, 0.760, 0.328),
                   (0.120 * side, 0.560, 0.316), (0.120 * side, 0.470, 0.315)],
                  [(0.098, 0.118), (0.076, 0.090), (0.058, 0.066), (0.052, 0.058)],
                  "coat", segments=14, cap_start=False)
+    upper.merge(joint((0.066 * side, 0.955, 0.345), (0.098, 0.085, 0.118)))
     lower = ms.Mesh()
+    # Down into the paw: stopping at 0.115 left the toes floating under it.
     lower.merge(tube([(0.120 * side, 0.600, 0.316), (0.120 * side, 0.330, 0.314),
-                      (0.120 * side, 0.115, 0.312)],
+                      (0.120 * side, 0.075, 0.312)],
                      [(0.056, 0.062), (0.040, 0.042), (0.034, 0.036)],
                      "coat", segments=12, cap_start=False))
+    lower.merge(joint((0.120 * side, 0.560, 0.316), (0.058, 0.060, 0.065)))
     lower.merge(paw(side, 0.312, front=True))
     return {"upper": upper, "lower": lower}
 
 
 def hindleg(side):
-    """The dog zigzag: heavy thigh, stifle forward, hock back and low."""
-    thigh = tube([(0.112 * side, 0.955, -0.420), (0.128 * side, 0.770, -0.375),
+    """The dog zigzag: heavy thigh, stifle forward, hock back and low.
+
+    Tucked in and domed at the hip for the same reason as the shoulder, and
+    rounded at the stifle and hock, the two bends that show most in a trot.
+    """
+    thigh = tube([(0.072 * side, 0.955, -0.420), (0.112 * side, 0.770, -0.375),
                   (0.124 * side, 0.600, -0.335), (0.123 * side, 0.530, -0.373)],
                  [(0.122, 0.155), (0.104, 0.126), (0.064, 0.078), (0.056, 0.066)],
                  "coat", segments=16, cap_start=False)
+    thigh.merge(joint((0.070 * side, 0.950, -0.420), (0.122, 0.105, 0.155)))
     shin = tube([(0.124 * side, 0.645, -0.310), (0.120 * side, 0.455, -0.415),
                  (0.118 * side, 0.320, -0.495), (0.118 * side, 0.265, -0.486)],
                 [(0.062, 0.074), (0.046, 0.052), (0.036, 0.040), (0.033, 0.036)],
                 "coat", segments=12, cap_start=False)
+    shin.merge(joint((0.124 * side, 0.600, -0.335), (0.064, 0.068, 0.077)))
     rear = ms.Mesh()
     rear.merge(tube([(0.118 * side, 0.365, -0.503), (0.118 * side, 0.180, -0.470),
                      (0.118 * side, 0.065, -0.455)],
                     [(0.037, 0.041), (0.031, 0.033), (0.029, 0.031)],
                     "coat", segments=12, cap_start=False))
+    rear.merge(joint((0.118 * side, 0.320, -0.495), (0.038, 0.040, 0.042),
+                     segments=12, rings=10))
     rear.merge(paw(side, -0.455, front=False))
     return {"thigh": thigh, "shin": shin, "rear": rear}
 
