@@ -17,6 +17,9 @@ class Mesh:
         self.uvs = []            # parallel to verts, in world-ish units
         self.tans = []           # parallel to verts, (x, y, z, handedness)
         self.faces = []          # list[(ia, ib, ic, material)]
+        # Optional, parallel to verts: how much ambient light reaches each
+        # vertex, 0..1, baked by occlusion.py. None until it has been.
+        self.ao = None
 
     # ------------------------------------------------------------- basics
     def add_vert(self, p, n=(0.0, 1.0, 0.0), uv=(0.0, 0.0)):
@@ -34,6 +37,11 @@ class Mesh:
 
     def merge(self, other):
         off = len(self.verts)
+        # Occlusion survives a merge, with unbaked vertices counted as open.
+        if self.ao is not None or other.ao is not None:
+            mine = self.ao if self.ao is not None else [1.0] * off
+            theirs = other.ao if other.ao is not None else [1.0] * len(other.verts)
+            self.ao = list(mine) + list(theirs)
         self.verts.extend(other.verts)
         self.norms.extend(other.norms)
         self.uvs.extend(other.uvs)
@@ -49,6 +57,7 @@ class Mesh:
         m.uvs = list(self.uvs)
         m.tans = list(self.tans)
         m.faces = list(self.faces)
+        m.ao = list(self.ao) if self.ao is not None else None
         return m
 
     def materials(self):

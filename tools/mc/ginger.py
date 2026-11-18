@@ -15,8 +15,10 @@ tuck, and her tail is long, thin and whip-like rather than stubby.
 """
 
 import math
+import sys
 
 from . import mesh as ms
+from . import occlusion
 from . import vmath as v
 
 SHOULDER_H = 1.15
@@ -480,4 +482,6 @@ def build_parts(fuzz=True):
     }
     for part in parts.values():
         part.compute_tangents()
+    # Darken the creases once, in the rest pose; see occlusion.py.
+    occlusion.bake(parts, sys.modules[__name__])
     return parts
