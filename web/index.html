@@ -252,15 +252,40 @@ const renderer = new THREE.WebGLRenderer({ antialias: true });
 // pixel ratio harder on touch devices than on desktop.
 renderer.setPixelRatio(Math.min(devicePixelRatio, coarse ? 1.5 : 2));
 renderer.setSize(innerWidth, innerHeight);
+/* No tone curve, on purpose. Khronos' PBR Neutral was tried, as the one
+ * meant to leave base colours alone: it takes a small constant off the
+ * darks, and on these mid-browns that read as a saturation boost -- the
+ * sofa went maroon, the lane went orange, every table leg darkened. The
+ * palettes in shared/theme.js were picked by eye without a curve and are
+ * shared with the canvas demo, and nothing here is bright enough to clip. */
 document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-// Sky from the theme: the far colour overhead, the near one on the fog, so
-// the level fades into its own horizon rather than a generic blue.
-scene.background = new THREE.Color(THEME ? THEME.sky[0] : '#9cc3dc');
+/* Sky from the theme, as the canvas demo paints it: a gradient from the far
+ * colour at the top of the screen to the near one at the bottom, so the level
+ * fades into its own horizon. A flat sky[0] here made every theme a shade
+ * colder overhead and harder at the horizon than the same level in 2D. A
+ * background texture fills the viewport whatever the camera does, which is
+ * the screen-space gradient the canvas draws. The fog keeps the near colour. */
+scene.background = (() => {
+  const top = THEME ? THEME.sky[0] : '#9cc3dc';
+  const low = THEME ? THEME.sky[1] : '#b8d3e4';
+  const c = document.createElement('canvas');
+  c.width = 1; c.height = 256;
+  const g = c.getContext('2d');
+  const grad = g.createLinearGradient(0, 0, 0, 256);
+  grad.addColorStop(0, top);
+  grad.addColorStop(1, low);
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 1, 256);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+})();
 scene.fog = new THREE.Fog(THEME ? THEME.sky[1] : '#b8d3e4', 16, 40);
 const camera = sideCamera(innerWidth / innerHeight, viewHeight());
-plushLighting(scene);
+// The room's own light, so he looks like he is standing in it.
+plushLighting(scene, (THEME && THEME.light) || {});
 
 // --- level ---------------------------------------------------------------
 // A side-on orthographic camera only ever sees the front face, so the grass
@@ -276,10 +301,10 @@ const mat = (hex, rough = 0.85) => {
     new THREE.MeshStandardMaterial({ color: hex, roughness: rough }));
   return matCache.get(hex);
 };
-const box = (w, h, d, hex, x, y, z = 0) => {
+const box = (w, h, d, hex, x, y, z = 0, parent = scene) => {
   const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(hex));
   m.position.set(x, y, z);
-  scene.add(m);
+  parent.add(m);
   return m;
 };
 
@@ -287,53 +312,73 @@ const box = (w, h, d, hex, x, y, z = 0) => {
  * of here. The canvas demo draws these five in 2D -- these are the same five
  * as solids, so a level reads as the same place in either demo rather than
  * as a row of identical slabs in one of them. */
+/* Every platform stands *behind* him, never around him.
+ *
+ * A platform is only solid from above -- he lands on its top and walks
+ * straight through its body -- and the canvas demo draws every platform
+ * before him, so walking through a bush or past a crate he is in front of it.
+ * Here each one was a box centred on his plane, so the same walk put him
+ * inside a solid: in the park he disappeared into the bush that sits on the
+ * ground halfway along, completely, for as long as it took to cross it.
+ *
+ * The camera is orthographic and side-on, so how far back a thing is cannot
+ * be seen -- only what it covers. Sliding each platform back until its front
+ * face clears his wingtips changes nothing in the picture but that. */
+const PLAY_CLEAR = 0.55;      // his wingtips are about half a unit either side
+const platformGroup = new THREE.Group();
+scene.add(platformGroup);
 for (const p of PLATFORMS) {
   const depth = p.ground ? 3 : 1.2;
   const cx = p.x + p.w / 2;
   const C = part(p.kind);
+  const g = new THREE.Group();
+  // The widest piece of any platform is the depth plus 0.08 (the grass lip).
+  g.position.z = -(depth / 2 + 0.04 + PLAY_CLEAR);
+  platformGroup.add(g);
+  const piece = (w, h, d, hex, x, y) => box(w, h, d, hex, x, y, 0, g);
 
   if (p.kind === 'slab' && C) {
     // A top on legs, with daylight under it: table, worktop, bench.
     const legW = Math.max(0.08, p.w * 0.09), inset = Math.max(0.06, p.w * 0.07);
     const legH = Math.max(0.05, p.h - 0.17);
-    box(legW, legH, depth * 0.5, C.leg, p.x + inset + legW / 2, p.y - 0.17 - legH / 2);
-    box(legW, legH, depth * 0.5, C.leg, p.x + p.w - inset - legW / 2, p.y - 0.17 - legH / 2);
-    box(p.w, 0.12, depth, C.body, cx, p.y - 0.11);
-    box(p.w + 0.05, 0.06, depth + 0.05, C.top, cx, p.y - 0.03);
+    piece(legW, legH, depth * 0.5, C.leg, p.x + inset + legW / 2, p.y - 0.17 - legH / 2);
+    piece(legW, legH, depth * 0.5, C.leg, p.x + p.w - inset - legW / 2, p.y - 0.17 - legH / 2);
+    piece(p.w, 0.12, depth, C.body, cx, p.y - 0.11);
+    piece(p.w + 0.05, 0.06, depth + 0.05, C.top, cx, p.y - 0.03);
   } else if (p.kind === 'soft' && C) {
     // Upholstery or foliage: a body with a rounded top and a few tufts.
     const bh = Math.max(0.2, p.h);
-    box(p.w, bh - 0.1, depth, C.body, cx, p.y - 0.1 - (bh - 0.1) / 2);
+    piece(p.w, bh - 0.1, depth, C.body, cx, p.y - 0.1 - (bh - 0.1) / 2);
     const roll = new THREE.Mesh(
       new THREE.CylinderGeometry(0.11, 0.11, p.w, 10), mat(C.top));
     roll.rotation.z = Math.PI / 2;
     roll.position.set(cx, p.y - 0.05, 0);
-    scene.add(roll);
+    g.add(roll);
     for (let t = p.x + 0.22; t < p.x + p.w - 0.15; t += 0.42) {
       const tuft = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 5), mat(C.tuft));
       tuft.scale.set(1, 0.55, 1);
       tuft.position.set(t, p.y + 0.01, depth * 0.22);
-      scene.add(tuft);
+      g.add(tuft);
     }
   } else if (p.kind === 'crate' && C) {
-    box(p.w, p.h, depth, C.body, cx, p.y - p.h / 2);
-    box(p.w, 0.05, depth + 0.04, C.top, cx, p.y - 0.025);
+    piece(p.w, p.h, depth, C.body, cx, p.y - p.h / 2);
+    piece(p.w, 0.05, depth + 0.04, C.top, cx, p.y - 0.025);
     // Plank lines, as thin proud strips rather than a texture.
     for (let b = p.y - 0.22; b > p.y - p.h + 0.06; b -= 0.22)
-      box(p.w + 0.02, 0.03, depth + 0.03, C.line, cx, b);
+      piece(p.w + 0.02, 0.03, depth + 0.03, C.line, cx, b);
   } else if (p.kind === 'pipe' && C) {
     const r = Math.max(0.07, Math.min(0.17, p.h * 0.5));
     const tube = new THREE.Mesh(
       new THREE.CylinderGeometry(r, r, p.w, 12), mat(C.body));
     tube.rotation.z = Math.PI / 2;
     tube.position.set(cx, p.y - r, 0);
-    scene.add(tube);
-    box(p.w - 0.06, 0.05, r * 1.1, C.top, cx, p.y - 0.02);
+    g.add(tube);
+    piece(p.w - 0.06, 0.05, r * 1.1, C.top, cx, p.y - 0.02);
   } else {
     // `ledge` -- ground, walls, shelves. What every platform used to be.
-    box(p.w, p.h, depth, G.dirt, cx, p.y - p.h / 2);
-    box(p.w, GRASS, depth + 0.06, G.cap, cx, p.y - GRASS / 2);
-    box(p.w, 0.04, depth + 0.08, G.lip, cx, p.y - 0.02);
+    piece(p.w, p.h, depth, G.dirt, cx, p.y - p.h / 2);
+    piece(p.w, GRASS, depth + 0.06, G.cap, cx, p.y - GRASS / 2);
+    piece(p.w, 0.04, depth + 0.08, G.lip, cx, p.y - 0.02);
   }
 }
 
@@ -532,8 +577,14 @@ if (THEME && THEME.layers) {
          *
          * Clouds are also sparse and small, so they get what hills cannot
          * afford: an actual ellipse each, instanced, with sky between them.
+         *
+         * So do tufts in front of him, for the same reason from the other
+         * side. The canvas demo draws a front layer as separate ellipses --
+         * the park's grass is a row of small tufts at his feet. Filled down
+         * like a hill, each tuft became a translucent green pillar reaching
+         * off the bottom of the screen, and he spent the park behind them.
          */
-        if (L.float) {
+        if (L.float || L.front) {
           const disc = new THREE.CircleGeometry(1, 24);
           const inst = new THREE.InstancedMesh(disc, lm, n * rows);
           const t = new THREE.Object3D();
@@ -1812,12 +1863,24 @@ function update(dt) {
    * that comes out of it, and using it here made `room` too big -- the lift
    * evaluated to zero for every perch that was only just too high, which was
    * four of the six that needed it. */
-  const room = (camera.top - camera.bottom) / 2 / camera.zoom - 0.6;
-  const lift = Math.min(2.6, Math.max(
+  const half = (camera.top - camera.bottom) / 2 / camera.zoom;
+  const room = half - 0.6;
+  /* And never so far that he goes. The camera centres 0.9 above his feet, so
+   * a lift past `half - 1.05` puts his feet under the bottom edge -- and the
+   * cap of 2.6 was well past that. A landscape desktop frame is 3.6 tall, so
+   * under the shed's loft squirrel at 5.15 the camera rose the full 2.6 and
+   * he left the screen entirely, standing on the floor. The check that the
+   * perches were in shot never asked whether he still was.
+   *
+   * He comes first. Every other perch still fits above him with this: the
+   * kitchen's, the park's and the lane's sit at 3.0 to 3.15 and the top edge
+   * lands at 3.45. The loft squirrel's does not, and what it does is drop
+   * things down the shaft, which fall into view from the top. */
+  const lift = Math.max(0, Math.min(2.6, half - 1.05, Math.max(
     nearHer
       ? Math.max(0, Math.min(1.8, distraction.watcher.home.y - LEVEL.goal.y - 0.5))
       : 0,
-    Math.max(0, seeUp - room)));
+    Math.max(0, seeUp - room))));
   camera.position.x += ((P.x + lean) - camera.position.x) * Math.min(1, dt * 6);
   // Y is up here, so looking down is subtracting the peek.
   const peek = look ? look.offset : 0;
@@ -1911,6 +1974,7 @@ window.__backdropTop = BACKDROP_TOP;
 window.__renderer = renderer;   // draw calls and triangles, for the perf check
 // For the automated look-at-it checks: how much got built, and in what sky.
 window.__scene = scene;
+window.__platforms = platformGroup;   // to check they never cover him
 window.__sky = THEME ? THEME.sky[0] : null;    // used by the automated input tests
 window.__level = LEVEL; // ditto: the autoplayer needs the route
 window.__camera = camera;            // to check the bird is actually in shot

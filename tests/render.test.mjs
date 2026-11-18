@@ -27,6 +27,72 @@ test('the local three.js matches the one the page asks for', async () => {
     `three from the one the site ships`);
 });
 
+/* Holds him at (x, y) until the camera has arrived -- it eases, and the long
+ * way down starts five units above where it begins -- then measures how much
+ * of him the frame shows. Runs in the page. */
+function seenAt([x, y]) {
+  return new Promise((done) => {
+    const P = window.__player;
+    let f = 0;
+    (function tick() {
+      P.x = x; P.y = y; P.vx = 0; P.vy = 0; P.onGround = true; P.hitCool = 99;
+      if (++f < 70) return requestAnimationFrame(tick);
+      done(measure());
+    })();
+  });
+
+  function measure() {
+    const r = window.__renderer, gl = r.getContext();
+    const W = gl.drawingBufferWidth, H = gl.drawingBufferHeight;
+    const scene = window.__scene, bird = window.__bird.root;
+    // Any unlit material will do as a template; the backdrop is full of them.
+    let flat = null;
+    scene.traverse((o) => { if (!flat && o.material?.isMeshBasicMaterial) flat = o.material; });
+    flat = flat.clone();
+    Object.assign(flat, { transparent: false, opacity: 1, fog: false, toneMapped: false });
+    flat.color.setRGB(1, 0, 1);
+    const own = [];
+    bird.traverse((o) => {
+      if (o.isMesh) { own.push([o, o.material]); o.material = flat; }
+      else if (o.isSprite && o.visible) { own.push([o, null]); o.visible = false; }
+    });
+    const grab = () => {
+      r.render(scene, window.__camera);
+      const px = new Uint8Array(W * H * 4);
+      gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, px);
+      return px;
+    };
+    const changed = (a, b) => {
+      let n = 0;
+      for (let i = 0; i < a.length; i += 4) {
+        const d = Math.max(Math.abs(a[i] - b[i]), Math.abs(a[i + 1] - b[i + 1]),
+                           Math.abs(a[i + 2] - b[i + 2]));
+        if (d > 40) n++;
+      }
+      return n;
+    };
+    const pair = () => {
+      bird.visible = true; const on = grab();
+      bird.visible = false; const off = grab();
+      bird.visible = true;
+      return changed(on, off);
+    };
+    const seen = pair();
+    // What may never cover him: the backdrop, and the platforms -- which he
+    // walks through, and which the canvas demo draws behind him.
+    const layers = [...window.__backdrops.map((b) => b.g), window.__platforms];
+    layers.forEach((g) => { g.visible = false; });
+    const bare = pair();
+    layers.forEach((g) => { g.visible = true; });
+    const was = scene.children.map((o) => o.visible);
+    scene.children.forEach((o) => { if (o !== bird) o.visible = false; });
+    const solo = pair();
+    scene.children.forEach((o, i) => { o.visible = was[i]; });
+    for (const [o, m] of own) { if (m) o.material = m; else o.visible = true; }
+    return { solo, bare, seen };
+  }
+}
+
 for (const slug of LEVELS) {
   test(`${slug} renders in three.js`, async () => {
     const page = await open(browser);
@@ -40,6 +106,91 @@ for (const slug of LEVELS) {
     assert.ok(seen.meshes > 20, `only ${seen.meshes} meshes -- the level is empty`);
     assert.ok(seen.level, 'the level never named itself');
     assert.deepEqual(page.errors, []);
+    await page.close();
+  });
+
+  /* He is in shot, and the scenery never covers him. Every other check here
+   * passed while, in the park, he vanished completely into a bush he was
+   * walking through: it rendered, it threw nothing, it had plenty of meshes.
+   * Platforms are solid only from above, the canvas demo draws them behind
+   * him, and this one built each as a box around his plane.
+   *
+   * Measured by rendering the same frame with and without him and counting
+   * the pixels that change -- how much of him survives whatever is in front
+   * -- once as it is and once without the backdrop and the platforms.
+   * Everything else is the same in both, so a bird swooping past or the other
+   * dog standing over him cancels out, and what is left is what the scenery
+   * takes. A third count with nothing else drawn says whether he is in the
+   * frame at all: the camera's lift toward a perch once took him off the
+   * bottom. Read straight off the drawing buffer in the same task as the
+   * render, so the HUD and the next frame's motion never enter into it.
+   *
+   * He is painted flat magenta for the count. In his own grey against a
+   * mid-brown shed wall too few of his pixels change by enough to count, and
+   * the shed failed with nothing in front of him at all. Magenta is far from
+   * every colour the themes use, so what is measured is cover, not contrast.
+   * Front layers are meant to pass over him -- grass he wades through -- so
+   * the bar is that most of him shows, not all. */
+  test(`${slug}: he is in shot, and never behind the scenery`, async (t) => {
+    const page = await open(browser);
+    await page.goto(`${site.origin}/web/index.html?level=${slug}`);
+    await booted(page);
+    // The spawn, and the middle of the widest few platforms.
+    // And inside up to three platforms he can walk through on the way past --
+    // the bush that swallowed him was one. Not next to Ginger, who is bigger
+    // than he is and rightly stands in front of him.
+    const spots = await page.evaluate(() => {
+      const L = window.__level;
+      const away = (x) => Math.abs(x - L.goal.x) > 4;
+      const wide = L.platforms.filter((q) => q.w >= 2 && away(q.x + q.w / 2))
+        .sort((a, b) => b.w - a.w).slice(0, 4)
+        .map((q) => [q.x + q.w / 2, q.y]);
+      const through = [];
+      for (const q of L.platforms) {
+        const x = q.x + q.w / 2;
+        if (q.ground || !away(x)) continue;
+        // A floor under it, close enough that he passes through its body.
+        const floor = L.platforms.find((f) => f !== q && x > f.x && x < f.x + f.w &&
+          f.y < q.y && q.y - q.h < f.y + 1);
+        if (floor && through.length < 3) through.push([x, floor.y]);
+      }
+      return [[L.spawn.x, L.spawn.y], ...wide, ...through];
+    });
+    for (const [x, y] of spots) {
+      const { solo, bare, seen } = await page.evaluate(seenAt, [x, y]);
+      t.diagnostic(`x ${x.toFixed(1)}: ${seen} of ${bare} pixels show ` +
+                   `(${solo} with nothing else drawn)`);
+      // The camera's lift toward a perch once took him off the bottom.
+      assert.ok(solo > 2000, `only ${solo} pixels of him at x ` +
+        `${x.toFixed(1)} in ${slug} with nothing else drawn -- he is out of shot`);
+      assert.ok(seen / bare > 0.75,
+        `the backdrop or a platform covers ${Math.round(100 - 100 * seen / bare)}% ` +
+        `of him at x ${x.toFixed(1)} in ${slug}`);
+    }
+
+    /* Anything drawn in front of him is a strip at his feet, not a wall. The
+     * park's grass tufts were built like hills -- filled fourteen units down
+     * from their tops -- so each was a translucent pillar standing in front
+     * of everything. Measured by cover they only take his legs, which grass
+     * is allowed to do; measured by shape they are taller than he is. */
+    const tallest = await page.evaluate(() => {
+      let worst = 0;
+      for (const b of window.__backdrops) {
+        if (b.g.position.z <= 0) continue;          // behind the play plane
+        b.g.traverse((o) => {
+          if (!o.isMesh) return;
+          o.geometry.computeBoundingBox();
+          const bb = o.geometry.boundingBox;
+          // An instance's y scale is element 5 of its column-major matrix.
+          const sy = o.isInstancedMesh ? Math.abs(o.instanceMatrix.array[5]) : 1;
+          worst = Math.max(worst, (bb.max.y - bb.min.y) * sy);
+        });
+      }
+      return worst;
+    });
+    assert.ok(tallest < 1,
+      `a layer in front of him in ${slug} is ${tallest.toFixed(2)} units ` +
+      `tall -- he is one -- so it is a wall over the play area, not grass`);
     await page.close();
   });
 

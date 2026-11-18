@@ -166,17 +166,29 @@ export function resizeSideCamera(cam, aspect, viewHeight = 4.5) {
   cam.updateProjectionMatrix();
 }
 
+/** The default rig, and the shape of a theme's `light` block. */
+export const PLUSH_LIGHT = {
+  sky: '#dfe7ee', ground: '#6b6257', hemi: 2.0,
+  key: '#fff6e8', keyI: 2.2, keyAt: [3, 5, 4],
+  rim: '#bfd4e8', rimI: 1.1, rimAt: [-3, 2, -4]
+};
+
 /**
  * Lighting picked to flatter a grey plush toy: a broad sky/ground bounce so
  * the fur never goes black, one warm key, and a cool back light that catches
  * the fuzzy silhouette.
+ *
+ * `light` overrides any of PLUSH_LIGHT's fields -- a level's theme passes its
+ * own, so he is lit by a low warm sun in the lane and by the gable window
+ * in the shed, rather than by the same studio in every room.
  */
-export function plushLighting(scene) {
-  const hemi = new THREE.HemisphereLight(0xdfe7ee, 0x6b6257, 2.0);
-  const key = new THREE.DirectionalLight(0xfff6e8, 2.2);
-  key.position.set(3, 5, 4);
-  const rim = new THREE.DirectionalLight(0xbfd4e8, 1.1);
-  rim.position.set(-3, 2, -4);
+export function plushLighting(scene, light = {}) {
+  const L = Object.assign({}, PLUSH_LIGHT, light);
+  const hemi = new THREE.HemisphereLight(L.sky, L.ground, L.hemi);
+  const key = new THREE.DirectionalLight(L.key, L.keyI);
+  key.position.set(...L.keyAt);
+  const rim = new THREE.DirectionalLight(L.rim, L.rimI);
+  rim.position.set(...L.rimAt);
   scene.add(hemi, key, rim);
   return { hemi, key, rim };
 }

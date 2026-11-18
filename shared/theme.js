@@ -14,6 +14,13 @@
  * him: grass he wades through, a table edge he passes behind. Depth is what
  * a single flat backdrop cannot give you.
  *
+ * `light` is how the three.js demo lights him there: the colours and
+ * strengths of a sky/ground bounce, a key and a rim, and where the key and
+ * rim come from (x right, y up, z toward the camera). Anything left out is
+ * the default studio rig in web/mrcluckers.js. The canvas demo's sprites are
+ * baked, so it ignores this -- the backdrop is what tells you the time of
+ * day there, and his light is what has to agree with it here.
+ *
  * `where` is the section a level files under on the level-select screen.
  * It lives here rather than in a list the shell keeps, so adding a level is
  * still a one-file job: name a theme and it lands in the right section.
@@ -71,6 +78,11 @@
         { kind: 'band', color: '#5f4830', y: 46, h: 40, speed: 1.35,
           front: true, alpha: 0.55 },
       ],
+      // Lamplight and a window: warm from the front, the bounce off a wooden
+      // floor, and the cool of the window glass catching his back.
+      light: { sky: '#f1e9de', ground: '#7d6a58', hemi: 1.95,
+               key: '#ffeedb', keyI: 2.3, keyAt: [3, 5, 4],
+               rim: '#cfe3ef', rimI: 1.0 },
       ground: { dirt: '#7a5a3c', edge: '#8f6d4a', cap: '#a97f52', lip: '#c19a68' },
       hazard: { body: 'rgba(120, 150, 190, .45)', top: 'rgba(190, 215, 240, .8)' },
       dust: 'rgba(196, 176, 148, 0.75)'
@@ -112,6 +124,12 @@
         { kind: 'band', color: '#2b2119', y: 44, h: 42, speed: 1.35,
           front: true, alpha: 0.5 },
       ],
+      // Lit from the gable window above and behind: the key comes down
+      // steeply, and the window itself rims him. Tinted, not coloured -- he
+      // is a grey toy, and a strongly coloured light makes him a brown one.
+      light: { sky: '#e3dccf', ground: '#6b5a48', hemi: 1.75,
+               key: '#fff0d8', keyI: 2.3, keyAt: [-1.5, 6, 2.5],
+               rim: '#fbecc8', rimI: 1.5, rimAt: [1, 3, -4] },
       ground: { dirt: '#3b2e24', edge: '#4d3c2e', cap: '#7d6247', lip: '#9a7a58' },
       hazard: { body: 'rgba(120, 150, 190, .45)', top: 'rgba(190, 215, 240, .8)' },
       dust: 'rgba(214, 190, 150, 0.8)'
@@ -143,6 +161,10 @@
         { kind: 'posts', color: '#3f6b30', step: 46, w: 7, h: 13,
           y: -11, speed: 1.3, front: true, alpha: 0.9 },
       ],
+      // Midday: a high warm sun, sky blue overhead and lawn green underneath.
+      light: { sky: '#d9e9f5', ground: '#6d7a5a', hemi: 2.0,
+               key: '#fff2dc', keyI: 2.6, keyAt: [3, 6, 4],
+               rim: '#bfd9ee', rimI: 1.0 },
       ground: { dirt: '#6b4a33', edge: '#7d5940', cap: '#5c9e46', lip: '#7cc55e' },
       hazard: { body: 'rgba(70, 140, 190, .55)', top: 'rgba(150, 205, 235, .75)' },
       dust: 'rgba(150, 130, 100, 0.7)'
@@ -177,6 +199,10 @@
       ],
       // Darker than the wall on purpose: a pale floor against pale tiles
       // reads as one surface, and you cannot see what you may stand on.
+      // Daylight off white tile: cool, even, and a little harder.
+      light: { sky: '#e8f0f2', ground: '#5b666a', hemi: 2.1,
+               key: '#f4f8ff', keyI: 2.2, keyAt: [3, 5, 4],
+               rim: '#dfe8ea', rimI: 0.9 },
       ground: { dirt: '#454f54', edge: '#576165', cap: '#75858b', lip: '#9fb0b5' },
       hazard: { body: 'rgba(150, 190, 215, .5)', top: 'rgba(210, 232, 245, .85)' },
       dust: 'rgba(200, 210, 214, 0.75)'
@@ -209,6 +235,12 @@
         { kind: 'posts', color: '#33402a', step: 62, w: 9, h: 14,
           y: -12, speed: 1.32, front: true, alpha: 0.9 },
       ],
+      // Going home at sunset: the sun low and off to one side, and a warm rim
+      // from the sky behind. Tinted, not coloured -- at full orange he stops
+      // being a grey rooster and the whole lane turns to rust.
+      light: { sky: '#f2e2d2', ground: '#6a5a4c', hemi: 1.8,
+               key: '#ffe1c2', keyI: 2.4, keyAt: [-5, 2.2, 3.5],
+               rim: '#ffc79a', rimI: 1.6, rimAt: [4, 1.2, -4] },
       ground: { dirt: '#5a4230', edge: '#6d5140', cap: '#6f8a4a', lip: '#8fac60' },
       hazard: { body: 'rgba(80, 120, 160, .55)', top: 'rgba(200, 190, 175, .7)' },
       dust: 'rgba(180, 150, 118, 0.75)'
@@ -245,6 +277,10 @@
         { kind: 'blobs', color: '#37692d', step: 120, rx: 26, ry: 12,
           y: -4, speed: 1.34, front: true, alpha: 0.88 },
       ],
+      // A bright open day: high sun and a lot of sky.
+      light: { sky: '#dcebf6', ground: '#66775a', hemi: 2.0,
+               key: '#fff6e8', keyI: 2.4, keyAt: [3, 5, 4],
+               rim: '#cfe3f5', rimI: 1.1 },
       ground: { dirt: '#63432c', edge: '#77563b', cap: '#549444', lip: '#77bd5a' },
       hazard: { body: 'rgba(64, 132, 180, .55)', top: 'rgba(150, 205, 235, .75)' },
       dust: 'rgba(150, 130, 100, 0.7)'

@@ -33,7 +33,12 @@ jobs:
   # Both renderers, every level, and the routing between them.
   browser:
     name: Renderers and routes
-    runs-on: ubuntu-latest
+    # Pinned, not ubuntu-latest: Playwright installs the browser's system
+    # libraries itself and only for the Ubuntus it knows. When ubuntu-latest
+    # moved to 26.04, Playwright 1.56.1 refused it outright and this job
+    # failed before a single test ran. Move this when tests/package.json
+    # moves Playwright to a version that supports the newer image.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

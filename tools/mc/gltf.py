@@ -31,6 +31,31 @@ def _hex_linear(h):
     return [_srgb_to_linear(int(h[i:i + 2], 16) / 255.0) for i in (0, 2, 4)] + [1.0]
 
 
+# Below this a material is hard or glossy (eyes, beak, nose) and gets no sheen.
+SHEEN_MIN_FUZZ = 0.1
+
+
+def _sheen(spec):
+    """KHR_materials_sheen for a fabric, or None.
+
+    The sprite renderer gives fuzzy materials a rim light: grazing angles
+    catch the light, tinted by the fabric's own colour and scaled by `fuzz`.
+    Sheen is the PBR name for the same thing -- a fibre layer that brightens
+    toward the silhouette -- so the live model gets the edge glow that makes
+    the sprites read as plush instead of as grey clay. The colour is the base
+    colour pulled toward white, since lit fibres look paler than the cloth
+    they stand out of, and its strength follows `fuzz`.
+    """
+    fuzz = spec.get("fuzz", 0.0)
+    if fuzz < SHEEN_MIN_FUZZ:
+        return None
+    base = _hex_linear(spec["color"])[:3]
+    strength = min(1.0, fuzz)
+    color = [round(strength * (0.55 * c + 0.45), 6) for c in base]
+    return {"sheenColorFactor": color,
+            "sheenRoughnessFactor": round(0.45 + 0.35 * strength, 6)}
+
+
 class _Buffer:
     def __init__(self):
         self.data = bytearray()
@@ -192,6 +217,7 @@ def build_gltf(parts, materials, clips=None, base=None, name="MrCluckers",
                 tex_index[(family, kind)] = len(textures_json) - 1
 
     mats_json, material_index = [], {}
+    extensions_used = set()
     for mat_name, spec in materials.items():
         material_index[mat_name] = len(mats_json)
         pbr = {
@@ -208,6 +234,10 @@ def build_gltf(parts, materials, clips=None, base=None, name="MrCluckers",
                 "index": tex_index[(family, "normal")],
                 "scale": spec.get("normal_scale", 1.0),
             }
+        sheen = _sheen(spec)
+        if sheen:
+            mat["extensions"] = {"KHR_materials_sheen": sheen}
+            extensions_used.add("KHR_materials_sheen")
         mats_json.append(mat)
 
     textured = bool(tex_index)
@@ -292,6 +322,8 @@ def build_gltf(parts, materials, clips=None, base=None, name="MrCluckers",
         "bufferViews": buf.views,
         "buffers": [{"byteLength": len(buf.data)}],
     }
+    if extensions_used:
+        doc["extensionsUsed"] = sorted(extensions_used)
     if animations:
         doc["animations"] = animations
     if images:
