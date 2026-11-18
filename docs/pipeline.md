@@ -68,6 +68,17 @@ Shading is built for a fuzzy toy rather than realism:
   depth discontinuity inside it. That's what separates a wing from the body
   when both are the same grey and the sprite is only 96 pixels tall.
 
+## Fuzz in the live model
+
+The rim light is what makes the sprites read as plush, and it is computed in
+`raster.py` — so it never reached the GLB, and in three.js he looked like grey
+clay. glTF has a name for the same effect: `KHR_materials_sheen`, a fibre layer
+that brightens toward the silhouette. `gltf.py` writes it for every material
+whose `fuzz` is at least 0.1, so the `fuzz` values in the `MATERIALS` tables
+drive both renderers. The sheen colour is the material's own colour pulled
+toward white and scaled by `fuzz`; hard materials (eyes, beak, nose) get none.
+Blender, Godot and three.js all read the extension.
+
 ## UVs and tangents
 
 Nothing here is unwrapped in the usual sense — each primitive knows its own

@@ -252,15 +252,40 @@ const renderer = new THREE.WebGLRenderer({ antialias: true });
 // pixel ratio harder on touch devices than on desktop.
 renderer.setPixelRatio(Math.min(devicePixelRatio, coarse ? 1.5 : 2));
 renderer.setSize(innerWidth, innerHeight);
+/* No tone curve, on purpose. Khronos' PBR Neutral was tried, as the one
+ * meant to leave base colours alone: it takes a small constant off the
+ * darks, and on these mid-browns that read as a saturation boost -- the
+ * sofa went maroon, the lane went orange, every table leg darkened. The
+ * palettes in shared/theme.js were picked by eye without a curve and are
+ * shared with the canvas demo, and nothing here is bright enough to clip. */
 document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-// Sky from the theme: the far colour overhead, the near one on the fog, so
-// the level fades into its own horizon rather than a generic blue.
-scene.background = new THREE.Color(THEME ? THEME.sky[0] : '#9cc3dc');
+/* Sky from the theme, as the canvas demo paints it: a gradient from the far
+ * colour at the top of the screen to the near one at the bottom, so the level
+ * fades into its own horizon. A flat sky[0] here made every theme a shade
+ * colder overhead and harder at the horizon than the same level in 2D. A
+ * background texture fills the viewport whatever the camera does, which is
+ * the screen-space gradient the canvas draws. The fog keeps the near colour. */
+scene.background = (() => {
+  const top = THEME ? THEME.sky[0] : '#9cc3dc';
+  const low = THEME ? THEME.sky[1] : '#b8d3e4';
+  const c = document.createElement('canvas');
+  c.width = 1; c.height = 256;
+  const g = c.getContext('2d');
+  const grad = g.createLinearGradient(0, 0, 0, 256);
+  grad.addColorStop(0, top);
+  grad.addColorStop(1, low);
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 1, 256);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+})();
 scene.fog = new THREE.Fog(THEME ? THEME.sky[1] : '#b8d3e4', 16, 40);
 const camera = sideCamera(innerWidth / innerHeight, viewHeight());
-plushLighting(scene);
+// The room's own light, so he looks like he is standing in it.
+plushLighting(scene, (THEME && THEME.light) || {});
 
 // --- level ---------------------------------------------------------------
 // A side-on orthographic camera only ever sees the front face, so the grass
