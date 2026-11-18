@@ -167,6 +167,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { surface, grassFringe, worldUV, missing as missingSurfaces } from './surfaces.js';
+import { createAmbient, createWater, missing as missingAmbient } from './ambient.js';
 import { Cluckers, sideCamera, resizeSideCamera, plushLighting }
   from './mrcluckers.js';
 
@@ -249,6 +250,8 @@ const look = window.Look ? window.Look.create() : null;
 if (window.Music) window.Music.start(LEVEL.theme);
 
 const coarse = matchMedia('(pointer: coarse)').matches;
+// Asked for less motion: no drifting dust or leaves, still water, still clouds.
+const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 // Phones are fill-rate bound long before they are triangle bound, so cap the
 // pixel ratio harder on touch devices than on desktop.
@@ -685,7 +688,8 @@ if (THEME && THEME.layers) {
           inst.computeBoundingSphere();
           g.add(inst);
           scene.add(g);
-          backdrops.push({ g, speed, step });
+          // Clouds drift on their own, slowly, as well as parallaxing.
+          backdrops.push({ g, speed, step, drift: reducedMotion ? 0 : 0.06 });
           continue;
         }
 
@@ -857,13 +861,8 @@ const vacuums = LEVEL.patrols.map((m) => {
   return g;
 });
 
-const waterMat = new THREE.MeshStandardMaterial({
-  color: '#4a8fbe', roughness: .25, transparent: true, opacity: .75 });
-for (const h of LEVEL.hazards) {
-  const m = new THREE.Mesh(new THREE.BoxGeometry(h.w, h.h, 2.4), waterMat);
-  m.position.set(h.x + h.w / 2, h.y - h.h / 2, 0);
-  scene.add(m);
-}
+// In the theme's own colours now, moving -- see web/ambient.js.
+const water = createWater(scene, LEVEL.hazards, THEME, { reduced: reducedMotion });
 
 // Ginger waits at the goal, facing back down the level so she is looking at
 // him as he arrives.
@@ -1061,6 +1060,10 @@ const shadow = contactShadow(30, 7, 0.30);
 document.title = LEVEL.name + ' - Mr. Cluckers';
 const bird = await Cluckers.load('../assets/model/mrcluckers.glb');
 scene.add(bird.root);
+// Dust in the light indoors, leaves falling outdoors -- see web/ambient.js.
+const ambient = createAmbient(scene, THEME, {
+  coarse, reduced: reducedMotion, pixelRatio: renderer.getPixelRatio() });
+let driftT = 0;
 
 /* What the knocks have done to him. He is one solid mesh, so a split seam is
  * painted rather than modelled: a camera-facing sprite of the same marks the
@@ -1643,6 +1646,12 @@ function placeShadow() {
 }
 
 function update(dt) {
+  // The world's own motion, ahead of every early return: the water does not
+  // stop for the fetch round, and the dust does not stop while he is fished
+  // out of a pond. Pausing still freezes it, because update() is not called.
+  driftT += dt;
+  water.update(dt);
+  ambient.update(dt, camera);
   levelClock += dt;
   // Before the early returns, so the view eases back while he is mid-fall or
   // mid-fetch rather than staying wherever it was left.
@@ -2016,7 +2025,8 @@ function update(dt) {
     // the parallax has travelled. Over one camera unit that nets out to
     // (1 - speed) of movement, which is the parallax, but the tiles never
     // leave the view so only a screenful of them has to exist.
-    L.g.position.x = L.step ? cx - (cx * L.speed) % L.step : cx * (1 - L.speed);
+    const travel = cx * L.speed + driftT * (L.drift || 0);
+    L.g.position.x = L.step ? cx - travel % L.step : cx * (1 - L.speed);
     L.g.position.y = camera.position.y * 0.14;   // a touch of vertical drift
   }
 
@@ -2095,6 +2105,7 @@ window.__renderer = renderer;   // draw calls and triangles, for the perf check
 window.__scene = scene;
 window.__platforms = platformGroup;   // to check they never cover him
 window.__contact = shadow;           // to check his shadow can be seen
+window.__ambient = () => ({ count: ambient.count, missing: [...missingAmbient] });
 window.__missingSurfaces = () => [...missingSurfaces];   // a theme naming no real surface
 window.__sky = THEME ? THEME.sky[0] : null;    // used by the automated input tests
 window.__level = LEVEL; // ditto: the autoplayer needs the route

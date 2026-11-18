@@ -110,6 +110,10 @@ for (const slug of LEVELS) {
     // part drawn flat, with no error -- nothing else here would notice.
     assert.deepEqual(await page.evaluate(() => window.__missingSurfaces()), [],
       `${slug}'s theme names a surface that does not exist`);
+    // Likewise what drifts in the air: a misspelt kind is simply nothing.
+    const amb = await page.evaluate(() => window.__ambient());
+    assert.deepEqual(amb.missing, [], `${slug}'s theme names an ambient kind that does not exist`);
+    assert.ok(amb.count > 0, `${slug}'s theme asks for ambient life and none was made`);
     await page.close();
   });
 
