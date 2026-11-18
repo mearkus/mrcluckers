@@ -106,6 +106,10 @@ for (const slug of LEVELS) {
     assert.ok(seen.meshes > 20, `only ${seen.meshes} meshes -- the level is empty`);
     assert.ok(seen.level, 'the level never named itself');
     assert.deepEqual(page.errors, []);
+    // A theme that names a surface web/surfaces.js does not have gets that
+    // part drawn flat, with no error -- nothing else here would notice.
+    assert.deepEqual(await page.evaluate(() => window.__missingSurfaces()), [],
+      `${slug}'s theme names a surface that does not exist`);
     await page.close();
   });
 
