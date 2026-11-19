@@ -45,6 +45,9 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
+  // `tuft: true` on a posts or blobs layer draws each one as a clump of grass
+  // blades filling the same box instead of a block or an oval -- see tuft().
+  //
   // blobs  -- repeating ellipses: hills, bushes, canopies
   // posts  -- repeating uprights: fence rails, trunks, wainscot
   // band   -- a flat stripe at a fixed height: skirting, a path, a hedge top
@@ -174,7 +177,7 @@
         { kind: 'blobs', color: '#8fbd80', step: 210, rx: 105, ry: 62,
           y: 52, speed: 0.62 },
         { kind: 'posts', color: '#3f6b30', step: 46, w: 7, h: 13,
-          y: -11, speed: 1.3, front: true, alpha: 0.9 },
+          y: -11, speed: 1.3, front: true, alpha: 0.9, tuft: true },
       ],
       // Midday: a high warm sun, sky blue overhead and lawn green underneath.
       light: { sky: '#d9e9f5', ground: '#6d7a5a', hemi: 2.0,
@@ -254,7 +257,7 @@
         { kind: 'blobs', color: '#5f7048', step: 200, rx: 100, ry: 54,
           y: 44, speed: 0.64 },
         { kind: 'posts', color: '#33402a', step: 62, w: 9, h: 14,
-          y: -12, speed: 1.32, front: true, alpha: 0.9 },
+          y: -12, speed: 1.32, front: true, alpha: 0.9, tuft: true },
       ],
       // Going home at sunset: the sun low and off to one side, and a warm rim
       // from the sky behind. Tinted, not coloured -- at full orange he stops
@@ -299,7 +302,7 @@
         { kind: 'blobs', color: '#7fb277', step: 190, rx: 100, ry: 58,
           y: 48, speed: 0.6 },
         { kind: 'blobs', color: '#37692d', step: 120, rx: 26, ry: 12,
-          y: -4, speed: 1.34, front: true, alpha: 0.88 },
+          y: -4, speed: 1.34, front: true, alpha: 0.88, tuft: true },
       ],
       // A bright open day: high sun and a lot of sky.
       light: { sky: '#dcebf6', ground: '#66775a', hemi: 2.0,
@@ -335,6 +338,19 @@
     return (t.parts && t.parts[kind]) || FALLBACK_PARTS[kind] || null;
   }
 
+  /* A clump of grass, for `tuft` layers: blades as triangles in a unit box,
+   * x across and y up from the ground, each [baseLeft, baseRight, tipX, tipY].
+   * The foreground grass in the garden and the lane was a row of dark square
+   * blocks, and the park's a row of ovals; both renderers draw this instead,
+   * from the same list, so the two demos keep agreeing. A tuft is wider than
+   * the post it replaces -- `tw` sets it, in world pixels, or 1.6 x its height. */
+  var TUFT = [
+    [0.00, 0.26, -0.08, 0.68], [0.10, 0.36, 0.18, 1.00], [0.26, 0.50, 0.40, 0.82],
+    [0.42, 0.68, 0.66, 0.98], [0.58, 0.84, 1.04, 0.72], [0.74, 1.00, 0.94, 0.52],
+    [0.30, 0.52, 0.10, 0.46]
+  ];
+  function tuft() { return TUFT; }
+
   /** The section heading for a theme, for grouping on the level select. */
   function where(name) { return get(name).where || 'Elsewhere'; }
 
@@ -342,6 +358,7 @@
     get: get,
     part: part,
     where: where,
+    tuft: tuft,
     names: function () { return Object.keys(THEMES); }
   };
 });

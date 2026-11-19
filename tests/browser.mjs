@@ -42,7 +42,9 @@ export async function launch() {
  * broken demo usually still paints something.
  */
 export async function open(browser, opts = {}) {
-  const page = await browser.newPage({
+  // `opts.context` is any Playwright context option set -- a phone from
+  // playwright's `devices`, say -- and replaces the default desktop window.
+  const page = await browser.newPage(opts.context || {
     viewport: opts.viewport || { width: 1000, height: 620 }
   });
   page.errors = [];

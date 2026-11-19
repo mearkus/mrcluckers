@@ -7,7 +7,7 @@ pull request. There is no staging environment to catch anything they miss.
 cd tests
 npm run rules      # a few seconds, and needs nothing installed
 npm install        # playwright and three, for the rest
-npm run browser    # both renderers, every level, and the routing
+npm run browser    # both renderers, every level, the routing, the phone budget
 npm run assets     # about a minute: rebuild and compare
 npm test           # everything except the assets rebuild
 ```
@@ -23,6 +23,7 @@ nothing else.
 | `rules.test.mjs` | The shared rules: what a knock costs, when a seam goes, what the kibble mends, when the camera peeks |
 | `render.test.mjs` | Both renderers draw every level with no errors, and every shared module is loaded *and* wired up |
 | `routes.test.mjs` | The URLs go where `CLAUDE.md` says, including the fallback when the CDN is blocked |
+| `budget.test.mjs` | What each level costs a phone -- download, draw calls, triangles, textures -- under ceilings, and that adaptive resolution steps down on a slow device and not on a fast one |
 | `assets.check.mjs` | The committed `assets/` are what `build.py` produces today |
 
 **`assets.check.mjs` pins Python 3.11.** The generator's geometry comes out of

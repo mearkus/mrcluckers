@@ -111,6 +111,13 @@ pass, with handedness in the fourth component the way glTF wants it.
 `mirror_x` flips that handedness, which is what keeps the mirrored right-hand
 limbs lit correctly.
 
+The tangents drive the sprite renderer's normal mapping. They are no longer
+written into the glTF (`gltf.TANGENTS`): three.js builds the same frame per
+pixel from screen-space derivatives when a mesh has none, the two render
+identically at game scale, and they were the largest single attribute in
+every file -- with 16-bit indices and byte vertex colour, dropping them took
+the three GLBs from 3.35 MB to 2.27 MB.
+
 ## Sprite metadata
 
 `mrcluckers_side.json` carries the layout plus the numbers a game needs:

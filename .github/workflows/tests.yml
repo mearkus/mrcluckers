@@ -30,7 +30,8 @@ jobs:
       - run: node --test levels.test.mjs rules.test.mjs
         working-directory: tests
 
-  # Both renderers, every level, and the routing between them.
+  # Both renderers, every level, the routing between them, and what each
+  # level costs a phone.
   browser:
     name: Renderers and routes
     # Pinned, not ubuntu-latest: Playwright installs the browser's system
@@ -52,7 +53,7 @@ jobs:
       # differences, and the other two would triple the install for nothing.
       - run: npx playwright install --with-deps chromium
         working-directory: tests
-      - run: node --test --test-concurrency=1 render.test.mjs routes.test.mjs
+      - run: node --test --test-concurrency=1 render.test.mjs routes.test.mjs budget.test.mjs
         working-directory: tests
 
   # A minute of rebuilding, so it does not hold up the checks above.
