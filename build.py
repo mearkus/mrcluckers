@@ -19,7 +19,7 @@ import time
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "tools"))
 
 from mc import anim, ginger, ginger_anim, gltf, obj, png, pose as po  # noqa: E402
-from mc import raster, rig, sprites  # noqa: E402
+from mc import props, raster, rig, sprites  # noqa: E402
 from mc import mesh as ms, texture, vmath as v  # noqa: E402
 
 VIEWS = {
@@ -242,6 +242,39 @@ def build_turnaround(parts, base, out_dir, size=256, steps=8, supersample=3,
     return path
 
 
+def build_props(out_dir, ref_dir, textures=None, maps=None, cell=200):
+    """Scenery, wildlife, kibble and acorns: one GLB, and a sheet to look at."""
+    os.makedirs(out_dir, exist_ok=True)
+    os.makedirs(ref_dir, exist_ok=True)
+    parts = props.build_parts()
+    doc, blob = gltf.build_gltf(parts, props.MATERIALS, base=None, name="Props",
+                                textures=textures, skeleton=props.skeleton())
+    glb = os.path.join(out_dir, "props.glb")
+    size = gltf.write_glb(glb, doc, blob)
+    print("  %-38s %7.1f KB" % ("props.glb", size / 1024.0))
+
+    # One cell per prop, each framed on its own and seen from a little
+    # above and to the side, as the camera half-sees them in a level.
+    skel = props.skeleton()
+    world = po.world_matrices(po.Pose(), skel=skel)
+    names = list(props.PROPS)
+    sheet = bytearray(cell * len(names) * cell * 4)
+    for i, name in enumerate(names):
+        mesh = parts[name].copy()
+        if name == "bird":
+            for w in ("bird_wing_l", "bird_wing_r"):
+                c = parts[w].copy()
+                c.transform(world[w])
+                mesh.merge(c)
+        cam = _fit_camera(mesh, v.deg(-28), v.deg(10), cell, cell, margin=0.18)
+        buf = raster.render(mesh, props.MATERIALS, cell, cell, cam, supersample=3,
+                            outline=0.25, textures=maps)
+        png.blit(sheet, cell * len(names), buf, cell, cell, i * cell, 0)
+    path = os.path.join(ref_dir, "props.png")
+    png.write_rgba(path, cell * len(names), cell, sheet)
+    print("  %-38s %4dx%-4d" % ("props.png", cell * len(names), cell))
+
+
 def _fit_camera(mesh, yaw, pitch, width, height, margin=0.10):
     """A camera that frames `mesh` exactly, whatever pose it is in.
 
@@ -332,12 +365,12 @@ def main():
     ap.add_argument("--levels", default="levels", help="level source directory")
     ap.add_argument("--only",
                     choices=["model", "sprites", "turnaround", "levels", "ginger",
-                             "keyart"],
+                             "keyart", "props"],
                     action="append", help="build only these (repeatable)")
     args = ap.parse_args()
 
     only = set(args.only or ["model", "sprites", "turnaround", "levels",
-                             "ginger", "keyart"])
+                             "ginger", "keyart", "props"])
     print("Mr. Cluckers build")
     t0 = time.time()
 
@@ -376,6 +409,9 @@ def main():
         build_ginger(os.path.join(args.out, "model"),
                      os.path.join(args.out, "reference"), encoded, maps)
         build_ginger_sprites(os.path.join(args.out, "sprites"), maps)
+    if "props" in only:
+        build_props(os.path.join(args.out, "model"),
+                    os.path.join(args.out, "reference"), encoded, maps)
 
     print("  done in %.1fs" % (time.time() - t0))
 

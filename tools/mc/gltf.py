@@ -155,6 +155,7 @@ def _mesh_primitives(mesh, buf, material_index, textured):
     for mat, faces in by_material.items():
         remap = {}
         positions, normals, uvs, tans, indices = [], [], [], [], []
+        colors = []
         for tri in faces:
             for i in tri:
                 j = remap.get(i)
@@ -168,6 +169,9 @@ def _mesh_primitives(mesh, buf, material_index, textured):
                     u, w = mesh.uvs[i]
                     uvs.append((u * texture.REPEAT, w * texture.REPEAT))
                     tans.append(mesh.tans[i] if mesh.tans else (1.0, 0.0, 0.0, 1.0))
+                    if mesh.ao is not None:
+                        a = mesh.ao[i]
+                        colors.append((a, a, a))
                 indices.append(j)
         attrs = {
             "POSITION": buf.add_vec3(positions, minmax=True),
@@ -176,6 +180,10 @@ def _mesh_primitives(mesh, buf, material_index, textured):
         if textured:
             attrs["TEXCOORD_0"] = buf.add_vec2(uvs)
             attrs["TANGENT"] = buf.add_vec4(tans, target=ARRAY_BUFFER)
+        # Baked occlusion as vertex colour (linear, as glTF specifies it):
+        # three.js multiplies COLOR_0 into the material without being asked.
+        if colors:
+            attrs["COLOR_0"] = buf.add_vec3(colors)
         primitives.append({
             "attributes": attrs,
             "indices": buf.add_indices(indices),

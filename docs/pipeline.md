@@ -79,6 +79,21 @@ drive both renderers. The sheen colour is the material's own colour pulled
 toward white and scaled by `fuzz`; hard materials (eyes, beak, nose) get none.
 Blender, Godot and three.js all read the extension.
 
+## Creases
+
+`occlusion.py` bakes how much ambient light reaches each vertex, once, in the
+rest pose: short rays over the hemisphere each vertex faces, stepped through a
+grid the surface has been sampled into, so it stays fast in pure Python and
+deterministic. Both `build_parts()` call it last. The value rides on
+`Mesh.ao` through posing and merging; the glTF writes it as `COLOR_0`, which
+three.js multiplies in by itself, and `raster.py` multiplies its lighting by
+it, so the sheets and the live model darken the same creases.
+
+It is also what found three of his parts inside out: a loft winds its skin by
+the direction its rings are drawn in, and the wings, feet and tail drew theirs
+clockwise. `rig._outward()` turns a part right side out; check a new lofted
+part's normals face away from its centre.
+
 ## UVs and tangents
 
 Nothing here is unwrapped in the usual sense — each primitive knows its own

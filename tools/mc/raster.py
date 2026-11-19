@@ -76,6 +76,8 @@ def render(mesh, materials, width, height, camera, light=None, supersample=3,
     ty = array("f", [0.0] * n_v)
     tz = array("f", [0.0] * n_v)
     tw = array("f", [1.0] * n_v)
+    # Baked occlusion, if the mesh carries it (occlusion.py).
+    occ = array("f", mesh.ao) if getattr(mesh, "ao", None) is not None else None
 
     m00, m01, m02, m03 = view[0]
     m10, m11, m12, m13 = view[1]
@@ -246,9 +248,19 @@ def render(mesh, materials, width, height, camera, light=None, supersample=3,
             if nh > 0.0:
                 spec = (nh ** (12.0 / max(rough, 0.12))) * (1.0 - rough) * 0.9
 
-        r = cr * (ar + lr * diff + fr * fillv) + rim * cr * 0.30 + spec
-        g = cg * (ag + lg * diff + fg * fillv) + rim * cg * 0.30 + spec
-        b = cb * (ab + lb * diff + fb * fillv) + rim * cb * 0.32 + spec
+        r = cr * (ar + lr * diff + fr * fillv) + rim * cr * 0.30
+        g = cg * (ag + lg * diff + fg * fillv) + rim * cg * 0.30
+        b = cb * (ab + lb * diff + fb * fillv) + rim * cb * 0.32
+        if occ is not None:
+            # Creases get less of every light but the highlight, which is
+            # the one thing that does still reach into a fold.
+            o = occ[ia] * w0 + occ[ib] * w1 + occ[ic] * w2
+            r *= o
+            g *= o
+            b *= o
+        r += spec
+        g += spec
+        b += spec
 
         q = p * 4
         buf[q] = 255 if r >= 1.0 else int(r * 255.0 + 0.5) if r > 0 else 0
