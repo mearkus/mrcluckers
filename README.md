@@ -66,9 +66,11 @@ as played — `Anim` handles frame timing, `pickState` is the animation state
 machine, and the draw call shows how to use the anchor so the sprite's feet
 land on the floor.
 
-**`web/index.html` — the live 3D model in three.js.** An orthographic camera
-locked to the same side-on angle as the sprites, so it looks like the sheet
-but animates continuously and lights dynamically. It plays the same levels as
+**`web/index.html` — the live 3D model in three.js.** Side-on like the
+sprites, through a narrow perspective lens raised a little above his plane, so
+you see the tops of the floor, the furniture and the hedges as well as their
+fronts; the painted backdrop is drawn flat behind it. It animates continuously
+and lights dynamically. It plays the same levels as
 the canvas demo, with the same themes, platform kinds, props and rideable
 machines — the two read the same files and the same shared rules, so a level
 is the same place in either. Needs a local server because browsers block

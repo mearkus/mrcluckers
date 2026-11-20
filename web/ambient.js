@@ -197,7 +197,8 @@ export function createAmbient(scene, theme, { coarse = false, reduced = false, p
  * Water that moves: the theme's own colours (the canvas demo's `hazard`),
  * light drifting across it, and a surface that rises and falls.
  */
-export function createWater(scene, hazards, theme, { reduced = false } = {}) {
+export function createWater(scene, hazards, theme,
+                            { reduced = false, front = 1.2, back = -1.2 } = {}) {
   if (!hazards || !hazards.length) return { update() {} };
   const H = (theme && theme.hazard) || {};
   const body = parseColour(H.body || 'rgba(74, 143, 190, .75)', 0.75);
@@ -242,12 +243,14 @@ export function createWater(scene, hazards, theme, { reduced = false } = {}) {
 
   const strips = [];
   for (const h of hazards) {
-    const geo = new THREE.BoxGeometry(h.w, h.h, 2.4);
+    // As deep as the ground either side of it, so a pond is not a hole set
+    // back between two banks.
+    const geo = new THREE.BoxGeometry(h.w, h.h, front - back);
     // One repeat of the streaks per unit of width, whatever the pool's size.
     const uv = geo.attributes.uv;
     for (let i = 0; i < uv.count; i++) uv.setX(i, uv.getX(i) * h.w);
     const m = new THREE.Mesh(geo, mat);
-    m.position.set(h.x + h.w / 2, h.y - h.h / 2, 0);
+    m.position.set(h.x + h.w / 2, h.y - h.h / 2, (front + back) / 2);
     scene.add(m);
 
     // The surface: a thin bright band along the front edge whose top rises
@@ -255,7 +258,7 @@ export function createWater(scene, hazards, theme, { reduced = false } = {}) {
     const seg = Math.max(8, Math.round(h.w * 10));
     const sg = new THREE.PlaneGeometry(h.w, 0.045, seg, 1);
     const s = new THREE.Mesh(sg, surfMat);
-    s.position.set(h.x + h.w / 2, h.y - 0.02, 1.21);
+    s.position.set(h.x + h.w / 2, h.y - 0.02, front + 0.01);
     scene.add(s);
     const p = sg.attributes.position;
     const rest = [];

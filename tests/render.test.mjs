@@ -57,7 +57,7 @@ function seenAt([x, y]) {
       else if (o.isSprite && o.visible) { own.push([o, null]); o.visible = false; }
     });
     const grab = () => {
-      r.render(scene, window.__camera);
+      window.__frame();                 // every pass, as the screen gets it
       const px = new Uint8Array(W * H * 4);
       gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, px);
       return px;
@@ -239,7 +239,7 @@ test('his contact shadow can be seen', async () => {
       const r = window.__renderer, gl = r.getContext();
       const W = gl.drawingBufferWidth, H = gl.drawingBufferHeight;
       const grab = () => {
-        r.render(window.__scene, window.__camera);
+        window.__frame();
         const px = new Uint8Array(W * H * 4);
         gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, px);
         return px;
@@ -256,6 +256,120 @@ test('his contact shadow can be seen', async () => {
   }));
   assert.ok(changed > 500, `his shadow changes ${changed} pixels -- it is not ` +
     `on screen, or it is lying flat where a side-on camera cannot see it`);
+  await page.close();
+});
+
+/* The flat layers are drawn with the flat camera. The world is drawn through
+ * a perspective lens; the backdrop is painted cards whose parallax is driven
+ * by hand, and through that lens they would parallax twice, while the grass
+ * that passes in front of him slid off the floor line onto the earth below
+ * -- both seen in the prototype. So every layer belongs to one of the three
+ * flat passes, and none to the world. */
+test('every backdrop layer is drawn flat', async () => {
+  const page = await open(browser);
+  for (const slug of LEVELS) {
+    await page.goto(`${site.origin}/web/index.html?level=${slug}`);
+    await booted(page);
+    const stray = await page.evaluate(() => {
+      const flat = new Set([window.__farScene, window.__nearScene, window.__overlayScene]);
+      return window.__backdrops.filter((b) => !flat.has(b.g.parent)).length;
+    });
+    assert.equal(stray, 0, `${slug} has ${stray} backdrop layers in the ` +
+      `perspective world, where they parallax twice`);
+  }
+  await page.close();
+});
+
+/* Projected through the world's own camera: where a point lands on screen,
+ * in units of his plane's height, measured up from the bottom. */
+async function projector(page) {
+  await page.evaluate(async () => {
+    const THREE = await import('https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js');
+    window.__screenY = (x, y, z) => {
+      const cam = window.__view(), o = window.__camera;
+      const v = new THREE.Vector3(x, y, z).project(cam);
+      return v.y * ((o.top - o.bottom) / o.zoom) / 2;
+    };
+  });
+}
+
+/* He stands on the floor, not in front of it. Seen from a little above, a
+ * ground that stopped behind his plane began just above his feet, and he
+ * read as standing in front of the ledge. The ground runs forward past him;
+ * this is that its front edge lands at or below his feet on screen. */
+test('he stands on the floor, in every level', async () => {
+  const page = await open(browser);
+  for (const slug of LEVELS) {
+    await page.goto(`${site.origin}/web/index.html?level=${slug}`);
+    await booted(page);
+    await projector(page);
+    const r = await page.evaluate(() => {
+      const L = window.__level, P = window.__player;
+      const floor = L.platforms.find((p) => p.ground && P.x >= p.x && P.x <= p.x + p.w);
+      if (!floor) return null;
+      const i = L.platforms.indexOf(floor);
+      // The ground's front, from the geometry itself rather than a constant.
+      let front = -Infinity;
+      window.__platforms.children[i].traverse((o) => {
+        if (!o.isMesh) return;
+        o.geometry.computeBoundingBox();
+        front = Math.max(front, o.geometry.boundingBox.max.z + o.position.z + o.parent.position.z);
+      });
+      return { feet: window.__screenY(P.x, floor.y, 0),
+               edge: window.__screenY(P.x, floor.y, front) };
+    });
+    if (!r) continue;                       // he starts on a shelf, not the ground
+    assert.ok(r.edge <= r.feet + 1e-3, `${slug}: the floor's front edge is ` +
+      `${(r.edge - r.feet).toFixed(3)} above his feet -- he stands in front of it`);
+  }
+  await page.close();
+});
+
+/* A ledge reads where it is. From above you see a raised platform's top as
+ * well as its front, and its back edge appears higher than the edge he lands
+ * on. That is the price of the lens, and this keeps it small: no more than a
+ * quarter of his height on any raised platform, seen with him level with it
+ * -- which is when you are judging whether you can get onto it. Raise the eye
+ * or widen the lens much past where it is and this fails.
+ *
+ * The camera is put where the game would hold it rather than left to ease
+ * there: the first version moved him and measured at once, so each ledge was
+ * judged from wherever the camera happened to be, sometimes far above it. */
+test('no ledge looks much higher than it is', async (t) => {
+  const page = await open(browser);
+  let worst = 0, where = '';
+  for (const slug of LEVELS) {
+    await page.goto(`${site.origin}/web/index.html?level=${slug}`);
+    await booted(page);
+    await projector(page);
+    const r = await page.evaluate(() => {
+      const L = window.__level;
+      let worst = 0;
+      L.platforms.forEach((p, i) => {
+        if (p.ground) return;
+        let front = -Infinity, back = Infinity;
+        window.__platforms.children[i].traverse((o) => {
+          if (!o.isMesh) return;
+          o.geometry.computeBoundingBox();
+          const z = o.position.z + o.parent.position.z;
+          front = Math.max(front, o.geometry.boundingBox.max.z + z);
+          back = Math.min(back, o.geometry.boundingBox.min.z + z);
+        });
+        // Where the camera sits with him standing level with it: centred
+        // 0.9 above his feet (the follow rule in update()).
+        const x = p.x + p.w / 2, cam = window.__camera.position;
+        const was = cam.clone();
+        cam.set(x, p.y + 0.9, cam.z);
+        worst = Math.max(worst, window.__screenY(x, p.y, back) - window.__screenY(x, p.y, front));
+        cam.copy(was);
+      });
+      return worst;
+    });
+    if (r > worst) { worst = r; where = slug; }
+  }
+  t.diagnostic(`worst: ${worst.toFixed(3)} of his height, in ${where}`);
+  assert.ok(worst <= 0.25, `a ledge in ${where} shows ${worst.toFixed(3)} of top ` +
+    `above the edge he lands on -- more than a quarter of his height`);
   await page.close();
 });
 
