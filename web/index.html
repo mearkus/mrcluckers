@@ -272,7 +272,7 @@ const scene = new THREE.Scene();
  * colder overhead and harder at the horizon than the same level in 2D. A
  * background texture fills the viewport whatever the camera does, which is
  * the screen-space gradient the canvas draws. The fog keeps the near colour. */
-scene.background = (() => {
+const skyTexture = (() => {
   const top = THEME ? THEME.sky[0] : '#9cc3dc';
   const low = THEME ? THEME.sky[1] : '#b8d3e4';
   const c = document.createElement('canvas');
@@ -288,9 +288,39 @@ scene.background = (() => {
   return tex;
 })();
 scene.fog = new THREE.Fog(THEME ? THEME.sky[1] : '#b8d3e4', 16, 40);
+/* The far backdrop, slightly out of focus.
+ *
+ * The layers furthest back -- clouds, the far hills, a window on the far
+ * wall -- are drawn into their own small target at a third of the screen's
+ * resolution, and that is the main scene's background, scaled up smoothly.
+ * Out-of-focus distance is most of what makes a scene read as a little model
+ * seen up close; it also makes those layers a ninth of the pixels to draw,
+ * which is why phones can have them back (they were cut for fill rate). */
+const farScene = new THREE.Scene();
+farScene.background = skyTexture;
+farScene.fog = scene.fog;
+const farRT = new THREE.WebGLRenderTarget(1, 1, {
+  type: THREE.HalfFloatType, minFilter: THREE.LinearFilter,
+  magFilter: THREE.LinearFilter });
+scene.background = farRT.texture;
+const FAR_SPEED = 0.3, FAR_SCALE = 1 / 3;
+const _buf = new THREE.Vector2();
+function renderFrame() {
+  renderer.getDrawingBufferSize(_buf);
+  const w = Math.max(1, Math.round(_buf.x * FAR_SCALE));
+  const h = Math.max(1, Math.round(_buf.y * FAR_SCALE));
+  if (farRT.width !== w || farRT.height !== h) farRT.setSize(w, h);
+  renderer.setRenderTarget(farRT);
+  renderer.render(farScene, camera);
+  renderer.setRenderTarget(null);
+  renderer.render(scene, camera);
+}
 const camera = sideCamera(innerWidth / innerHeight, viewHeight());
 // The room's own light, so he looks like he is standing in it.
 plushLighting(scene, (THEME && THEME.light) || {});
+// The same light on the far layers: a window frame on the far wall is lit,
+// and in an unlit scene it came out black.
+plushLighting(farScene, (THEME && THEME.light) || {});
 
 // --- level ---------------------------------------------------------------
 // A side-on orthographic camera only ever sees the front face, so the grass
@@ -348,8 +378,13 @@ const surfMat = (hex, tex, extra) => {
   const m = new THREE.MeshStandardMaterial({ color: hex, roughness: 0.85 });
   if (s) {
     m.map = s.map;
-    m.bumpMap = s.map;
-    m.bumpScale = BUMP;
+    // Relief on desktop only. Measured at a phone's resolution, the bump on
+    // the platforms alone was a sixth of the frame, for grain finer than a
+    // phone's pixels show; the colour detail stays.
+    if (!coarse) {
+      m.bumpMap = s.map;
+      m.bumpScale = BUMP;
+    }
     // Back up to the palette's brightness on average; see surfaces.js.
     m.color.multiplyScalar(1 / s.mean);
   }
@@ -517,6 +552,37 @@ const PXU = window.Jump.C.PX_PER_HEIGHT;      // world pixels per world unit
  * colour. Layers with `tile` repeat upward, and this is how far. */
 const BACKDROP_TOP = PLATFORMS.reduce((m, p) => Math.max(m, p.y), 0)
                      + MAX_VIEW_H + 2;
+/* Light from above on a flat layer: vertex colour from `lo` at the bottom of
+ * the geometry to `hi` at the top. The layers are unlit, so this is free per
+ * pixel -- the gradient is interpolated, not computed. */
+function shade(geo, lo, hi) {
+  const p = geo.attributes.position;
+  let y0 = Infinity, y1 = -Infinity;
+  for (let i = 0; i < p.count; i++) { y0 = Math.min(y0, p.getY(i)); y1 = Math.max(y1, p.getY(i)); }
+  const c = new Float32Array(p.count * 3);
+  for (let i = 0; i < p.count; i++) {
+    const k = lo + (hi - lo) * (y1 > y0 ? (p.getY(i) - y0) / (y1 - y0) : 1);
+    c[i * 3] = c[i * 3 + 1] = c[i * 3 + 2] = k;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(c, 3));
+  return geo;
+}
+/* A clump of grass `w` by `h`, centred on its box: the blades in
+ * shared/theme.js, darker at the root and lit at the tips. */
+function tuftGeometry(w, h) {
+  const blades = window.Theme ? window.Theme.tuft() : [];
+  const pos = [], col = [];
+  for (const [b0, b1, tx, ty] of blades) {
+    pos.push((b0 - 0.5) * w, -h / 2, 0, (b1 - 0.5) * w, -h / 2, 0,
+             (tx - 0.5) * w, -h / 2 + ty * h, 0);
+    col.push(0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 1.15, 1.15, 1.15);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  return geo;
+}
+
 const backdrops = [];
 if (THEME && THEME.layers) {
   // Wide enough to cover the widest view plus a step either side. The tiles
@@ -525,13 +591,12 @@ if (THEME && THEME.layers) {
   const span = MIN_WORLD_WIDTH * 2 + 8;
   let depth = 0;
   for (const L of THEME.layers) {
-    /* Phones are fill-rate bound long before they are triangle bound, and a
-     * backdrop layer is a screenful of pixels each. The furthest two are also
-     * the most fogged and the least parallaxed -- the ones you would notice
-     * least -- so a touch device does without them. */
-    if (coarse && (L.speed || 0.4) < 0.25) continue;
+    // Phones used to go without the furthest layers, for fill rate. They are
+    // drawn at a ninth of the pixels now (renderFrame), so nobody does.
     const g = new THREE.Group();
     const speed = L.speed === undefined ? 0.4 : L.speed;
+    // Far enough back to go soft: drawn into the small target, not here.
+    const layerScene = (!L.front && speed < FAR_SPEED) ? farScene : scene;
     /* Nearer layers sit nearer. Anything marked `front` comes past him.
      *
      * Two layers at the same speed land on the same z, and then which one is
@@ -573,7 +638,16 @@ if (THEME && THEME.layers) {
         .lerp(new THREE.Color(THEME.sky[L.float ? 0 : 1]), 1 - L.alpha)
         .getHexString();
     }
-    const lm = new THREE.MeshBasicMaterial({ color: hex });
+    /* Air between here and the hills: outdoors, the further back a layer
+     * is, the more it takes on the horizon colour. Indoors there is no
+     * distance for haze to build up in. Clouds are already the sky's. */
+    if (THEME.where === 'Outdoors' && !L.front && !L.float && speed < 0.5) {
+      hex = '#' + new THREE.Color(hex)
+        .lerp(new THREE.Color(THEME.sky[1]), 0.35 * (0.5 - speed) / 0.5)
+        .getHexString();
+    }
+    // Vertex colour carries each layer's light-from-above gradient (shade()).
+    const lm = new THREE.MeshBasicMaterial({ color: hex, vertexColors: true });
     if (L.front && L.alpha !== undefined && L.alpha < 1) {
       lm.transparent = true; lm.opacity = L.alpha;
     }
@@ -590,7 +664,7 @@ if (THEME && THEME.layers) {
       if (L.front) continue;
       const h = (L.h || 8) / PXU;
       for (let r = 0; r < rows; r++) {
-        const bar = new THREE.Mesh(new THREE.BoxGeometry(span, h, 0.4), lm);
+        const bar = new THREE.Mesh(shade(new THREE.BoxGeometry(span, h, 0.4), 0.94, 1.03), lm);
         bar.position.set(0, y + r * tile - h / 2, 0);
         g.add(bar);
       }
@@ -642,13 +716,15 @@ if (THEME && THEME.layers) {
          * off the bottom of the screen, and he spent the park behind them.
          */
         if (L.float || L.front) {
-          const disc = new THREE.CircleGeometry(1, 24);
+          // A cloud is shaded underneath; a tuft is blades (tuftGeometry).
+          const disc = L.tuft ? tuftGeometry(L.tw ? L.tw / PXU : 2 * rx, 2 * ry)
+                              : shade(new THREE.CircleGeometry(1, 24), 0.88, 1.06);
           const inst = new THREE.InstancedMesh(disc, lm, n * rows);
           const t = new THREE.Object3D();
           for (let r = 0; r < rows; r++) {
             for (let i = 0; i < n; i++) {
               t.position.set(-half + i * step, y + r * tile, 0);
-              t.scale.set(rx, ry, 1);
+              if (L.tuft) t.scale.set(1, 1, 1); else t.scale.set(rx, ry, 1);
               t.updateMatrix();
               inst.setMatrixAt(r * n + i, t.matrix);
             }
@@ -656,17 +732,21 @@ if (THEME && THEME.layers) {
           inst.instanceMatrix.needsUpdate = true;
           inst.computeBoundingSphere();
           g.add(inst);
-          scene.add(g);
+          layerScene.add(g);
           // Clouds drift on their own, slowly, as well as parallaxing.
           backdrops.push({ g, speed, step, drift: reducedMotion ? 0 : 0.06 });
           continue;
         }
 
-        const STEPS = 160;
+        /* Built as a strip rather than a filled outline, three rows deep: the
+         * skyline, a line a little under it, and the bottom. That middle row
+         * is what lets the top of a hill catch the light and darken into its
+         * body -- as one filled shape the only vertices were the skyline and
+         * fourteen units below it, and a gradient between those is flat. */
+        const STEPS = 160, BAND = 0.9;
         for (let r = 0; r < rows; r++) {
           const dy = r * tile;
-          const shape = new THREE.Shape();
-          shape.moveTo(-half, y - 14 + dy);
+          const pos = [], col = [], idx = [];
           for (let i = 0; i <= STEPS; i++) {
             const px = -half + (span * i) / STEPS;
             // The tallest ellipse over this x wins; that union is the skyline.
@@ -676,21 +756,33 @@ if (THEME && THEME.layers) {
               const d = Math.abs(px - (-half + k * step));
               if (d < rx) top = Math.max(top, y + ry * Math.sqrt(1 - (d / rx) ** 2));
             }
-            shape.lineTo(px, top + dy);
+            const mid = Math.max(y - 14, top - BAND);
+            pos.push(px, top + dy, 0, px, mid + dy, 0, px, y - 14 + dy, 0);
+            col.push(1.07, 1.07, 1.07, 0.93, 0.93, 0.93, 0.93, 0.93, 0.93);
+            if (i > 0) {
+              const a = (i - 1) * 3, b = i * 3;
+              idx.push(a, a + 1, b, b, a + 1, b + 1, a + 1, a + 2, b + 1, b + 1, a + 2, b + 2);
+            }
           }
-          shape.lineTo(half, y - 14 + dy);
-          shape.closePath();
-          g.add(new THREE.Mesh(new THREE.ShapeGeometry(shape), lm));
+          const geo = new THREE.BufferGeometry();
+          geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+          geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+          geo.setIndex(idx);
+          g.add(new THREE.Mesh(geo, lm));
         }
-        scene.add(g);
+        layerScene.add(g);
         backdrops.push({ g, speed, step });
         continue;
       }
       let geo;
       if (L.kind === 'panes') {
-        geo = new THREE.BoxGeometry((L.w || 140) / PXU, (L.h || 180) / PXU, 0.3);
+        geo = shade(new THREE.BoxGeometry((L.w || 140) / PXU, (L.h || 180) / PXU, 0.3),
+                    0.9, 1.04);
+      } else if (L.tuft) {                       // grass in front of him
+        geo = tuftGeometry((L.tw || (L.h || 60) * 1.6) / PXU, (L.h || 60) / PXU);
       } else {                                   // posts
-        geo = new THREE.BoxGeometry((L.w || 10) / PXU, (L.h || 60) / PXU, 0.3);
+        geo = shade(new THREE.BoxGeometry((L.w || 10) / PXU, (L.h || 60) / PXU, 0.3),
+                    0.88, 1.04);
       }
       const inst = new THREE.InstancedMesh(geo, lm, n * rows);
       const t = new THREE.Object3D();
@@ -734,7 +826,7 @@ if (THEME && THEME.layers) {
         g.add(fi);
       }
     }
-    scene.add(g);
+    layerScene.add(g);
     backdrops.push({ g, speed, step: L.kind === 'band' ? 0
                                    : (L.step || 200) / 2 / PXU });
   }
@@ -834,8 +926,14 @@ const water = createWater(scene, LEVEL.hazards, THEME, { reduced: reducedMotion 
 // Ginger waits at the goal, facing back down the level so she is looking at
 // him as he arrives.
 let ginger = null, gingerShadow = null, distraction = null;
+/* Her file, fetched and parsed once. The other dog at the park and the one in
+ * the fetch round are both her, darkened, and each used to load the whole
+ * file again -- up to three copies of the same megabyte and three parses on
+ * a phone. She takes the original; they take clones (see loadOtherDog). */
+const gingerAsset = (LEVEL.goal || (LEVEL.thieves || []).length)
+  ? new GLTFLoader().loadAsync('../assets/model/ginger.glb') : null;
 if (LEVEL.goal) {
-  const gltf = await new GLTFLoader().loadAsync('../assets/model/ginger.glb');
+  const gltf = await gingerAsset;
   const pivot = new THREE.Group();
   pivot.rotation.y = -Math.PI / 2;
   pivot.add(gltf.scene);
@@ -923,7 +1021,11 @@ const critterMeshes = distraction ? distraction.critters.map((c) => {
 // The other dog at the park: the same model, darkened so nobody mistakes it
 // for Ginger, driven by the `trot` clip she just gained.
 async function loadOtherDog() {
-  const gltf = await new GLTFLoader().loadAsync('../assets/model/ginger.glb');
+  // A copy of her parsed scene -- the parts are rigid nodes, not a skinned
+  // mesh, so a plain clone carries everything the clips animate. The tint
+  // below clones the materials, so she keeps her own colours.
+  const src = await gingerAsset;
+  const gltf = { scene: src.scene.clone(true), animations: src.animations };
   let tinted = 0;
   gltf.scene.traverse((o) => {
     if (!o.isMesh || !o.material) return;
@@ -2003,12 +2105,39 @@ function onResize() {
 addEventListener('resize', onResize);
 addEventListener('orientationchange', () => setTimeout(onResize, 120));
 
+/* Adaptive resolution: if this device cannot keep up, draw fewer pixels.
+ *
+ * Every check here runs on a desktop-sized software renderer, which says
+ * nothing about a particular phone. The game can measure the phone it is
+ * actually on: frames slower than 40 a second for two seconds together step
+ * the pixel ratio down a quarter, as far as 0.75 on a touch device or 1 on
+ * anything else. It only ever steps down -- coming back up would see-saw --
+ * and it ignores the first three seconds (loading hitches) and any frame
+ * long enough to be the tab coming back from the background. */
+const RATIO_MIN = coarse ? 0.75 : 1;
+let ratio = renderer.getPixelRatio(), slowFor = 0, aliveFor = 0;
+function adaptResolution(frameMs) {
+  if (frameMs > 250) return ratio;                 // backgrounded, not slow
+  aliveFor += frameMs / 1000;
+  if (aliveFor < 3) return ratio;
+  if (frameMs > 1000 / 40) slowFor += frameMs / 1000;
+  else slowFor = Math.max(0, slowFor - frameMs / 2000);
+  if (slowFor > 2 && ratio > RATIO_MIN) {
+    ratio = Math.max(RATIO_MIN, ratio - 0.25);
+    renderer.setPixelRatio(ratio);
+    renderer.setSize(innerWidth, innerHeight);
+    slowFor = 0;
+  }
+  return ratio;
+}
+
 let last = performance.now(), acc = 0, frames = 0;
 renderer.setAnimationLoop((now) => {
+  if (!window.__fixedResolution) adaptResolution(now - last);
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   if (!paused) update(dt);        // still drawn, so the frozen frame shows
-  renderer.render(scene, camera);
+  renderFrame();
   acc += dt; frames++;
   if (acc > 0.5) {
     document.getElementById('fps').textContent = Math.round(frames / acc);
@@ -2026,6 +2155,9 @@ window.__platforms = platformGroup;   // to check they never cover him
 window.__contact = shadow;           // to check his shadow can be seen
 window.__ambient = () => ({ count: ambient.count, missing: [...missingAmbient] });
 window.__missingProps = () => [...missingProps];   // prop kinds props.glb lacks
+window.__adapt = adaptResolution;    // to feed it frame times in the checks
+window.__frame = renderFrame;        // a whole frame, far pass included
+window.__farScene = farScene;
 window.__missingSurfaces = () => [...missingSurfaces];   // a theme naming no real surface
 window.__sky = THEME ? THEME.sky[0] : null;    // used by the automated input tests
 window.__level = LEVEL; // ditto: the autoplayer needs the route

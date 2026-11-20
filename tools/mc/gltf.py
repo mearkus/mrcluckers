@@ -15,6 +15,8 @@ from . import vmath as v
 
 FLOAT = 5126
 UNSIGNED_INT = 5125
+UNSIGNED_SHORT = 5123
+UNSIGNED_BYTE = 5121
 ARRAY_BUFFER = 34962
 ELEMENT_ARRAY_BUFFER = 34963
 REPEAT = 10497
@@ -116,6 +118,22 @@ class _Buffer:
         })
         return len(self.accessors) - 1
 
+    def add_color_u8(self, values):
+        """Vertex colour as normalised bytes, RGBA: a quarter the size of
+        floats, and four bytes keeps each element aligned as glTF requires."""
+        payload = bytearray()
+        for r, g, b in values:
+            payload += struct.pack("<BBBB", *(max(0, min(255, int(round(c * 255))))
+                                             for c in (r, g, b, 1.0)))
+        self.accessors.append({
+            "bufferView": self.add_view(payload, ARRAY_BUFFER),
+            "componentType": UNSIGNED_BYTE,
+            "normalized": True,
+            "count": len(values),
+            "type": "VEC4",
+        })
+        return len(self.accessors) - 1
+
     def add_scalar(self, values, minmax=True):
         payload = bytearray()
         for x in values:
@@ -133,16 +151,22 @@ class _Buffer:
         return len(self.accessors) - 1
 
     def add_indices(self, values):
+        # Sixteen bits when they fit, which for one primitive of one part is
+        # always: half the bytes of the index buffers, for nothing.
+        short = not values or max(values) < 65536
         payload = bytearray()
         for i in values:
-            payload += struct.pack("<I", i)
+            payload += struct.pack("<H" if short else "<I", i)
         self.accessors.append({
             "bufferView": self.add_view(payload, ELEMENT_ARRAY_BUFFER),
-            "componentType": UNSIGNED_INT,
+            "componentType": UNSIGNED_SHORT if short else UNSIGNED_INT,
             "count": len(values),
             "type": "SCALAR",
         })
         return len(self.accessors) - 1
+
+
+TANGENTS = False
 
 
 def _mesh_primitives(mesh, buf, material_index, textured):
@@ -179,11 +203,12 @@ def _mesh_primitives(mesh, buf, material_index, textured):
         }
         if textured:
             attrs["TEXCOORD_0"] = buf.add_vec2(uvs)
-            attrs["TANGENT"] = buf.add_vec4(tans, target=ARRAY_BUFFER)
+            if TANGENTS:
+                attrs["TANGENT"] = buf.add_vec4(tans, target=ARRAY_BUFFER)
         # Baked occlusion as vertex colour (linear, as glTF specifies it):
         # three.js multiplies COLOR_0 into the material without being asked.
         if colors:
-            attrs["COLOR_0"] = buf.add_vec3(colors)
+            attrs["COLOR_0"] = buf.add_color_u8(colors)
         primitives.append({
             "attributes": attrs,
             "indices": buf.add_indices(indices),

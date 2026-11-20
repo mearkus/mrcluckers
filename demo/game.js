@@ -977,7 +977,32 @@
     ctx.restore();
   }
 
+  /* A clump of grass blades filling a box, for `tuft` layers: the same blade
+   * list the three.js demo builds its tufts from (shared/theme.js). */
+  function drawTuft(x, top, tw, th) {
+    var blades = window.Theme ? window.Theme.tuft() : [];
+    ctx.beginPath();
+    for (var b = 0; b < blades.length; b++) {
+      var q = blades[b];
+      ctx.moveTo(x + q[0] * tw, top + th);
+      ctx.lineTo(x + q[1] * tw, top + th);
+      ctx.lineTo(x + q[2] * tw, top + th - q[3] * th);
+      ctx.closePath();
+    }
+    ctx.fill();
+  }
+
   function drawRow(L, w, y, step, shift) {
+    if (L.tuft && (L.kind === "posts" || L.kind === "blobs")) {
+      var blob = L.kind === "blobs";
+      var th = (blob ? 2 * (L.ry || 70) : (L.h || 60)) * SCALE;
+      var tw = (L.tw || (blob ? 2 * (L.rx || 120) : (L.h || 60) * 1.6)) * SCALE;
+      var top = blob ? y - th / 2 : y;
+      for (var t = -1; t < Math.ceil(w / step) + 2; t++) {
+        drawTuft(t * step - shift - (blob ? tw / 2 : 0), top, tw, th);
+      }
+      return;
+    }
     if (L.kind === "band") {
       ctx.fillRect(0, y, w, Math.max(1, (L.h || 8) * SCALE));
     } else if (L.kind === "blobs") {
