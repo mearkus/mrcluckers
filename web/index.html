@@ -287,7 +287,10 @@ const skyTexture = (() => {
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
 })();
-scene.fog = new THREE.Fog(THEME ? THEME.sky[1] : '#b8d3e4', 16, 40);
+const FOG_COLOR = THEME ? THEME.sky[1] : '#b8d3e4', FOG_NEAR = 16, FOG_FAR = 40;
+// The 3D world's fog is moved out with its camera every frame (syncView);
+// the flat layers keep theirs where it always was.
+scene.fog = new THREE.Fog(FOG_COLOR, FOG_NEAR, FOG_FAR);
 /* The far backdrop, slightly out of focus.
  *
  * The layers furthest back -- clouds, the far hills, a window on the far
@@ -298,12 +301,56 @@ scene.fog = new THREE.Fog(THEME ? THEME.sky[1] : '#b8d3e4', 16, 40);
  * which is why phones can have them back (they were cut for fill rate). */
 const farScene = new THREE.Scene();
 farScene.background = skyTexture;
-farScene.fog = scene.fog;
+farScene.fog = new THREE.Fog(FOG_COLOR, FOG_NEAR, FOG_FAR);
 const farRT = new THREE.WebGLRenderTarget(1, 1, {
   type: THREE.HalfFloatType, minFilter: THREE.LinearFilter,
   magFilter: THREE.LinearFilter });
-scene.background = farRT.texture;
 const FAR_SPEED = 0.3, FAR_SCALE = 1 / 3;
+/* The rest of the flat backdrop -- fences, rails, studs, pictures -- at full
+ * resolution over the soft far one, and the layers that pass in front of him
+ * (grass), drawn last over everything. */
+const nearScene = new THREE.Scene();
+nearScene.background = farRT.texture;
+nearScene.fog = new THREE.Fog(FOG_COLOR, FOG_NEAR, FOG_FAR);
+const overlayScene = new THREE.Scene();
+
+/* Two cameras.
+ *
+ * `camera` is the orthographic one every rule in this file was written
+ * against: it follows him, lifts toward a perch, looks down a drop, and its
+ * frustum is what "in shot" means. Nothing about it changed.
+ *
+ * `view` is what the 3D world is actually drawn with: a narrow perspective
+ * lens, set back so that his plane is framed exactly as `camera` frames it,
+ * and raised a little to look down onto it. Raised, you see the tops of
+ * things -- the floor he walks on, the table, the hedge -- which side-on and
+ * orthographic you never could; it is what makes a level read as a model on
+ * a table rather than a strip of cut-outs. Narrow, so that depth does not
+ * distort what jumping reads as: his plane is framed exactly, and a ledge's
+ * top shows at most about an eighth of his height above the edge you land on.
+ *
+ * The flat backdrop layers keep the orthographic camera. They are painted
+ * cards with their parallax driven by hand; through a perspective lens they
+ * would parallax twice, and the grass in front of him would slide off the
+ * floor line -- both found by prototyping the lens before building it. */
+const VIEW_FOV = 16, VIEW_RAISE = 1.3;
+const view = new THREE.PerspectiveCamera(VIEW_FOV, 1, 0.1, 400);
+function syncView() {
+  const viewH = (camera.top - camera.bottom) / camera.zoom;
+  // Distance from the eye to the point it looks at, for his plane to be
+  // exactly viewH tall; then split into back and up.
+  const dist = (viewH / 2) / Math.tan(THREE.MathUtils.degToRad(VIEW_FOV / 2));
+  const back = Math.sqrt(Math.max(1, dist * dist - VIEW_RAISE * VIEW_RAISE));
+  view.aspect = (camera.right - camera.left) / (camera.top - camera.bottom);
+  view.position.set(camera.position.x, camera.position.y + VIEW_RAISE, back);
+  view.lookAt(camera.position.x, camera.position.y, 0);
+  view.updateProjectionMatrix();
+  // Fog was tuned for a camera ten units out; keep it the same distance
+  // from his plane wherever the lens is.
+  scene.fog.near = FOG_NEAR + (back - 10);
+  scene.fog.far = FOG_FAR + (back - 10);
+}
+
 const _buf = new THREE.Vector2();
 function renderFrame() {
   renderer.getDrawingBufferSize(_buf);
@@ -311,20 +358,29 @@ function renderFrame() {
   const h = Math.max(1, Math.round(_buf.y * FAR_SCALE));
   if (farRT.width !== w || farRT.height !== h) farRT.setSize(w, h);
   renderer.setRenderTarget(farRT);
-  renderer.render(farScene, camera);
+  renderer.render(farScene, camera);              // far cards, soft
   renderer.setRenderTarget(null);
-  renderer.render(scene, camera);
+  renderer.render(nearScene, camera);             // near cards over them
+  renderer.autoClear = false;
+  renderer.clearDepth();
+  syncView();
+  renderer.render(scene, view);                   // the world, in depth
+  renderer.clearDepth();
+  renderer.render(overlayScene, camera);          // grass in front of him
+  renderer.autoClear = true;
 }
 const camera = sideCamera(innerWidth / innerHeight, viewHeight());
 // The room's own light, so he looks like he is standing in it.
 plushLighting(scene, (THEME && THEME.light) || {});
-// The same light on the far layers: a window frame on the far wall is lit,
-// and in an unlit scene it came out black.
+// The same light on the flat layers: a window frame on the wall is lit, and
+// in an unlit scene it came out black.
 plushLighting(farScene, (THEME && THEME.light) || {});
+plushLighting(nearScene, (THEME && THEME.light) || {});
 
 // --- level ---------------------------------------------------------------
-// A side-on orthographic camera only ever sees the front face, so the grass
-// is a separate cap sitting proud of the dirt rather than a top-face material.
+// The grass along a ledge is a strip with blades over the earth below it, and
+// the top is its own thin slab of floor -- seen from a little above, both
+// show; see the ledge pieces below.
 const G = (THEME && THEME.ground) ||
           { dirt: '#6b4b34', edge: '#7d5940', cap: '#5da041', lip: '#7cc55e' };
 const dirtMat = new THREE.MeshStandardMaterial({ color: G.dirt, roughness: 1 });
@@ -341,19 +397,23 @@ const mat = (hex, rough = 0.85) => {
  * of here. The canvas demo draws these five in 2D -- these are the same five
  * as solids, so a level reads as the same place in either demo rather than
  * as a row of identical slabs in one of them. */
-/* Every platform stands *behind* him, never around him.
+/* Raised platforms stand *behind* him; the ground runs out in front of him.
  *
  * A platform is only solid from above -- he lands on its top and walks
  * straight through its body -- and the canvas demo draws every platform
  * before him, so walking through a bush or past a crate he is in front of it.
- * Here each one was a box centred on his plane, so the same walk put him
- * inside a solid: in the park he disappeared into the bush that sits on the
- * ground halfway along, completely, for as long as it took to cross it.
+ * Each was once a box centred on his plane, so the same walk put him inside a
+ * solid: in the park he disappeared into the bush halfway along. So every
+ * raised platform sits back until its front face clears his wingtips.
  *
- * The camera is orthographic and side-on, so how far back a thing is cannot
- * be seen -- only what it covers. Sliding each platform back until its front
- * face clears his wingtips changes nothing in the picture but that. */
+ * The ground is the one kind he is never inside: nothing stands in a ground
+ * body (tests/rules.test.mjs holds every level to that), so it is free to run
+ * forward past him. It has to, now the world is seen from a little above:
+ * stopping behind him, the floor's top began just above his feet and he
+ * stood in front of it rather than on it, and the props marked `front` stood
+ * on nothing at all. GROUND_FRONT is past the front props (z 1.5). */
 const PLAY_CLEAR = 0.55;      // his wingtips are about half a unit either side
+const GROUND_FRONT = 1.75, GROUND_BACK = -2.5;
 
 /* What each piece is made of, and how soft its edges are.
  *
@@ -394,13 +454,13 @@ const surfMat = (hex, tex, extra) => {
 };
 /* One piece of a platform. `r` is its corner radius, clamped to what fits;
  * zero is a plain box. */
-const piece = (g, w, h, d, hex, x, y, { r = 0, tex = null, seg = 2 } = {}) => {
+const piece = (g, w, h, d, hex, x, y, { r = 0, tex = null, seg = 2, z = 0 } = {}) => {
   const geo = r > 0.004 ? new RoundedBoxGeometry(w, h, d, seg, r)
                         : new THREE.BoxGeometry(w, h, d);
   const s = tex ? surface(tex, TEX_SIZE) : null;
   if (s) worldUV(geo, x, y, s.tile);
   const m = new THREE.Mesh(geo, surfMat(hex, tex));
-  m.position.set(x, y, 0);
+  m.position.set(x, y, z);
   g.add(m);
   return m;
 };
@@ -419,7 +479,7 @@ const tube = (g, r, len, hex, x, y, tex) => {
  * earth below it, cut out with an alpha test. Mapped across its own height
  * so the tips land on its bottom edge wherever the ledge is. */
 const FRINGE = 0.11;
-const grassCap = (g, w, d, hex, x, top) => {
+const grassCap = (g, w, d, hex, x, top, z = 0) => {
   const H = GRASS + FRINGE;
   const f = grassFringe(TEX_SIZE, GRASS / H);
   const geo = new THREE.BoxGeometry(w, H, d);
@@ -428,7 +488,7 @@ const grassCap = (g, w, d, hex, x, top) => {
     uv.setXY(i, (pos.getX(i) + x) / f.tile, (pos.getY(i) + H / 2) / H);
   }
   const m = new THREE.Mesh(geo, surfMat(hex, 'grass', f));
-  m.position.set(x, top - H / 2, 0);
+  m.position.set(x, top - H / 2, z);
   g.add(m);
   return m;
 };
@@ -437,12 +497,13 @@ const GT = (G && G.tex) || {};
 const platformGroup = new THREE.Group();
 scene.add(platformGroup);
 for (const p of PLATFORMS) {
-  const depth = p.ground ? 3 : 1.2;
+  const depth = p.ground ? GROUND_FRONT - GROUND_BACK : 1.2;
   const cx = p.x + p.w / 2;
   const C = part(p.kind);
   const g = new THREE.Group();
   // The widest piece of any platform is the depth plus 0.08 (the grass lip).
-  g.position.z = -(depth / 2 + 0.04 + PLAY_CLEAR);
+  g.position.z = p.ground ? (GROUND_FRONT + GROUND_BACK) / 2 - 0.04
+                          : -(depth / 2 + 0.04 + PLAY_CLEAR);
   platformGroup.add(g);
   const T = (C && C.tex) || null;
 
@@ -489,13 +550,24 @@ for (const p of PLATFORMS) {
     piece(g, p.w - 0.06, 0.05, r * 1.1, C.top, cx, p.y - 0.02, { r: 0.02, tex: T });
   } else {
     // `ledge` -- ground, walls, shelves. What every platform used to be.
-    piece(g, p.w, p.h, depth, G.dirt, cx, p.y - p.h / 2, { r: 0.06, tex: GT.dirt });
+    /* Three pieces once shared this top face exactly -- earth, turf and lip,
+     * each the full depth -- which nothing could see side-on. From a little
+     * above they fought over it, and the floor came out as earth with a
+     * green line along the front. Now the earth stops just short, the top
+     * is one thin slab of the theme's floor mapped in plan (grass, boards,
+     * tile), and the turf and the lip are strips along the front edge,
+     * each a hair proud of the last so none of them tie. */
+    const front = depth / 2;
+    piece(g, p.w, p.h - 0.02, depth, G.dirt, cx, p.y - 0.02 - (p.h - 0.02) / 2,
+          { r: 0.06, tex: GT.dirt });
+    piece(g, p.w, 0.02, depth + 0.04, G.cap, cx, p.y - 0.01, { tex: GT.cap });
     if (GT.cap === 'grass') {
-      grassCap(g, p.w, depth + 0.06, G.cap, cx, p.y);
+      grassCap(g, p.w, 0.08, G.cap, cx, p.y - 0.002, front + 0.02);
     } else {
-      piece(g, p.w, GRASS, depth + 0.06, G.cap, cx, p.y - GRASS / 2, { tex: GT.cap });
+      piece(g, p.w, GRASS, 0.08, G.cap, cx, p.y - 0.002 - GRASS / 2,
+            { tex: GT.cap, z: front + 0.02 });
     }
-    piece(g, p.w, 0.04, depth + 0.08, G.lip, cx, p.y - 0.02);
+    piece(g, p.w, 0.04, 0.1, G.lip, cx, p.y + 0.003 - 0.02, { z: front + 0.03 });
   }
 }
 
@@ -535,7 +607,7 @@ for (const d of LEVEL.props) {
 
 /* The parallax backdrop, from the same theme the canvas demo paints.
  *
- * The camera here is orthographic, so putting a layer further away buys
+ * The backdrop's camera is orthographic, so putting a layer further away buys
  * nothing on its own -- there is no perspective divide, and a thing at z=-10
  * tracks the camera exactly like a thing at z=0. So the parallax is driven by
  * hand, as it is in 2D: a layer sits at `camX * (1 - speed)`, which leaves
@@ -596,7 +668,8 @@ if (THEME && THEME.layers) {
     const g = new THREE.Group();
     const speed = L.speed === undefined ? 0.4 : L.speed;
     // Far enough back to go soft: drawn into the small target, not here.
-    const layerScene = (!L.front && speed < FAR_SPEED) ? farScene : scene;
+    const layerScene = L.front ? overlayScene
+                     : speed < FAR_SPEED ? farScene : nearScene;
     /* Nearer layers sit nearer. Anything marked `front` comes past him.
      *
      * Two layers at the same speed land on the same z, and then which one is
@@ -832,23 +905,18 @@ if (THEME && THEME.layers) {
   }
 }
 
-/* Contact shadows: his, and Ginger's, as the canvas demo draws them.
+/* Contact shadows: his, and Ginger's, lying on the floor.
  *
- * These were discs lying flat on the floor -- and the camera is side-on and
- * orthographic, so it saw them exactly edge-on. Measured with and without:
- * zero pixels changed, in every level. Neither dog has had a shadow here
- * since the three.js demo was written, while the sprite demo always drew one.
+ * They began as discs flat on the floor, which the old side-on orthographic
+ * camera saw exactly edge-on: zero pixels, in every level, for the life of
+ * the three.js demo. They then stood up to face that camera. The world is
+ * drawn from a little above now (see `view`), so the floor can be seen and
+ * they lie on it again -- as wide as the canvas demo's, shrinking and fading
+ * as he rises by its numbers, soft at the rim.
  *
- * So each is an ellipse facing the camera, straddling the floor line, the
- * size the canvas demo uses (authored in its world pixels), soft at the rim.
- * It sits just in front of the platforms -- which stand behind his plane --
- * and just behind him.
- *
- * Real shadow maps were tried first and are not here. The camera sees every
- * floor edge-on, so a cast shadow that should lie under him cannot be seen;
- * what can be seen is the same shadow carried on down the face of the ledge
- * behind him, a rooster-shaped smear in the earth below his feet. */
-const SHADOW_Z = -0.5;
+ * Real shadow maps were tried and are not here: cast from each theme's key,
+ * most of his shadow fell down the face of the ledge behind him, a
+ * rooster-shaped smear in the earth below his feet. */
 const shadowTex = (() => {
   const c = document.createElement('canvas');
   c.width = c.height = 64;
@@ -861,14 +929,17 @@ const shadowTex = (() => {
   g.fillRect(0, 0, 64, 64);
   return new THREE.CanvasTexture(c);
 })();
-function contactShadow(rxPx, ryPx, opacity) {
+// How far front-to-back a shadow reaches, as a share of its width: he and
+// she are both narrower through than across, seen side-on.
+const SHADOW_DEPTH = 0.75;
+function contactShadow(rxPx, opacity) {
   const m = new THREE.Mesh(new THREE.PlaneGeometry(2, 2),
     new THREE.MeshBasicMaterial({ color: 0x141e14, alphaMap: shadowTex,
                                   transparent: true, opacity, depthWrite: false }));
-  m.userData.r = [rxPx / PXU, ryPx / PXU];
+  m.rotation.x = -Math.PI / 2;                       // flat on the floor
+  m.userData.r = [rxPx / PXU, SHADOW_DEPTH * rxPx / PXU];
   m.userData.opacity = opacity;
   m.scale.set(m.userData.r[0], m.userData.r[1], 1);
-  m.position.z = SHADOW_Z;
   scene.add(m);
   return m;
 }
@@ -876,7 +947,7 @@ function contactShadow(rxPx, ryPx, opacity) {
  * Shrinks and fades as he rises, by the canvas demo's numbers (220px). */
 function placeContact(sh, x, floor, gap) {
   const t = Math.max(0, 1 - gap / (220 / PXU));
-  sh.position.set(x, floor + 2 / PXU, SHADOW_Z);
+  sh.position.set(x, floor + 0.006, 0);
   sh.scale.set(sh.userData.r[0] * (0.5 + 0.5 * t), sh.userData.r[1] * (0.4 + 0.6 * t), 1);
   sh.material.opacity = sh.userData.opacity * t;
 }
@@ -921,7 +992,8 @@ const vacuums = LEVEL.patrols.map((m) => {
 });
 
 // In the theme's own colours now, moving -- see web/ambient.js.
-const water = createWater(scene, LEVEL.hazards, THEME, { reduced: reducedMotion });
+const water = createWater(scene, LEVEL.hazards, THEME, {
+  reduced: reducedMotion, front: GROUND_FRONT, back: GROUND_BACK });
 
 // Ginger waits at the goal, facing back down the level so she is looking at
 // him as he arrives.
@@ -965,8 +1037,8 @@ if (LEVEL.goal) {
   }
   ginger = { root, mixer, play };
 
-  gingerShadow = contactShadow(52, 10, 0.26);
-  gingerShadow.position.set(LEVEL.goal.x, LEVEL.goal.y + 2 / PXU, SHADOW_Z);
+  gingerShadow = contactShadow(52, 0.26);
+  gingerShadow.position.set(LEVEL.goal.x, LEVEL.goal.y + 0.006, 0);
 }
 
 // The wildlife. Each critter has an authored perch somewhere in the level,
@@ -1075,8 +1147,8 @@ for (const spec of (LEVEL.thieves || [])) {
 const rivalDog = LEVEL.goal && window.Bonus ? await loadOtherDog() : null;
 if (rivalDog) rivalDog.root.visible = false;
 
-// His contact shadow; see contactShadow() for why it stands up.
-const shadow = contactShadow(30, 7, 0.30);
+// His contact shadow, on the floor under him; see contactShadow().
+const shadow = contactShadow(30, 0.30);
 
 document.title = LEVEL.name + ' - Mr. Cluckers';
 const bird = await Cluckers.load('../assets/model/mrcluckers.glb');
@@ -1434,8 +1506,8 @@ function startBonus() {
   measureBonus();
   onResize();
 
-  // Where he will land, drawn *up* off the ground: this camera is side-on
-  // and orthographic, so anything lying flat is edge-on and invisible.
+  // Where he will land, drawn *up* off the ground: the world is seen from
+  // only a little above, so a ring lying flat would be a sliver.
   if (!catchRing) {
     const R = bonus.cfg.catchRadius;
     catchRing = new THREE.Mesh(
@@ -2158,6 +2230,9 @@ window.__missingProps = () => [...missingProps];   // prop kinds props.glb lacks
 window.__adapt = adaptResolution;    // to feed it frame times in the checks
 window.__frame = renderFrame;        // a whole frame, far pass included
 window.__farScene = farScene;
+window.__nearScene = nearScene;
+window.__overlayScene = overlayScene;
+window.__view = () => { syncView(); return view; };   // the camera the world is drawn with
 window.__missingSurfaces = () => [...missingSurfaces];   // a theme naming no real surface
 window.__sky = THEME ? THEME.sky[0] : null;    // used by the automated input tests
 window.__level = LEVEL; // ditto: the autoplayer needs the route

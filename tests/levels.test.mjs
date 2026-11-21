@@ -27,6 +27,25 @@ for (const file of files) {
   const slug = file.replace(/\.json$/, '');
   const data = JSON.parse(await readFile(`${ROOT}levels/${file}`, 'utf8'));
 
+  /* The three.js demo runs the ground forward past his plane, so it is a
+   * floor he stands on when seen from a little above -- which is only safe
+   * because he is never *inside* a ground body. Every platform is solid from
+   * above only, so anything whose top sits within a ground's body, over the
+   * same stretch of x, is somewhere he could stand inside that ground with
+   * its front face between him and the camera. */
+  test(`${slug}: nothing stands inside the ground`, () => {
+    for (const p of data.platforms.filter((q) => q.ground)) {
+      for (const q of data.platforms) {
+        if (q === p) continue;
+        const overlap = Math.min(p.x + p.w, q.x + q.w) - Math.max(p.x, q.x);
+        const inside = q.y < p.y && q.y > p.y - (p.h || 1) - 0.01;
+        assert.ok(!(overlap > 0.05 && inside),
+          `a platform at x ${q.x}, y ${q.y} stands inside the ground at x ${p.x} ` +
+          `-- the ground's front face would hide him there`);
+      }
+    }
+  });
+
   test(`${slug} is playable`, () => {
     const r = Level.route(data);
     assert.ok(r, 'route() returned nothing -- is shared/jump.js loadable?');
