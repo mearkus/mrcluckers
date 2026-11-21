@@ -8,6 +8,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 
 // progress.js reads localStorage at require time in a browser; give it one.
@@ -275,6 +276,20 @@ test('only blobs float, and floating ones are up in the sky', () => {
         `${name}: a floating layer at y ${L.y} is not in the sky`);
     }
   }
+});
+
+/* ---- the other dog ------------------------------------------------------ */
+
+/* The canvas demo draws the other dog from *Ginger's* frame data -- his sheet
+ * is baked with her camera, cell and clips precisely so that it can. If the
+ * two layouts ever part, he is drawn from the wrong frames: wagging when he
+ * should trot, or cut off at the edge of a cell. */
+test("the other dog's sheet is laid out exactly as Ginger's", () => {
+  const hers = JSON.parse(readFileSync(new URL('../assets/sprites/ginger_side.json', import.meta.url)));
+  const his = JSON.parse(readFileSync(new URL('../assets/sprites/thief_side.json', import.meta.url)));
+  delete hers.image; delete his.image;
+  assert.deepEqual(his, hers, 'thief_side.json and ginger_side.json differ in ' +
+    'layout -- rebuild both with build.py, from the same camera and clips');
 });
 
 /* ---- the movement budget ---------------------------------------------- */

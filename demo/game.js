@@ -1907,8 +1907,9 @@
   }
 
   function makeThiefSheet(src) {
-    // A second dog from one sprite sheet: draw hers, then wash a colour over
-    // the pixels that are actually her, so the silhouette survives.
+    // The fallback only: if his own sheet will not load, a second dog made
+    // from hers -- draw hers, then wash a colour over the pixels that are
+    // actually her, so the silhouette survives.
     var off = document.createElement("canvas");
     off.width = src.width; off.height = src.height;
     var c = off.getContext("2d");
@@ -1922,9 +1923,19 @@
 
   if (GDATA) {
     gingerSheet = new Image();
-    gingerSheet.onload = function () { thiefSheet = makeThiefSheet(gingerSheet); };
     gingerSheet.src = window.GINGER_IMAGE ||
       "assets/sprites/" + GDATA.image;
+    /* The other dog has his own sheet now (tools/mc/thief.py), baked with
+     * her camera, cell and clips -- so it is laid out exactly as hers, which
+     * tests/rules.test.mjs holds, and is drawn from her frame data. If it
+     * cannot be had, fall back to washing hers grey, as it always used to. */
+    var own = new Image();
+    own.onload = function () { thiefSheet = own; };
+    own.onerror = function () {
+      if (gingerSheet.complete) thiefSheet = makeThiefSheet(gingerSheet);
+      else gingerSheet.onload = function () { thiefSheet = makeThiefSheet(gingerSheet); };
+    };
+    own.src = "assets/sprites/thief_side.png";
   }
 
   sheet.onload = function () {

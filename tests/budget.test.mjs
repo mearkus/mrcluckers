@@ -36,8 +36,8 @@ const BUDGET = {
   downloadKB: 6600,      // 5590 at the time, the park
   drawCalls: 76,         // 59, the shed
   triangles: 27000,      // 21092, the garden
-  textures: 24,          // 19, the park
-  textureMB: 4.2,        // 3.27, the outdoor levels (mipmaps counted)
+  textures: 18,          // 14, the outdoor levels, with maps shared
+  textureMB: 3.7,        // 2.94, the outdoor levels (mipmaps counted)
 };
 
 let site, browser;

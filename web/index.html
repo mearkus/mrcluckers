@@ -584,7 +584,35 @@ for (const p of PLATFORMS) {
  * Depth is the one thing this demo can do that the canvas cannot: a prop sits
  * behind or in front of the play plane rather than merely being drawn in a
  * different order, so it parallaxes for free as the camera tracks. */
-const PROPS = (await new GLTFLoader().loadAsync('../assets/model/props.glb')).scene;
+/* One copy of each fabric map, whichever file it came in.
+ *
+ * Every model file embeds the same eight fabric maps -- they are built once
+ * by build.py and written into each GLB so that each stays a self-contained
+ * file -- and three.js uploads every one it loads. With Mr. Cluckers, Ginger,
+ * the props and the other dog all in a level, that was four copies of each
+ * on a phone's GPU, and the fourth file took texture memory to 98% of its
+ * budget (tests/budget.test.mjs). The maps carry their image names
+ * (fur_basecolor, felt_normal, ...), so the first of each name loaded is
+ * kept and every later material is pointed at it; the copies are never
+ * uploaded at all. */
+const sharedMaps = new Map();
+function shareTextures(root) {
+  root.traverse((o) => {
+    if (!o.material) return;
+    for (const m of [].concat(o.material)) {
+      for (const k of ['map', 'normalMap', 'roughnessMap', 'sheenColorMap']) {
+        const t = m[k];
+        if (!t || !t.name) continue;
+        const kept = sharedMaps.get(t.name);
+        if (!kept) sharedMaps.set(t.name, t);
+        else if (kept !== t) { m[k] = kept; t.dispose(); }
+      }
+    }
+  });
+  return root;
+}
+const PROPS = shareTextures(
+  (await new GLTFLoader().loadAsync('../assets/model/props.glb')).scene);
 /** A fresh copy of one prop from the file, ready to place. */
 function prop(name) {
   const src = PROPS.getObjectByName(name);
@@ -998,14 +1026,15 @@ const water = createWater(scene, LEVEL.hazards, THEME, {
 // Ginger waits at the goal, facing back down the level so she is looking at
 // him as he arrives.
 let ginger = null, gingerShadow = null, distraction = null;
-/* Her file, fetched and parsed once. The other dog at the park and the one in
- * the fetch round are both her, darkened, and each used to load the whole
- * file again -- up to three copies of the same megabyte and three parses on
- * a phone. She takes the original; they take clones (see loadOtherDog). */
-const gingerAsset = (LEVEL.goal || (LEVEL.thieves || []).length)
+// Her file, and the other dog's: each fetched and parsed once. The other dog
+// turns up at the park and in every fetch round, so his is cloned per use.
+const gingerAsset = LEVEL.goal
   ? new GLTFLoader().loadAsync('../assets/model/ginger.glb') : null;
+const thiefAsset = (LEVEL.goal || (LEVEL.thieves || []).length)
+  ? new GLTFLoader().loadAsync('../assets/model/thief.glb') : null;
 if (LEVEL.goal) {
   const gltf = await gingerAsset;
+  shareTextures(gltf.scene);
   const pivot = new THREE.Group();
   pivot.rotation.y = -Math.PI / 2;
   pivot.add(gltf.scene);
@@ -1090,29 +1119,16 @@ const critterMeshes = distraction ? distraction.critters.map((c) => {
   return g;
 }) : [];
 
-// The other dog at the park: the same model, darkened so nobody mistakes it
-// for Ginger, driven by the `trot` clip she just gained.
+/* The other dog at the park, who steals the toy, and who turns up again in
+ * every fetch round. He was Ginger darkened -- her blaze and her collar in a
+ * bad light -- and is his own dog now (tools/mc/thief.py): scruffy, grey, a
+ * bandit mask and a red neckerchief. He has her skeleton, so her clips drive
+ * him, including the `trot` this file asks for. A clone per dog: the parts
+ * are rigid nodes, so a plain clone carries everything the clips animate. */
 async function loadOtherDog() {
-  // A copy of her parsed scene -- the parts are rigid nodes, not a skinned
-  // mesh, so a plain clone carries everything the clips animate. The tint
-  // below clones the materials, so she keeps her own colours.
-  const src = await gingerAsset;
+  const src = await thiefAsset;
+  shareTextures(src.scene);
   const gltf = { scene: src.scene.clone(true), animations: src.animations };
-  let tinted = 0;
-  gltf.scene.traverse((o) => {
-    if (!o.isMesh || !o.material) return;
-    const mats = Array.isArray(o.material) ? o.material : [o.material];
-    const swapped = mats.map((m) => {
-      const c = m.clone();
-      // The colour multiplies the fabric map, so a cool grey darkens the coat
-      // without flattening its texture.
-      c.color.setHex(0x59606f);
-      tinted++;
-      return c;
-    });
-    o.material = Array.isArray(o.material) ? swapped : swapped[0];
-  });
-  window.__thiefTinted = tinted;
   const pivot = new THREE.Group();
   pivot.rotation.y = -Math.PI / 2;
   pivot.add(gltf.scene);
@@ -1152,6 +1168,7 @@ const shadow = contactShadow(30, 0.30);
 
 document.title = LEVEL.name + ' - Mr. Cluckers';
 const bird = await Cluckers.load('../assets/model/mrcluckers.glb');
+shareTextures(bird.gltf.scene);
 scene.add(bird.root);
 // Dust in the light indoors, leaves falling outdoors -- see web/ambient.js.
 const ambient = createAmbient(scene, THEME, {
