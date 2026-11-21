@@ -19,7 +19,7 @@ import time
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "tools"))
 
 from mc import anim, ginger, ginger_anim, gltf, obj, png, pose as po  # noqa: E402
-from mc import props, raster, rig, sprites  # noqa: E402
+from mc import props, raster, rig, sprites, thief  # noqa: E402
 from mc import mesh as ms, texture, vmath as v  # noqa: E402
 
 VIEWS = {
@@ -138,6 +138,56 @@ def build_ginger(out_dir, ref_dir, textures=None, maps=None, flop=1.0):
     png.write_rgba(os.path.join(ref_dir, "ginger_turnaround.png"),
                    cell * steps, cell, sheet)
     print("  %-38s %4dx%-4d" % ("ginger_turnaround.png", cell * steps, cell))
+
+
+def build_thief(out_dir, ref_dir, sprite_dir, textures=None, maps=None, flop=1.0,
+                px_per_unit=72.73):
+    """The other dog at the park: his model, a turnaround, and his sheet.
+
+    His sheet is baked exactly as hers is -- same camera, cell and clips --
+    so its layout is hers frame for frame, and the canvas demo draws him from
+    her frame data. tests/assets.check.mjs holds the two layouts equal.
+    """
+    os.makedirs(out_dir, exist_ok=True)
+    parts = thief.build_parts()
+    clips = ginger_anim.all_clips(flop=flop)
+    doc, blob = gltf.build_gltf(parts, thief.MATERIALS, clips=clips, base=None,
+                                name="Thief", textures=textures, skeleton=thief)
+    size = gltf.write_glb(os.path.join(out_dir, "thief.glb"), doc, blob)
+    print("  %-38s %7.1f KB" % ("thief.glb", size / 1024.0))
+
+    flat = po.bake(parts, skel=thief)
+    os.makedirs(ref_dir, exist_ok=True)
+    cell, steps = 300, 8
+    sheet = bytearray(cell * steps * cell * 4)
+    for i in range(steps):
+        cam = raster.Camera(yaw=v.deg(360.0 * i / steps), pitch=v.deg(7),
+                            target=(0.0, 0.72, 0.0), height=2.35)
+        png.blit(sheet, cell * steps,
+                 raster.render(flat, thief.MATERIALS, cell, cell, cam,
+                               supersample=3, outline=0.25, textures=maps),
+                 cell, cell, i * cell, 0)
+    png.write_rgba(os.path.join(ref_dir, "thief_turnaround.png"),
+                   cell * steps, cell, sheet)
+    print("  %-38s %4dx%-4d" % ("thief_turnaround.png", cell * steps, cell))
+
+    os.makedirs(sprite_dir, exist_ok=True)
+    cell_w, cell_h = 192, 144
+    camera = sprites.make_camera(cell_w, view_height=cell_h / px_per_unit,
+                                 target_y=0.74, pitch=v.deg(4.0))
+    rows, total = [], 0
+    for name in ["sit_idle", "greet", "wag", "stand", "trot"]:
+        frames = sprites.render_frames(parts, thief.MATERIALS, clips[name].poses(),
+                                       camera, cell_w, cell_h=cell_h,
+                                       supersample=2, outline=0.28,
+                                       textures=maps, skel=thief)
+        rows.append((name, frames))
+        total += len(frames)
+    w, h = sprites.write_sheet(os.path.join(sprite_dir, "thief_side.png"),
+                               os.path.join(sprite_dir, "thief_side.json"),
+                               rows, clips, cell_w, camera, view_name="side",
+                               cell_h=cell_h, global_key="THIEF")
+    print("  %-38s %4dx%-4d %d frames" % ("thief_side.png", w, h, total))
 
 
 def build_ginger_sprites(out_dir, maps=None, flop=1.0, px_per_unit=72.73):
@@ -365,12 +415,12 @@ def main():
     ap.add_argument("--levels", default="levels", help="level source directory")
     ap.add_argument("--only",
                     choices=["model", "sprites", "turnaround", "levels", "ginger",
-                             "keyart", "props"],
+                             "keyart", "props", "thief"],
                     action="append", help="build only these (repeatable)")
     args = ap.parse_args()
 
     only = set(args.only or ["model", "sprites", "turnaround", "levels",
-                             "ginger", "keyart", "props"])
+                             "ginger", "keyart", "props", "thief"])
     print("Mr. Cluckers build")
     t0 = time.time()
 
@@ -409,6 +459,10 @@ def main():
         build_ginger(os.path.join(args.out, "model"),
                      os.path.join(args.out, "reference"), encoded, maps)
         build_ginger_sprites(os.path.join(args.out, "sprites"), maps)
+    if "thief" in only:
+        build_thief(os.path.join(args.out, "model"),
+                    os.path.join(args.out, "reference"),
+                    os.path.join(args.out, "sprites"), encoded, maps)
     if "props" in only:
         build_props(os.path.join(args.out, "model"),
                     os.path.join(args.out, "reference"), encoded, maps)

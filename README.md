@@ -27,6 +27,9 @@ python3 build.py
 | `assets/sprites/mrcluckers_side.json` | Frame rectangles, timings, and the foot anchor. |
 | `assets/sprites/mrcluckers_side.js` | The same data as a `<script>` tag, for `file://` demos. |
 | `assets/sprites/ginger_side.png` + `.json` | Ginger's sheet, baked at the same pixels-per-unit so the two are to scale. |
+| `assets/model/thief.glb` | The other dog at the park, with Ginger's clips. |
+| `assets/sprites/thief_side.png` + `.json` | His sheet, laid out exactly as Ginger's. |
+| `assets/reference/thief_turnaround.png` | His eight-angle turnaround. |
 | `assets/textures/*.png` | Tiling fabric maps: base colour and normals for fur, corduroy and felt. |
 | `assets/reference/turnaround.png` | Eight-angle turnaround for reference. |
 | `assets/art/keyart.png` | Both characters in one render, on transparency. The title screen's hero image. |
@@ -881,10 +884,15 @@ pair. The knee and hock fold only on the recovery half of the stride — that is
 what stops it looking like a rocking horse — and the body bobs *twice* a cycle
 because a foot lands twice. Ginger has it too, for whenever she needs to move.
 
-The other dog is her model, tinted: a cool grey multiplied over the fabric map,
-which darkens the coat without flattening its texture. In the three.js demo the
-first attempt silently did nothing, because those meshes carry material
-*arrays* and `material.clone()` on an array has no `.color` to set.
+The other dog began as her model, tinted grey. He is his own dog now
+(`tools/mc/thief.py`): a scruffy, wire-coated grey mutt with a black bandit
+mask across his eyes, pricked ears, a bushy tail carried high and a red
+neckerchief, so the dog after your toy is never mistaken for the one you are
+trying to reach. He keeps her skeleton, legs and body, so her clips -- `trot`
+included -- drive him unchanged, and his sprite sheet is baked with her camera,
+cell and clips: laid out exactly as hers, so the canvas demo draws him from her
+frame data (`tests/rules.test.mjs` holds the two layouts equal). If his sheet
+cannot be loaded, the canvas demo still falls back to washing hers grey.
 
 ## Squirrels and birds
 
